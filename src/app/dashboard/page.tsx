@@ -1,11 +1,35 @@
-'use client';
+"use client";
 
-import { mockRisks, mockControls, mockComplianceItems } from '@/lib/mock-data';
-import { DashboardSummary } from '@/features/dashboard/DashboardSummary';
-import { RiskHighlights } from '@/features/dashboard/RiskHighlights';
-import { OverdueItems } from '@/features/dashboard/OverdueItems';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+import { mockRisks, mockControls, mockComplianceItems } from "@/lib/mock-data";
+import { DashboardSummary } from "@/features/dashboard/DashboardSummary";
+import { RiskHighlights } from "@/features/dashboard/RiskHighlights";
+import { OverdueItems } from "@/features/dashboard/OverdueItems";
 
 export default function DashboardPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const user = localStorage.getItem("grc_user");
+
+    if (!user) {
+      router.push("/login");
+    } else {
+      setIsAuthenticated(true);
+    }
+  }, [router]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-slate-600">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>

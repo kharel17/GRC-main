@@ -1,6 +1,8 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Shield, AlertTriangle, CheckCircle2, BarChart3 } from 'lucide-react';
+"use client";
+
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Shield, AlertTriangle, CheckCircle2, BarChart3 } from "lucide-react";
 
 export default function LandingPage() {
   return (
@@ -12,7 +14,9 @@ export default function LandingPage() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">GRC</span>
             </div>
-            <span className="font-semibold text-lg text-slate-900">GRC Platform</span>
+            <span className="font-semibold text-lg text-slate-900">
+              GRC Platform
+            </span>
           </div>
           <Link href="/login">
             <Button variant="outline">Sign In</Button>
@@ -28,7 +32,8 @@ export default function LandingPage() {
             <span className="block text-blue-600 mt-2">Made Simple</span>
           </h1>
           <p className="text-xl text-slate-600 mb-8">
-            Lightweight GRC platform for managing organizational risks, controls, and compliance requirements in one place.
+            Lightweight GRC platform for managing organizational risks,
+            controls, and compliance requirements in one place.
           </p>
           <div className="flex gap-4 justify-center">
             <Link href="/login">
@@ -54,9 +59,12 @@ export default function LandingPage() {
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
               <AlertTriangle className="h-6 w-6 text-red-600" />
             </div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-3">Risk Management</h3>
+            <h3 className="text-xl font-semibold text-slate-900 mb-3">
+              Risk Management
+            </h3>
             <p className="text-slate-600">
-              Identify, assess, and mitigate organizational risks with transparent scoring and prioritization.
+              Identify, assess, and mitigate organizational risks with
+              transparent scoring and prioritization.
             </p>
           </div>
 
@@ -64,9 +72,12 @@ export default function LandingPage() {
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
               <Shield className="h-6 w-6 text-blue-600" />
             </div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-3">Control Framework</h3>
+            <h3 className="text-xl font-semibold text-slate-900 mb-3">
+              Control Framework
+            </h3>
             <p className="text-slate-600">
-              Implement and track preventive, detective, and corrective controls across your organization.
+              Implement and track preventive, detective, and corrective controls
+              across your organization.
             </p>
           </div>
 
@@ -74,9 +85,12 @@ export default function LandingPage() {
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
               <CheckCircle2 className="h-6 w-6 text-green-600" />
             </div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-3">Compliance Tracking</h3>
+            <h3 className="text-xl font-semibold text-slate-900 mb-3">
+              Compliance Tracking
+            </h3>
             <p className="text-slate-600">
-              Monitor compliance status across multiple frameworks including SOC2, ISO27001, and GDPR.
+              Monitor compliance status across multiple frameworks including
+              SOC2, ISO27001, and GDPR.
             </p>
           </div>
         </div>

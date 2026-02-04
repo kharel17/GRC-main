@@ -18,7 +18,7 @@ export function Header({ user, title }: HeaderProps) {
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 md:ml-64">
+    <header className="sticky top-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
       <div>
         <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
       </div>

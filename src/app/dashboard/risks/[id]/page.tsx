@@ -15,7 +15,7 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
   if (!risk) {
     return (
       <div className="space-y-4">
-        <Link href="/risks" className="inline-flex items-center gap-2 text-blue-600 hover:underline">
+        <Link href="/dashboard/risks" className="inline-flex items-center gap-2 text-blue-600 hover:underline">
           <ArrowLeft className="h-4 w-4" />
           Back to risks
         </Link>
@@ -27,7 +27,7 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Link href="/risks" className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900">
+        <Link href="/dashboard/risks" className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
           <span className="text-sm">Back to risks</span>
         </Link>

@@ -27,11 +27,11 @@ export function Sidebar({ role }: SidebarProps) {
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: BarChart3, roles: ['admin', 'analyst', 'manager'] },
-    { href: '/risks', label: 'Risks', icon: AlertTriangle, roles: ['admin', 'analyst', 'manager'] },
-    { href: '/controls', label: 'Controls', icon: Shield, roles: ['admin', 'analyst', 'manager'] },
-    { href: '/evidence', label: 'Evidence', icon: FileText, roles: ['admin', 'analyst', 'manager'] },
-    { href: '/audits', label: 'Audit Log', icon: Clock, roles: ['admin', 'analyst', 'manager'] },
-    { href: '/reports', label: 'Reports', icon: CheckCircle2, roles: ['admin', 'analyst', 'manager'] },
+    { href: '/dashboard/risks', label: 'Risks', icon: AlertTriangle, roles: ['admin', 'analyst', 'manager'] },
+    { href: '/dashboard/controls', label: 'Controls', icon: Shield, roles: ['admin', 'analyst', 'manager'] },
+    { href: '/dashboard/evidence', label: 'Evidence', icon: FileText, roles: ['admin', 'analyst', 'manager'] },
+    { href: '/dashboard/audits', label: 'Audit Log', icon: Clock, roles: ['admin', 'analyst', 'manager'] },
+    { href: '/dashboard/reports', label: 'Reports', icon: CheckCircle2, roles: ['admin', 'analyst', 'manager'] },
   ];
 
   const visibleItems = navItems.filter((item) => item.roles.includes(role));
@@ -91,7 +91,7 @@ export function Sidebar({ role }: SidebarProps) {
 
         <div className="p-4 border-t border-slate-200 space-y-3">
           <Link
-            href="/settings"
+            href="/dashboard/settings"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
           >

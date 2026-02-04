@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { mockEvidence } from '@/lib/mock-data';
+import { mockEvidence } from "@/lib/mock-data";
 import {
   Table,
   TableBody,
@@ -8,10 +8,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Plus, FileText, CheckCircle2 } from 'lucide-react';
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Plus, FileText, CheckCircle2 } from "lucide-react";
 
 export default function EvidencePage() {
   return (
@@ -19,7 +19,9 @@ export default function EvidencePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Evidence</h1>
-          <p className="text-sm text-slate-600">Supporting documentation for risks and controls</p>
+          <p className="text-sm text-slate-600">
+            Supporting documentation for risks and controls
+          </p>
         </div>
         <Button className="gap-2">
           <Plus className="h-4 w-4" />
@@ -49,9 +51,7 @@ export default function EvidencePage() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="text-sm">
-                  {item.relatedName}
-                </TableCell>
+                <TableCell className="text-sm">{item.relatedName}</TableCell>
                 <TableCell className="text-sm text-slate-600">
                   {item.uploadedByName}
                 </TableCell>

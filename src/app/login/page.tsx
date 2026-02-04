@@ -1,40 +1,58 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { AlertCircle } from 'lucide-react';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       await new Promise((resolve) => setTimeout(resolve, 800));
+
       const mockUsers = [
-        { email: 'alice@company.com', password: 'demo', role: 'admin' },
-        { email: 'bob@company.com', password: 'demo', role: 'analyst' },
-        { email: 'carol@company.com', password: 'demo', role: 'manager' },
+        { email: "alice@company.com", password: "demo", role: "admin" },
+        { email: "bob@company.com", password: "demo", role: "analyst" },
+        { email: "carol@company.com", password: "demo", role: "manager" },
       ];
 
-      const user = mockUsers.find((u) => u.email === email && u.password === password);
+      const user = mockUsers.find(
+        (u) => u.email === email && u.password === password,
+      );
+
       if (user) {
-        localStorage.setItem('grc_user', JSON.stringify({ email, role: user.role }));
-        window.location.href = '/dashboard';
+        localStorage.setItem(
+          "grc_user",
+          JSON.stringify({ email: user.email, role: user.role }),
+        );
+
+        router.push("/dashboard");
       } else {
-        setError('Invalid email or password');
+        setError("Invalid email or password");
       }
     } catch {
-      setError('An error occurred. Please try again.');
+      setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -49,10 +67,15 @@ export default function LoginPage() {
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">GRC</span>
               </div>
-              <span className="font-semibold text-lg text-slate-900">GRC Platform</span>
+              <span className="font-semibold text-lg text-slate-900">
+                GRC Platform
+              </span>
             </div>
+
             <CardTitle className="text-2xl">Sign in</CardTitle>
-            <CardDescription>Risk-aware compliance management platform</CardDescription>
+            <CardDescription>
+              Risk-aware compliance management platform
+            </CardDescription>
           </CardHeader>
 
           <CardContent>
@@ -76,8 +99,11 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
                   className="bg-slate-50"
+                  autoComplete="email"
                 />
-                <p className="text-xs text-slate-500 mt-1">Demo: alice@company.com</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Demo: alice@company.com
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -92,17 +118,25 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
                   className="bg-slate-50"
+                  autoComplete="current-password"
                 />
                 <p className="text-xs text-slate-500 mt-1">Demo: demo</p>
               </div>
 
-              <Button type="submit" className="w-full mt-6" disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign in'}
+              <Button
+                type="submit"
+                className="w-full mt-6"
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing in..." : "Sign in"}
               </Button>
             </form>
 
             <div className="mt-6 pt-6 border-t border-slate-200">
-              <p className="text-xs text-slate-600 mb-3 font-semibold">Test Accounts:</p>
+              <p className="text-xs text-slate-600 mb-3 font-semibold">
+                Test Accounts:
+              </p>
+
               <div className="space-y-2 text-xs text-slate-600">
                 <p>
                   <strong>Admin:</strong> alice@company.com / demo

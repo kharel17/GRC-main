@@ -130,7 +130,7 @@ const { data: risks } = await fetchRisks();
 
 ## Performance Metrics
 
-From `npm run build`:
+From `yarn run build`:
 
 | Page        | Size    | First Load JS |
 | ----------- | ------- | ------------- |

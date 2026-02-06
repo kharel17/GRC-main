@@ -1,55 +1,237 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useState } from 'react';
+import { mockUsers } from '@/lib/mock-data';
+
+// Use first mock user as current user
+const mockCurrentUser = mockUsers[0];
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  User,
+  Shield,
+  Bell,
+  Settings,
+  Lock,
+  Mail,
+  Globe,
+  Moon,
+  Palette,
+} from 'lucide-react';
 
 export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState('profile');
+  
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900 mb-1">Settings</h1>
         <p className="text-sm text-slate-600">
-          Manage account and system settings
+          Manage your account settings and preferences
         </p>
       </div>
 
-      <div className="max-w-2xl space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-600 mb-4">
-              Update your account information
-            </p>
-            <Button variant="outline">Edit Profile</Button>
-          </CardContent>
-        </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1 gap-1">
+          <TabsTrigger value="profile" className="gap-2 py-2">
+            <User className="h-4 w-4" />
+            <span className="hidden sm:inline">Profile</span>
+          </TabsTrigger>
+          <TabsTrigger value="preferences" className="gap-2 py-2">
+            <Palette className="h-4 w-4" />
+            <span className="hidden sm:inline">Preferences</span>
+          </TabsTrigger>
+          <TabsTrigger value="security" className="gap-2 py-2">
+            <Shield className="h-4 w-4" />
+            <span className="hidden sm:inline">Security</span>
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-2 py-2">
+            <Bell className="h-4 w-4" />
+            <span className="hidden sm:inline">Notifications</span>
+          </TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Preferences</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-600 mb-4">
-              Customize your experience
-            </p>
-            <Button variant="outline">Change Preferences</Button>
-          </CardContent>
-        </Card>
+        {/* Profile Tab */}
+        <TabsContent value="profile" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Profile Information
+              </CardTitle>
+              <CardDescription>
+                Update your personal information and profile settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input id="fullName" defaultValue={mockCurrentUser.fullName} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" defaultValue={mockCurrentUser.email} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="department">Department</Label>
+                  <Input id="department" defaultValue={mockCurrentUser.department} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Role</Label>
+                  <div className="h-10 flex items-center">
+                    <Badge className="capitalize">{mockCurrentUser.role}</Badge>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-4 flex justify-end">
+                <Button>Save Changes</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Security</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-600 mb-4">
-              Manage your account security
-            </p>
-            <Button variant="outline">Change Password</Button>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Preferences Tab */}
+        <TabsContent value="preferences" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Palette className="h-5 w-5" />
+                Display Preferences
+              </CardTitle>
+              <CardDescription>
+                Customize how the application looks and behaves
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    <Moon className="h-4 w-4" />
+                    Dark Mode
+                  </Label>
+                  <p className="text-xs text-slate-500">Use dark theme for the interface</p>
+                </div>
+                <Switch />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Compact View
+                  </Label>
+                  <p className="text-xs text-slate-500">Reduce spacing between elements</p>
+                </div>
+                <Switch />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    <Globe className="h-4 w-4" />
+                    Language
+                  </Label>
+                  <p className="text-xs text-slate-500">Currently set to English (US)</p>
+                </div>
+                <Button variant="outline" size="sm">Change</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Security Tab */}
+        <TabsContent value="security" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                Password & Authentication
+              </CardTitle>
+              <CardDescription>
+                Manage your password and security settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div>
+                  <p className="font-medium text-sm">Password</p>
+                  <p className="text-xs text-slate-500">Last changed 30 days ago</p>
+                </div>
+                <Button variant="outline">Change Password</Button>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div>
+                  <p className="font-medium text-sm">Two-Factor Authentication</p>
+                  <p className="text-xs text-slate-500">Add an extra layer of security</p>
+                </div>
+                <Badge variant="outline">Not Enabled</Badge>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div>
+                  <p className="font-medium text-sm">Active Sessions</p>
+                  <p className="text-xs text-slate-500">You are logged in on 2 devices</p>
+                </div>
+                <Button variant="outline" size="sm">View All</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Notifications Tab */}
+        <TabsContent value="notifications" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Notification Preferences
+              </CardTitle>
+              <CardDescription>
+                Choose how and when you want to be notified
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Email Notifications
+                  </Label>
+                  <p className="text-xs text-slate-500">Receive notifications via email</p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Risk Alerts</Label>
+                  <p className="text-xs text-slate-500">Get alerted when high-risk items are identified</p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Compliance Deadlines</Label>
+                  <p className="text-xs text-slate-500">Reminders for upcoming compliance deadlines</p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Weekly Digest</Label>
+                  <p className="text-xs text-slate-500">Summary of all activities sent weekly</p>
+                </div>
+                <Switch />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

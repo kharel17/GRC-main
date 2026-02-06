@@ -2,45 +2,46 @@
 
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
-import { useEffect, useState } from "react";
-import { UserProfile } from "@/types/user";
-import { mockUsers } from "@/lib/mock-data";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    const userStr = localStorage.getItem("grc_user");
-    if (!userStr) {
-      window.location.href = "/login";
-      return;
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login");
     }
+  }, [isLoading, isAuthenticated, router]);
 
-    const userEmail = JSON.parse(userStr).email;
-    const foundUser = mockUsers.find((u) => u.email === userEmail);
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-sm text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
-    if (foundUser) {
-      setUser(foundUser);
-    } else {
-      localStorage.removeItem("grc_user");
-      window.location.href = "/login";
-    }
-
-    setIsLoading(false);
-  }, []);
-
-  if (isLoading || !user) {
+  // Don't render layout if not authenticated
+  if (!isAuthenticated || !user) {
     return <div className="h-screen bg-slate-50" />;
   }
 
   return (
     <div className="flex bg-slate-50">
-      <Sidebar role={user.role} />
+      <Sidebar />
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
         <Header user={user} />
         <main className="flex-1 overflow-auto">

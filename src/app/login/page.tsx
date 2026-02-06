@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,43 +13,74 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      const redirect = searchParams.get("redirect") || "/dashboard";
+      router.push(redirect);
+    }
+  }, [isAuthenticated, authLoading, router, searchParams]);
+
+  // Email validation
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
+    // Client-side validation
+    if (!email.trim()) {
+      setError("Email is required");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setError("Please enter a valid email address");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!password) {
+      setError("Password is required");
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const result = await login(email, password);
 
-      const mockUsers = [
-        { email: "alice@company.com", password: "demo", role: "admin" },
-        { email: "bob@company.com", password: "demo", role: "analyst" },
-        { email: "carol@company.com", password: "demo", role: "manager" },
-      ];
+      if (result.success) {
+        // Set cookie for middleware (in development)
+        // In production, this should be handled server-side with HTTP-only cookies
+        const tokens = localStorage.getItem("grc_tokens");
+        if (tokens) {
+          const { accessToken } = JSON.parse(tokens);
+          document.cookie = `grc_access_token=${accessToken}; path=/; max-age=3600; SameSite=Lax`;
+        }
 
-      const user = mockUsers.find(
-        (u) => u.email === email && u.password === password,
-      );
-
-      if (user) {
-        localStorage.setItem(
-          "grc_user",
-          JSON.stringify({ email: user.email, role: user.role }),
-        );
-
-        router.push("/dashboard");
+        // Redirect based on role or to specified redirect path
+        const redirect = searchParams.get("redirect") || "/dashboard";
+        window.location.href = redirect;
       } else {
-        setError("Invalid email or password");
+        setError(result.error || "Invalid email or password");
       }
     } catch {
       setError("An error occurred. Please try again.");
@@ -57,6 +88,15 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  // Show loading if checking auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
@@ -100,8 +140,9 @@ export default function LoginPage() {
                   disabled={isLoading}
                   className="bg-slate-50"
                   autoComplete="email"
+                  aria-describedby="email-hint"
                 />
-                <p className="text-xs text-slate-500 mt-1">
+                <p id="email-hint" className="text-xs text-slate-500 mt-1">
                   Demo: alice@company.com
                 </p>
               </div>
@@ -119,8 +160,11 @@ export default function LoginPage() {
                   disabled={isLoading}
                   className="bg-slate-50"
                   autoComplete="current-password"
+                  aria-describedby="password-hint"
                 />
-                <p className="text-xs text-slate-500 mt-1">Demo: demo</p>
+                <p id="password-hint" className="text-xs text-slate-500 mt-1">
+                  Demo: demo
+                </p>
               </div>
 
               <Button
@@ -128,7 +172,14 @@ export default function LoginPage() {
                 className="w-full mt-6"
                 disabled={isLoading}
               >
-                {isLoading ? "Signing in..." : "Sign in"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign in"
+                )}
               </Button>
             </form>
 
@@ -139,13 +190,13 @@ export default function LoginPage() {
 
               <div className="space-y-2 text-xs text-slate-600">
                 <p>
-                  <strong>Admin:</strong> alice@company.com / demo
+                  <strong className="text-blue-600">Admin:</strong> alice@company.com / demo
                 </p>
                 <p>
-                  <strong>Analyst:</strong> bob@company.com / demo
+                  <strong className="text-green-600">Analyst:</strong> bob@company.com / demo
                 </p>
                 <p>
-                  <strong>Manager:</strong> carol@company.com / demo
+                  <strong className="text-purple-600">Manager:</strong> carol@company.com / demo
                 </p>
               </div>
             </div>

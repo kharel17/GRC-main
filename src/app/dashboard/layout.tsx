@@ -25,10 +25,10 @@ export default function DashboardLayout({
   // Show loading state while checking auth
   if (isLoading) {
     return (
-      <div className="h-screen bg-slate-50 flex items-center justify-center">
+      <div className="h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-sm text-slate-600">Loading...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -36,14 +36,14 @@ export default function DashboardLayout({
 
   // Don't render layout if not authenticated
   if (!isAuthenticated || !user) {
-    return <div className="h-screen bg-slate-50" />;
+    return <div className="h-screen bg-background" />;
   }
 
   return (
-    <div className="flex bg-slate-50">
+    <div className="flex min-h-screen bg-muted/40">
       <Sidebar />
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
-        <Header user={user} />
+        <Header user={user} title="Dashboard" />
         <main className="flex-1 overflow-auto">
           <div className="p-6 max-w-7xl mx-auto">{children}</div>
         </main>

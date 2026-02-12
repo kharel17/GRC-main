@@ -15,6 +15,7 @@ import {
   X,
   Users,
   ShieldCheck,
+  Ticket,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,12 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Audit Log', 
     icon: Clock, 
     roles: ['admin', 'manager'] 
+  },
+  { 
+    href: '/dashboard/tickets', 
+    label: 'Tickets', 
+    icon: Ticket, 
+    roles: ['admin', 'analyst', 'manager'] 
   },
   { 
     href: '/dashboard/reports', 

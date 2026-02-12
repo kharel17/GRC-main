@@ -66,13 +66,13 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
     <Card className="border-dashed">
       <CardContent className="py-12 text-center">
         {icon && (
-          <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+          <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
             {icon}
           </div>
         )}
-        <h3 className="text-sm font-medium text-slate-900 mb-1">{title}</h3>
+        <h3 className="text-sm font-medium text-foreground mb-1">{title}</h3>
         {description && (
-          <p className="text-sm text-slate-500 mb-4">{description}</p>
+          <p className="text-sm text-muted-foreground mb-4">{description}</p>
         )}
         {action}
       </CardContent>
@@ -86,7 +86,7 @@ export function ListSkeleton({ rows = 5 }: { rows?: number }) {
     <div className="space-y-3">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="animate-pulse">
-          <div className="h-16 bg-slate-100 rounded-lg" />
+          <div className="h-16 bg-muted rounded-lg" />
         </div>
       ))}
     </div>
@@ -100,12 +100,12 @@ export function CardSkeleton({ count = 3 }: { count?: number }) {
       {Array.from({ length: count }).map((_, i) => (
         <Card key={i} className="animate-pulse">
           <CardContent className="pt-6 space-y-3">
-            <div className="h-4 bg-slate-100 rounded w-3/4" />
-            <div className="h-3 bg-slate-100 rounded w-full" />
-            <div className="h-3 bg-slate-100 rounded w-1/2" />
+            <div className="h-4 bg-muted rounded w-3/4" />
+            <div className="h-3 bg-muted rounded w-full" />
+            <div className="h-3 bg-muted rounded w-1/2" />
             <div className="flex gap-2 mt-4">
-              <div className="h-5 w-16 bg-slate-100 rounded-full" />
-              <div className="h-5 w-16 bg-slate-100 rounded-full" />
+              <div className="h-5 w-16 bg-muted rounded-full" />
+              <div className="h-5 w-16 bg-muted rounded-full" />
             </div>
           </CardContent>
         </Card>

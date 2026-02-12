@@ -15,56 +15,56 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 function AdminSystemOverview() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+      <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/40 dark:to-blue-900/40 dark:border-blue-800">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-600 rounded-lg">
               <Shield className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-blue-900">{mockControls.length}</p>
-              <p className="text-sm text-blue-700">Active Controls</p>
+              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{mockControls.length}</p>
+              <p className="text-sm text-blue-700 dark:text-blue-300">Active Controls</p>
             </div>
           </div>
         </CardContent>
       </Card>
-      <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+      <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/40 dark:to-amber-900/40 dark:border-amber-800">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-600 rounded-lg">
               <AlertCircle className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-amber-900">
+              <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
                 {mockRisks.filter(r => r.status === 'identified').length}
               </p>
-              <p className="text-sm text-amber-700">Open Risks</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">Open Risks</p>
             </div>
           </div>
         </CardContent>
       </Card>
-      <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+      <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 dark:from-green-950/40 dark:to-green-900/40 dark:border-green-800">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-600 rounded-lg">
               <TrendingUp className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-900">87%</p>
-              <p className="text-sm text-green-700">Compliance Rate</p>
+              <p className="text-2xl font-bold text-green-900 dark:text-green-100">87%</p>
+              <p className="text-sm text-green-700 dark:text-green-300">Compliance Rate</p>
             </div>
           </div>
         </CardContent>
       </Card>
-      <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+      <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/40 dark:to-purple-900/40 dark:border-purple-800">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-600 rounded-lg">
               <Clock className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-purple-900">12</p>
-              <p className="text-sm text-purple-700">Pending Reviews</p>
+              <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">12</p>
+              <p className="text-sm text-purple-700 dark:text-purple-300">Pending Reviews</p>
             </div>
           </div>
         </CardContent>
@@ -94,16 +94,16 @@ function AnalystTaskWidget() {
           {pendingTasks.map((task) => (
             <div 
               key={task.id} 
-              className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
             >
               <div className="flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full ${
                   task.priority === 'high' ? 'bg-red-500' : 
                   task.priority === 'medium' ? 'bg-amber-500' : 'bg-green-500'
                 }`} />
-                <span className="text-sm font-medium text-slate-700">{task.title}</span>
+                <span className="text-sm font-medium text-foreground">{task.title}</span>
               </div>
-              <span className="text-xs text-slate-500">{task.due}</span>
+              <span className="text-xs text-muted-foreground">{task.due}</span>
             </div>
           ))}
         </div>
@@ -132,16 +132,16 @@ function ManagerReportsWidget() {
           {reports.map((report) => (
             <div 
               key={report.id} 
-              className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer"
             >
               <div>
-                <p className="text-sm font-medium text-slate-700">{report.title}</p>
-                <p className="text-xs text-slate-500">{report.date}</p>
+                <p className="text-sm font-medium text-foreground">{report.title}</p>
+                <p className="text-xs text-muted-foreground">{report.date}</p>
               </div>
               <span className={`text-xs px-2 py-1 rounded-full ${
                 report.status === 'Ready' 
-                  ? 'bg-green-100 text-green-700' 
-                  : 'bg-amber-100 text-amber-700'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' 
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
               }`}>
                 {report.status}
               </span>
@@ -180,8 +180,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">{greeting.title}</h1>
-        <p className="text-sm text-slate-600">{greeting.subtitle}</p>
+        <h1 className="text-2xl font-bold text-foreground mb-1">{greeting.title}</h1>
+        <p className="text-sm text-muted-foreground">{greeting.subtitle}</p>
       </div>
 
       {/* Admin-specific system overview */}
@@ -221,13 +221,13 @@ export default function DashboardPage() {
               <CardTitle className="text-lg">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <button className="w-full text-left p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors text-sm text-slate-700">
+              <button className="w-full text-left p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-sm text-foreground">
                 View Latest Audit Report →
               </button>
-              <button className="w-full text-left p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors text-sm text-slate-700">
+              <button className="w-full text-left p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-sm text-foreground">
                 Download Compliance Summary →
               </button>
-              <button className="w-full text-left p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors text-sm text-slate-700">
+              <button className="w-full text-left p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-sm text-foreground">
                 Schedule Review Meeting →
               </button>
             </CardContent>

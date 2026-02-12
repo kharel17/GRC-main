@@ -20,9 +20,9 @@ import {
   Lock,
   Mail,
   Globe,
-  Moon,
   Palette,
 } from 'lucide-react';
+import { ThemeSelector } from '@/components/settings/ThemeSelector';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -31,8 +31,8 @@ export default function SettingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">Settings</h1>
-        <p className="text-sm text-slate-600">
+        <h1 className="text-2xl font-bold text-foreground mb-1">Settings</h1>
+        <p className="text-sm text-muted-foreground">
           Manage your account settings and preferences
         </p>
       </div>
@@ -112,15 +112,16 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4">
                 <div className="space-y-0.5">
                   <Label className="flex items-center gap-2">
-                    <Moon className="h-4 w-4" />
-                    Dark Mode
+                    Theme Preferences
                   </Label>
-                  <p className="text-xs text-slate-500">Use dark theme for the interface</p>
+                  <p className="text-xs text-muted-foreground">Choose your preferred appearance</p>
                 </div>
-                <Switch />
+                <div className="w-full">
+                  <ThemeSelector />
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -128,7 +129,7 @@ export default function SettingsPage() {
                     <Settings className="h-4 w-4" />
                     Compact View
                   </Label>
-                  <p className="text-xs text-slate-500">Reduce spacing between elements</p>
+                  <p className="text-xs text-muted-foreground">Reduce spacing between elements</p>
                 </div>
                 <Switch />
               </div>
@@ -138,7 +139,7 @@ export default function SettingsPage() {
                     <Globe className="h-4 w-4" />
                     Language
                   </Label>
-                  <p className="text-xs text-slate-500">Currently set to English (US)</p>
+                  <p className="text-xs text-muted-foreground">Currently set to English (US)</p>
                 </div>
                 <Button variant="outline" size="sm">Change</Button>
               </div>
@@ -159,24 +160,24 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                 <div>
                   <p className="font-medium text-sm">Password</p>
-                  <p className="text-xs text-slate-500">Last changed 30 days ago</p>
+                  <p className="text-xs text-muted-foreground">Last changed 30 days ago</p>
                 </div>
                 <Button variant="outline">Change Password</Button>
               </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                 <div>
                   <p className="font-medium text-sm">Two-Factor Authentication</p>
-                  <p className="text-xs text-slate-500">Add an extra layer of security</p>
+                  <p className="text-xs text-muted-foreground">Add an extra layer of security</p>
                 </div>
                 <Badge variant="outline">Not Enabled</Badge>
               </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                 <div>
                   <p className="font-medium text-sm">Active Sessions</p>
-                  <p className="text-xs text-slate-500">You are logged in on 2 devices</p>
+                  <p className="text-xs text-muted-foreground">You are logged in on 2 devices</p>
                 </div>
                 <Button variant="outline" size="sm">View All</Button>
               </div>
@@ -203,28 +204,28 @@ export default function SettingsPage() {
                     <Mail className="h-4 w-4" />
                     Email Notifications
                   </Label>
-                  <p className="text-xs text-slate-500">Receive notifications via email</p>
+                  <p className="text-xs text-muted-foreground">Receive notifications via email</p>
                 </div>
                 <Switch defaultChecked />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Risk Alerts</Label>
-                  <p className="text-xs text-slate-500">Get alerted when high-risk items are identified</p>
+                  <p className="text-xs text-muted-foreground">Get alerted when high-risk items are identified</p>
                 </div>
                 <Switch defaultChecked />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Compliance Deadlines</Label>
-                  <p className="text-xs text-slate-500">Reminders for upcoming compliance deadlines</p>
+                  <p className="text-xs text-muted-foreground">Reminders for upcoming compliance deadlines</p>
                 </div>
                 <Switch defaultChecked />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Weekly Digest</Label>
-                  <p className="text-xs text-slate-500">Summary of all activities sent weekly</p>
+                  <p className="text-xs text-muted-foreground">Summary of all activities sent weekly</p>
                 </div>
                 <Switch />
               </div>

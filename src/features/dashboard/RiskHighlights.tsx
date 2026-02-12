@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
 import { Risk } from '@/types/risk';
@@ -24,11 +24,11 @@ function getScoreStyles(score: number) {
   const level = getRiskLevel(score);
   switch (level) {
     case 'high':
-      return 'bg-red-100 text-red-700 border-red-200';
+      return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900/30';
     case 'medium':
-      return 'bg-amber-100 text-amber-700 border-amber-200';
+      return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/30';
     case 'low':
-      return 'bg-green-100 text-green-700 border-green-200';
+      return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900/30';
   }
 }
 
@@ -57,11 +57,11 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
       <CardHeader className="pb-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-slate-600" />
+            <TrendingUp className="h-5 w-5 text-muted-foreground" />
             Risk Highlights
           </CardTitle>
           <Link href="/dashboard/risks">
-            <Button variant="ghost" size="sm" className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+            <Button variant="ghost" size="sm" className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/20">
               View All
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -76,8 +76,8 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
               onClick={() => setFilter(btn.value)}
               className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                 filter === btn.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-blue-600 text-white dark:bg-blue-500'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
               {btn.label} ({btn.count})
@@ -88,8 +88,8 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
       <CardContent>
         {topRisks.length === 0 ? (
           <div className="text-center py-8">
-            <AlertTriangle className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-500">No risks match the selected filter</p>
+            <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">No risks match the selected filter</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -97,11 +97,11 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
               <Link
                 key={risk.id}
                 href={`/dashboard/risks/${risk.id}`}
-                className="block p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors group"
+                className="block p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                    <p className="font-medium text-sm text-foreground truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {risk.title}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
@@ -116,7 +116,7 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
                           {risk.category.name}
                         </span>
                       )}
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-muted-foreground">
                         L:{risk.likelihood} × I:{risk.impact}
                       </span>
                     </div>

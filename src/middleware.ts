@@ -11,6 +11,7 @@ const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   '/dashboard/evidence': ['admin', 'analyst'],
   '/dashboard/audits': ['admin', 'manager'],
   '/dashboard/reports': ['admin', 'analyst', 'manager'],
+  '/dashboard/iso27001': ['admin', 'analyst', 'manager'],
   '/dashboard/settings': ['admin'],
   '/dashboard/users': ['admin'],
 };

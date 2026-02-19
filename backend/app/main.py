@@ -1,14 +1,24 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.api import api_router
+from app.logging_config import setup_logging
+import logging
+import time
+import uuid
+
+# Initialize structured logging
+setup_logging()
+logger = logging.getLogger("grc")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
 )
 
-# Set all CORS enabled origins
+# ── CORS Middleware ────────────────────────────────────────
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
@@ -18,8 +28,52 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+# ── Security Headers Middleware ────────────────────────────
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if settings.ENVIRONMENT == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+    return response
+
+# ── Request Logging Middleware ─────────────────────────────
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+    
+    # Inject request_id for correlation
+    request.state.request_id = request_id
+    
+    response = await call_next(request)
+    
+    process_time = round((time.time() - start_time) * 1000, 2)
+    logger.info(
+        "request_completed",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": str(request.url.path),
+            "status_code": response.status_code,
+            "duration_ms": process_time,
+            "client_ip": request.client.host if request.client else "unknown",
+        }
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+# ── Health Check ───────────────────────────────────────────
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "environment": settings.ENVIRONMENT}
+
 @app.get("/")
 def root():
     return {"message": "Welcome to GRC Platform API"}
 
+# ── Include API Router ─────────────────────────────────────
 app.include_router(api_router, prefix=settings.API_V1_STR)

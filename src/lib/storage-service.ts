@@ -1,5 +1,6 @@
 
 import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats } from '@/types/iso27001';
+import { api } from './api-client';
 
 export interface StorageService {
   // Controls
@@ -22,6 +23,10 @@ export interface StorageService {
   getComplianceStats(): Promise<ISOComplianceStats>;
 }
 
+// =============================================================================
+// Local Storage Adapter (demo/development)
+// =============================================================================
+
 export class LocalStorageAdapter implements StorageService {
   private readonly CONTROLS_KEY = 'iso_controls';
   private readonly EVIDENCE_KEY = 'iso_evidence';
@@ -29,9 +34,7 @@ export class LocalStorageAdapter implements StorageService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Initialize if empty
       if (!localStorage.getItem(this.CONTROLS_KEY)) {
-        // We'll load initial data from JSON later
         localStorage.setItem(this.CONTROLS_KEY, '[]');
       }
       if (!localStorage.getItem(this.EVIDENCE_KEY)) {
@@ -69,7 +72,6 @@ export class LocalStorageAdapter implements StorageService {
     return this.saveControl(control);
   }
 
-  // Evidence
   async getEvidence(controlId: string): Promise<ISOEvidence[]> {
     if (typeof window === 'undefined') return [];
     const allEvidence: ISOEvidence[] = JSON.parse(localStorage.getItem(this.EVIDENCE_KEY) || '[]');
@@ -94,7 +96,6 @@ export class LocalStorageAdapter implements StorageService {
     localStorage.setItem(this.EVIDENCE_KEY, JSON.stringify(filtered));
   }
 
-  // Audit Logs
   async getAuditLogs(entityId?: string): Promise<ISOAuditLog[]> {
     if (typeof window === 'undefined') return [];
     const logs: ISOAuditLog[] = JSON.parse(localStorage.getItem(this.AUDIT_KEY) || '[]');
@@ -116,7 +117,6 @@ export class LocalStorageAdapter implements StorageService {
     return newLog;
   }
 
-  // Compliance Stats
   async getComplianceStats(): Promise<ISOComplianceStats> {
     const controls = await this.getControls();
     const total = controls.length;
@@ -124,8 +124,6 @@ export class LocalStorageAdapter implements StorageService {
     const inProgress = controls.filter(c => c.status === 'in_progress').length;
     const notStarted = controls.filter(c => c.status === 'not_started').length;
     const notApplicable = controls.filter(c => c.status === 'not_applicable').length;
-    
-    // Simple calculation: (Implemented / (Total - NotApplicable)) * 100
     const applicableTotal = total - notApplicable;
     const score = applicableTotal > 0 ? Math.round((implemented / applicableTotal) * 100) : 0;
 
@@ -140,4 +138,74 @@ export class LocalStorageAdapter implements StorageService {
   }
 }
 
-export const storageService = new LocalStorageAdapter();
+// =============================================================================
+// API Adapter (production — calls FastAPI backend)
+// =============================================================================
+
+export class ApiStorageAdapter implements StorageService {
+  async getControls(): Promise<ISOControl[]> {
+    return api.get<ISOControl[]>('/controls');
+  }
+
+  async getControlById(id: string): Promise<ISOControl | null> {
+    try {
+      return await api.get<ISOControl>(`/controls/${id}`);
+    } catch {
+      return null;
+    }
+  }
+
+  async saveControl(control: ISOControl): Promise<ISOControl> {
+    return api.post<ISOControl>('/controls', control);
+  }
+
+  async updateControl(control: ISOControl): Promise<ISOControl> {
+    return api.put<ISOControl>(`/controls/${control.id}`, control);
+  }
+
+  async getEvidence(controlId: string): Promise<ISOEvidence[]> {
+    return api.get<ISOEvidence[]>(`/evidence?control_id=${controlId}`);
+  }
+
+  async getAllEvidence(): Promise<ISOEvidence[]> {
+    return api.get<ISOEvidence[]>('/evidence');
+  }
+
+  async uploadEvidence(evidence: ISOEvidence): Promise<ISOEvidence> {
+    return api.post<ISOEvidence>('/evidence', evidence);
+  }
+
+  async deleteEvidence(id: string): Promise<void> {
+    return api.delete(`/evidence/${id}`);
+  }
+
+  async getAuditLogs(entityId?: string): Promise<ISOAuditLog[]> {
+    const query = entityId ? `?entity_id=${entityId}` : '';
+    return api.get<ISOAuditLog[]>(`/audit-logs${query}`);
+  }
+
+  async logAction(logData: Omit<ISOAuditLog, 'id' | 'timestamp'>): Promise<ISOAuditLog> {
+    return api.post<ISOAuditLog>('/audit-logs', logData);
+  }
+
+  async getComplianceStats(): Promise<ISOComplianceStats> {
+    return api.get<ISOComplianceStats>('/compliance/stats');
+  }
+}
+
+// =============================================================================
+// Export the active adapter based on env var
+// =============================================================================
+
+function createStorageService(): StorageService {
+  if (typeof window === 'undefined') {
+    // Server-side: always use local (no localStorage, but returns empty arrays)
+    return new LocalStorageAdapter();
+  }
+  if (api.isMock) {
+    return new LocalStorageAdapter();
+  }
+  return new ApiStorageAdapter();
+}
+
+export const storageService = createStorageService();

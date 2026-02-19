@@ -1,0 +1,128 @@
+name: GRC Platform CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "20"
+
+jobs:
+  # ── Backend Lint & Test ──────────────────────────────────
+  backend:
+    name: Backend (Lint + Test)
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_grc
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx ruff
+
+      - name: Lint with Ruff
+        working-directory: backend
+        run: ruff check app/ --output-format=github
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          SECRET_KEY: test-secret-key-for-ci
+          POSTGRES_SERVER: localhost
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_grc
+          POSTGRES_PORT: 5432
+          ENVIRONMENT: testing
+        run: pytest tests/ -v --tb=short
+
+  # ── Frontend Lint & Build ────────────────────────────────
+  frontend:
+    name: Frontend (Lint + Build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Type check
+        run: yarn tsc --noEmit
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+          NEXT_PUBLIC_USE_MOCK: "true"
+        run: yarn build
+
+  # ── Docker Build ─────────────────────────────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t grc-backend:${{ github.sha }} ./backend
+
+      - name: Build frontend image
+        run: docker build -t grc-frontend:${{ github.sha }} .
+
+      # Uncomment when Docker Hub / ECR / GCR is configured:
+      # - name: Login to Container Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ${{ secrets.REGISTRY_URL }}
+      #     username: ${{ secrets.REGISTRY_USERNAME }}
+      #     password: ${{ secrets.REGISTRY_PASSWORD }}
+      #
+      # - name: Push images
+      #   run: |
+      #     docker tag grc-backend:${{ github.sha }} ${{ secrets.REGISTRY_URL }}/grc-backend:latest
+      #     docker push ${{ secrets.REGISTRY_URL }}/grc-backend:latest
+      #     docker tag grc-frontend:${{ github.sha }} ${{ secrets.REGISTRY_URL }}/grc-frontend:latest
+      #     docker push ${{ secrets.REGISTRY_URL }}/grc-frontend:latest

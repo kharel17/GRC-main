@@ -13,6 +13,10 @@ class AuditAction(str, enum.Enum):
     approved = "approved"
     rejected = "rejected"
     reviewed = "reviewed"
+    login = "login"
+    logout = "logout"
+    export = "export"
+    file_upload = "file_upload"
 
 class AuditEntityType(str, enum.Enum):
     risk = "risk"
@@ -20,6 +24,7 @@ class AuditEntityType(str, enum.Enum):
     evidence = "evidence"
     compliance_item = "compliance_item"
     user = "user"
+    ticket = "ticket"
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

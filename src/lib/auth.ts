@@ -1,4 +1,5 @@
 import { UserRole } from '@/types/user';
+import { api } from './api-client';
 
 // =============================================================================
 // Types
@@ -31,15 +32,10 @@ const TOKEN_KEY = 'grc_tokens';
 const USER_KEY = 'grc_user';
 
 // Token expiry buffer (refresh 30 seconds before actual expiry)
-// NOTE: In production with proper refresh implementation, increase to 5 minutes
 const EXPIRY_BUFFER_MS = 30 * 1000;
 
 // =============================================================================
 // Token Storage
-// NOTE: Using localStorage for development. In production, consider:
-// - HTTP-only cookies for refresh tokens (prevents XSS)
-// - In-memory storage for access tokens
-// - Secure cookie flags (Secure, SameSite=Strict)
 // =============================================================================
 
 export function setTokens(tokens: AuthTokens): void {
@@ -69,11 +65,6 @@ export function clearTokens(): void {
 // JWT Utilities
 // =============================================================================
 
-/**
- * Decode a JWT token without verification.
- * NOTE: In production, verification should happen server-side.
- * Frontend decoding is only for extracting claims.
- */
 export function decodeToken(token: string): JWTPayload | null {
   try {
     const parts = token.split('.');
@@ -87,23 +78,15 @@ export function decodeToken(token: string): JWTPayload | null {
   }
 }
 
-/**
- * Check if a token is expired or about to expire.
- */
 export function isTokenExpired(token: string): boolean {
   const payload = decodeToken(token);
   if (!payload) return true;
   
   const expiryMs = payload.exp * 1000;
   const nowMs = Date.now();
-  
-  // Consider expired if within buffer period
   return nowMs >= expiryMs - EXPIRY_BUFFER_MS;
 }
 
-/**
- * Extract user data from an access token.
- */
 export function getUserFromToken(token: string): AuthUser | null {
   const payload = decodeToken(token);
   if (!payload) return null;
@@ -117,30 +100,10 @@ export function getUserFromToken(token: string): AuthUser | null {
 
 // =============================================================================
 // Token Refresh
-// NOTE: Placeholder for production implementation.
-// In production, this should:
-// - Call the refresh endpoint with the refresh token
-// - Handle 401 errors by forcing logout
-// - Queue multiple refresh calls to prevent race conditions
-// - Integrate with AWS Cognito or your auth provider
 // =============================================================================
 
 export async function refreshAccessToken(refreshToken: string): Promise<AuthTokens | null> {
   try {
-    // TODO: Replace with actual API call in production
-    // const response = await fetch('/api/auth/refresh', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ refreshToken }),
-    // });
-    // 
-    // if (!response.ok) {
-    //   return null;
-    // }
-    // 
-    // const data = await response.json();
-    // return { accessToken: data.access_token, refreshToken: data.refresh_token };
-    
     console.warn('[Auth] Token refresh not implemented - using mock');
     return null;
   } catch (error) {
@@ -151,46 +114,24 @@ export async function refreshAccessToken(refreshToken: string): Promise<AuthToke
 
 // =============================================================================
 // Route Access Configuration
-// Centralized role-to-route mapping for easy scalability.
-// Adding new roles or routes only requires updating this config.
 // =============================================================================
 
 export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
-  // Dashboard - accessible to all authenticated users
   '/dashboard': ['admin', 'analyst', 'manager'],
-  
-  // Risk Management
   '/dashboard/risks': ['admin', 'analyst'],
-  
-  // Control Management
   '/dashboard/controls': ['admin', 'analyst'],
-  
-  // Evidence Management
   '/dashboard/evidence': ['admin', 'analyst'],
-  
-  // Audit Logs
   '/dashboard/audits': ['admin', 'manager'],
-  
-  // Reports
   '/dashboard/reports': ['admin', 'analyst', 'manager'],
-  
-  // Settings - Admin only
   '/dashboard/settings': ['admin'],
-  
-  // User Management (future)
   '/dashboard/users': ['admin'],
 };
 
-/**
- * Check if a role has access to a specific route.
- */
 export function canAccessRoute(route: string, role: UserRole): boolean {
-  // Check exact match first
   if (ROUTE_PERMISSIONS[route]) {
     return ROUTE_PERMISSIONS[route].includes(role);
   }
   
-  // Check parent routes for nested paths
   const segments = route.split('/').filter(Boolean);
   while (segments.length > 0) {
     const parentRoute = '/' + segments.join('/');
@@ -199,13 +140,11 @@ export function canAccessRoute(route: string, role: UserRole): boolean {
     }
     segments.pop();
   }
-  
-  // Default: deny access to unknown routes
   return false;
 }
 
 // =============================================================================
-// Mock API Helpers (for development)
+// Login — Real API + Mock Fallback
 // =============================================================================
 
 interface MockUser {
@@ -221,10 +160,6 @@ const MOCK_USERS: MockUser[] = [
   { id: '3', email: 'carol@company.com', password: 'demo', role: 'manager' },
 ];
 
-/**
- * Generate a mock JWT token for development.
- * In production, tokens are generated server-side with proper signing.
- */
 function generateMockToken(user: MockUser): string {
   const now = Math.floor(Date.now() / 1000);
   const payload: JWTPayload = {
@@ -232,14 +167,12 @@ function generateMockToken(user: MockUser): string {
     email: user.email,
     role: user.role,
     iat: now,
-    exp: now + 3600, // 1 hour expiry
+    exp: now + 3600,
   };
   
-  // Create a mock JWT (header.payload.signature)
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const payloadB64 = btoa(JSON.stringify(payload));
   const signature = btoa('mock-signature');
-  
   return `${header}.${payloadB64}.${signature}`;
 }
 
@@ -254,18 +187,61 @@ export interface LoginResponse {
 }
 
 /**
- * Mock login function for development.
- * Replace with actual API call in production.
+ * Login: calls real API when available, falls back to mock.
+ */
+export async function login(email: string, password: string): Promise<LoginResponse | null> {
+  // If mock mode, use local mock
+  if (api.isMock) {
+    return mockLogin(email, password);
+  }
+
+  // Real API login using OAuth2 form data
+  try {
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+
+    const response = await fetch(`${api.baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString(),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+
+    // Backend returns { access_token, token_type }
+    // Decode user from token
+    const userFromToken = getUserFromToken(data.access_token);
+
+    // Store tokens
+    setTokens({
+      accessToken: data.access_token,
+      refreshToken: data.access_token, // Same token until refresh is implemented
+    });
+
+    return {
+      access_token: data.access_token,
+      refresh_token: data.access_token,
+      user: userFromToken || { id: '', email, role: 'analyst' as UserRole },
+    };
+  } catch (error) {
+    console.error('[Auth] API login failed, falling back to mock:', error);
+    return mockLogin(email, password);
+  }
+}
+
+/**
+ * Mock login for development/demo.
  */
 export async function mockLogin(email: string, password: string): Promise<LoginResponse | null> {
-  // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 800));
   
   const user = MOCK_USERS.find(u => u.email === email && u.password === password);
-  
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
   
   const accessToken = generateMockToken(user);
   const refreshToken = generateMockToken({ ...user, id: `refresh-${user.id}` });

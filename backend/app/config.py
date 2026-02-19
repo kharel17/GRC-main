@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import AnyHttpUrl, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    ENVIRONMENT: str = "development"  # development | staging | production
     
     # DATABASE
     POSTGRES_SERVER: str
@@ -41,6 +42,31 @@ class Settings(BaseSettings):
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)
+
+    # FILE STORAGE
+    FILE_STORAGE_BACKEND: str = "local"  # "local" or "s3"
+    UPLOAD_DIR: str = "/app/uploads"
+    
+    # S3 (only needed when FILE_STORAGE_BACKEND=s3)
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_REGION: str = "us-east-1"
+    S3_BUCKET_NAME: Optional[str] = None
+    S3_PRESIGNED_URL_EXPIRY: int = 3600  # seconds
+
+    # LOGGING
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"  # "json" or "text"
+
+    # ALLOWED HOSTS
+    ALLOWED_HOSTS: List[str] = ["*"]
+
+    @field_validator("ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def assemble_allowed_hosts(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            return [i.strip() for i in v.split(",")]
+        return v
 
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 

@@ -42,5 +42,6 @@ export interface Ticket {
   updatedAt: string;
   resolvedAt?: string;
   escalatedAt?: string;
+  isAutoEscalationEnabled?: boolean;
   comments: TicketComment[];
 }

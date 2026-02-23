@@ -45,6 +45,7 @@ class Ticket(Base):
     escalated_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     escalated_to_role = Column(String, nullable=True)
     escalation_level = Column(Integer, default=1)
+    is_auto_escalation_enabled = Column(Integer, default=1)
     
     related_risk_id = Column(UUID(as_uuid=True), ForeignKey("risks.id"), nullable=True)
     related_entity_type = Column(String, nullable=True)

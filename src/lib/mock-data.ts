@@ -590,6 +590,7 @@ export const mockTickets: Ticket[] = [
     updatedAt: '2024-01-28T17:00:00Z',
     resolvedAt: '2024-01-27T14:00:00Z',
     escalatedAt: '2024-01-22T11:00:00Z',
+    isAutoEscalationEnabled: true,
     comments: [
       {
         id: 'comment-10',

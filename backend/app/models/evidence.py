@@ -24,8 +24,6 @@ class Evidence(Base):
     
     related_to = Column(SAEnum(EvidenceRelatedTo), nullable=False)
     related_id = Column(UUID(as_uuid=True), nullable=False)
-    # Ideally related_name would be dynamically fetched, but for simplicity storing it or omitting it is fine.
-    # Frontend mock has relatedName, but in DB we usually query the related entity.
     
     uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     verified = Column(Boolean, default=False)
@@ -33,10 +31,28 @@ class Evidence(Base):
     verified_at = Column(DateTime, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
+    # AI Analysis fields
+    ai_category = Column(String, nullable=True)  # e.g., "policy", "procedure", "log", "certificate"
+    ai_analyzed = Column(Boolean, default=False)
+    ai_analyzed_at = Column(DateTime, nullable=True)
+
     # Relationships
     uploader = relationship("User", foreign_keys=[uploaded_by])
     verifier = relationship("User", foreign_keys=[verified_by])
-    
-    # Generic relationship handling in SQLAlchemy is complex, usually handled by separate queries or Polymorphic
-    # But for now we can add specific relationships if needed, or just rely on 'related_id' queries.
     related_compliance_item = relationship("ComplianceItem", foreign_keys=[related_id], viewonly=True, sync_backref=False)
+    ai_control_matches = relationship("EvidenceControlMatch", back_populates="evidence", cascade="all, delete-orphan")
+
+
+class EvidenceControlMatch(Base):
+    """Stores AI-generated mappings between evidence and ISO 27001 controls."""
+    __tablename__ = "evidence_control_matches"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evidence_id = Column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    control_id = Column(String, nullable=False)       # e.g., "5.15"
+    control_title = Column(String, nullable=False)     # e.g., "Access control"
+    confidence_score = Column(Integer, nullable=False)  # 0-100 percentage
+    matched_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    evidence = relationship("Evidence", back_populates="ai_control_matches")

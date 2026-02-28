@@ -100,6 +100,35 @@ async def read_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
     return ticket
 
+@router.put("/{id}", response_model=schemas.Ticket)
+async def update_ticket(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: str,
+    ticket_in: schemas.TicketUpdate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Update a ticket.
+    """
+    result = await db.execute(
+        select(models.Ticket)
+        .where(models.Ticket.id == id)
+        .options(selectinload(models.Ticket.comments))
+    )
+    ticket = result.scalars().first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    update_data = ticket_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(ticket, field, value)
+    
+    db.add(ticket)
+    await db.commit()
+    await db.refresh(ticket)
+    return ticket
+
 @router.post("/{id}/escalate", response_model=schemas.Ticket)
 async def escalate_ticket(
     *,

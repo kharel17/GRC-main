@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { mockAuditLogs, mockUsers } from '@/lib/mock-data';
+import { fetchAuditLogs } from '@/lib/data-service';
+import { useApiData } from '@/hooks/use-api-data';
+import { mockUsers } from '@/lib/mock-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -11,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Clock, FileText, Shield, Activity, Filter, AlertTriangle, Edit } from 'lucide-react';
+import { Clock, FileText, Shield, Activity, Filter, AlertTriangle, Edit, Loader2 } from 'lucide-react';
 
 type ActionTypeFilter = 'all' | 'created' | 'updated' | 'deleted';
 
@@ -37,21 +39,43 @@ function getActionColor(action: string) {
 }
 
 export default function AuditPage() {
+  const { data: auditLogs, loading, error } = useApiData(fetchAuditLogs);
   const [actionFilter, setActionFilter] = useState<ActionTypeFilter>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
 
-  const filteredLogs = mockAuditLogs.filter((log) => {
+  const allLogs = auditLogs ?? [];
+
+  const filteredLogs = allLogs.filter((log) => {
     if (actionFilter !== 'all' && log.action !== actionFilter) return false;
     if (userFilter !== 'all' && log.userId !== userFilter) return false;
     return true;
   });
 
   const filterButtons: { label: string; value: ActionTypeFilter; count: number }[] = [
-    { label: 'All', value: 'all', count: mockAuditLogs.length },
-    { label: 'Created', value: 'created', count: mockAuditLogs.filter(l => l.action === 'created').length },
-    { label: 'Updated', value: 'updated', count: mockAuditLogs.filter(l => l.action === 'updated').length },
-    { label: 'Deleted', value: 'deleted', count: mockAuditLogs.filter(l => l.action === 'deleted').length },
+    { label: 'All', value: 'all', count: allLogs.length },
+    { label: 'Created', value: 'created', count: allLogs.filter(l => l.action === 'created').length },
+    { label: 'Updated', value: 'updated', count: allLogs.filter(l => l.action === 'updated').length },
+    { label: 'Deleted', value: 'deleted', count: allLogs.filter(l => l.action === 'deleted').length },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-3 text-slate-600">Loading audit logs…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <Clock className="h-12 w-12 text-red-400 mb-4" />
+        <h3 className="text-sm font-medium text-slate-900 mb-1">Failed to load audit logs</h3>
+        <p className="text-sm text-slate-500">{error.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -101,7 +125,7 @@ export default function AuditPage() {
 
       {/* Results Count */}
       <div className="text-sm text-slate-500">
-        Showing {filteredLogs.length} of {mockAuditLogs.length} entries
+        Showing {filteredLogs.length} of {allLogs.length} entries
       </div>
 
       {/* Empty State */}

@@ -1,18 +1,30 @@
 'use client';
 
-import { mockRisks } from '@/lib/mock-data';
+import { fetchRisk } from '@/lib/data-service';
+import { useApiData } from '@/hooks/use-api-data';
 import { RiskScoreExplanation } from '@/features/risk/RiskScoreExplanation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit } from 'lucide-react';
+import { ArrowLeft, Edit, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { getStatusColor, getScoreBadgeColor } from '@/features/risk/risk.logic';
+import { useCallback } from 'react';
 
 export default function RiskDetailPage({ params }: { params: { id: string } }) {
-  const risk = mockRisks.find((r) => r.id === params.id);
+  const fetcher = useCallback(() => fetchRisk(params.id), [params.id]);
+  const { data: risk, loading, error } = useApiData(fetcher, [params.id]);
 
-  if (!risk) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-3 text-slate-600">Loading risk…</span>
+      </div>
+    );
+  }
+
+  if (error || !risk) {
     return (
       <div className="space-y-4">
         <Link href="/dashboard/risks" className="inline-flex items-center gap-2 text-blue-600 hover:underline">

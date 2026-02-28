@@ -1,21 +1,37 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { mockTickets, mockAuditLogs } from '@/lib/mock-data';
+import { fetchTicket, fetchAuditLogs } from '@/lib/data-service';
+import { useApiData } from '@/hooks/use-api-data';
 import { TicketDetail } from '@/features/tickets/TicketDetail';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Ticket } from 'lucide-react';
+import { ArrowLeft, Loader2, Ticket } from 'lucide-react';
 import Link from 'next/link';
+import { useCallback } from 'react';
 
 export default function TicketDetailPage() {
   const params = useParams();
   const ticketId = params.id as string;
 
-  const ticket = mockTickets.find(t => t.id === ticketId);
-  const sourceAuditLog = ticket
-    ? mockAuditLogs.find(log => log.id === ticket.sourceAuditLogId)
+  const ticketFetcher = useCallback(() => fetchTicket(ticketId), [ticketId]);
+  const { data: ticket, loading: ticketLoading } = useApiData(ticketFetcher, [ticketId]);
+  const { data: auditLogs, loading: logsLoading } = useApiData(fetchAuditLogs);
+
+  const loading = ticketLoading || logsLoading;
+
+  const sourceAuditLog = ticket && auditLogs
+    ? auditLogs.find(log => log.id === ticket.sourceAuditLogId)
     : undefined;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-3 text-slate-600">Loading ticket…</span>
+      </div>
+    );
+  }
 
   if (!ticket) {
     return (

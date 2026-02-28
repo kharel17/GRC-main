@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { mockControls } from '@/lib/mock-data';
+import { fetchControls } from '@/lib/data-service';
+import { useApiData } from '@/hooks/use-api-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Shield, Filter } from 'lucide-react';
+import { Plus, Shield, Filter, Loader2 } from 'lucide-react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 
 type ControlType = 'all' | 'preventive' | 'detective' | 'corrective';
@@ -57,21 +58,43 @@ function getTypeColor(type: string) {
 }
 
 export default function ControlsPage() {
+  const { data: controls, loading, error } = useApiData(fetchControls);
   const [typeFilter, setTypeFilter] = useState<ControlType>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const filteredControls = mockControls.filter((control) => {
+  const allControls = controls ?? [];
+
+  const filteredControls = allControls.filter((control) => {
     if (typeFilter !== 'all' && control.controlType !== typeFilter) return false;
     if (statusFilter !== 'all' && control.status !== statusFilter) return false;
     return true;
   });
 
   const typeButtons: { label: string; value: ControlType; count: number }[] = [
-    { label: 'All', value: 'all', count: mockControls.length },
-    { label: 'Preventive', value: 'preventive', count: mockControls.filter(c => c.controlType === 'preventive').length },
-    { label: 'Detective', value: 'detective', count: mockControls.filter(c => c.controlType === 'detective').length },
-    { label: 'Corrective', value: 'corrective', count: mockControls.filter(c => c.controlType === 'corrective').length },
+    { label: 'All', value: 'all', count: allControls.length },
+    { label: 'Preventive', value: 'preventive', count: allControls.filter(c => c.controlType === 'preventive').length },
+    { label: 'Detective', value: 'detective', count: allControls.filter(c => c.controlType === 'detective').length },
+    { label: 'Corrective', value: 'corrective', count: allControls.filter(c => c.controlType === 'corrective').length },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-3 text-slate-600">Loading controls…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <Shield className="h-12 w-12 text-red-400 mb-4" />
+        <h3 className="text-sm font-medium text-slate-900 mb-1">Failed to load controls</h3>
+        <p className="text-sm text-slate-500">{error.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -127,7 +150,7 @@ export default function ControlsPage() {
 
       {/* Results Count */}
       <div className="text-sm text-slate-500">
-        Showing {filteredControls.length} of {mockControls.length} controls
+        Showing {filteredControls.length} of {allControls.length} controls
       </div>
 
       {/* Empty State */}

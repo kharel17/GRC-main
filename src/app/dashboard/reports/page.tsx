@@ -16,6 +16,9 @@ import {
   FileCheck,
 } from "lucide-react";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { api } from "@/lib/api-client";
+import { useState } from "react";
+import { toast } from "sonner";
 
 const reportTypes = [
   {
@@ -75,6 +78,44 @@ const reportTypes = [
 ];
 
 export default function ReportsPage() {
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const handleDownload = async (reportId: string, format: string) => {
+    try {
+      setDownloading(reportId);
+
+      // We are fetching the HTML export endpoint we built
+      // For a real production app with PDF, you might fetch as arrayBuffer or blob directly
+      const response = await fetch(`${api.baseUrl}/reports/${reportId}/export`, {
+        method: "GET",
+        headers: {
+          // Add auth tracking if needed from lib/auth
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate report");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${reportId}-report.${format.toLowerCase() === 'pdf' ? 'html' : 'html'}`; // Temporarily saving as html until PDF conversion is active
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Report downloaded successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Error generating report");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -121,17 +162,27 @@ export default function ReportsPage() {
                 <p className="text-xs text-slate-600 line-clamp-2">
                   {report.description}
                 </p>
-                
+
                 <div className="text-xs text-slate-500">
                   Last generated: {new Date(report.lastGenerated).toLocaleDateString()}
                 </div>
 
                 <div className="flex gap-2 pt-2 border-t">
-                  <Button variant="outline" size="sm" className="flex-1 gap-1 text-xs">
-                    <Download className="h-3 w-3" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1 text-xs"
+                    onClick={() => handleDownload(report.id, report.format)}
+                    disabled={downloading === report.id || !['risk-summary', 'compliance-status'].includes(report.id)}
+                  >
+                    {downloading === report.id ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Download className="h-3 w-3" />
+                    )}
                     Download
                   </Button>
-                  <Button size="sm" className="flex-1 gap-1 text-xs">
+                  <Button size="sm" className="flex-1 gap-1 text-xs" disabled={!['risk-summary', 'compliance-status'].includes(report.id)}>
                     <RefreshCw className="h-3 w-3" />
                     Generate
                   </Button>

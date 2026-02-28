@@ -36,6 +36,7 @@ class TicketBase(BaseModel):
     escalated_to_id: Optional[UUID] = None
     escalated_to_role: Optional[str] = None
     escalation_level: int = 1
+    is_auto_escalation_enabled: bool = True
     related_risk_id: Optional[UUID] = None
     related_entity_type: Optional[str] = None
     related_entity_id: Optional[UUID] = None
@@ -52,6 +53,7 @@ class TicketUpdate(BaseModel):
     assigned_to_id: Optional[UUID] = None
     escalated_to_id: Optional[UUID] = None
     escalation_level: Optional[int] = None
+    is_auto_escalation_enabled: Optional[bool] = None
     resolved_at: Optional[datetime] = None
     escalated_at: Optional[datetime] = None
 

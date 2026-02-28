@@ -85,6 +85,7 @@ async def health_check():
         "status": "healthy",
         "environment": settings.ENVIRONMENT,
         "ai_ready": ai_service.is_ready,
+        "ai_engine": ai_service.active_engine if ai_service.is_ready else "not_initialized",
     }
 
 @app.get("/")

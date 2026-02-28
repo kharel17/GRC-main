@@ -78,5 +78,6 @@ class AIStatusResponse(BaseModel):
     """Health check for the AI service."""
     status: str
     model_name: str
+    active_engine: str = Field("local", description="Active AI engine: 'gemini' or 'local'")
     controls_loaded: int
     is_ready: bool

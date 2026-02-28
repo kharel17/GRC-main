@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { X, ShieldAlert, Link as LinkIcon, Plus } from "lucide-react";
+import { X, ShieldAlert, Link as LinkIcon, Plus, Loader2 } from "lucide-react";
 import { isoService } from "@/lib/iso-service";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner"; 
-import { mockRisks } from "@/lib/mock-data"; 
+import { fetchRisks } from "@/lib/data-service";
+import { useApiData } from "@/hooks/use-api-data";
 import { Risk } from "@/types/risk";
 
 export function RiskMapping({ 
@@ -29,17 +30,29 @@ export function RiskMapping({
   onUpdate: () => void 
 }) {
   const { user } = useAuth();
+  const { data: allRisks, loading: risksLoading } = useApiData(fetchRisks);
   const [isLinking, setIsLinking] = useState(false);
   const [selectedRiskId, setSelectedRiskId] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const risks = allRisks ?? [];
+
   // Filter linked risks
-  const linkedRisks = mockRisks.filter(r => riskIds.includes(r.id));
+  const linkedRisks = risks.filter(r => riskIds.includes(r.id));
   
   // Available risks (not yet linked)
-  const availableRisks = mockRisks.filter(r => !riskIds.includes(r.id));
+  const availableRisks = risks.filter(r => !riskIds.includes(r.id));
 
   const canEdit = user?.role === 'admin' || user?.role === 'analyst';
+
+  if (risksLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+        <span className="ml-2 text-sm text-slate-600">Loading risks…</span>
+      </div>
+    );
+  }
 
   const handleLink = async () => {
     if (!selectedRiskId || !user) return;

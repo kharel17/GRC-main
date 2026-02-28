@@ -1,18 +1,21 @@
 """
-AI Service – Semantic Comparison Engine for ISO 27001 GRC Platform.
+AI Service – Hybrid Gemini + Local NLP Engine for ISO 27001 GRC Platform.
 
-Loads ISO 27001 control descriptions, converts them into sentence embeddings,
-and compares uploaded evidence text against them to find the best matches.
+Primary:  Google Gemini API (text-embedding-004 for embeddings, gemini-2.5-flash for generation)
+Fallback: Local sentence-transformers model (all-MiniLM-L6-v2)
+
+If GEMINI_API_KEY is set, Gemini is used. If the key is missing or any Gemini
+call fails at runtime, the service automatically falls back to the local model.
 """
 
 import json
 import logging
-from datetime import datetime
+import os
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 logger = logging.getLogger("grc.ai")
@@ -80,7 +83,7 @@ class RiskSuggestion:
 
 
 # ---------------------------------------------------------------------------
-# Evidence category keywords
+# Evidence category keywords (used by both engines)
 # ---------------------------------------------------------------------------
 
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
@@ -96,40 +99,67 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
 
 
 # ---------------------------------------------------------------------------
-# Core AI Service
+# PDF Text Extraction
+# ---------------------------------------------------------------------------
+
+def extract_text_from_pdf(file_bytes: bytes) -> str:
+    """Extract text content from a PDF file's bytes."""
+    from PyPDF2 import PdfReader
+
+    reader = PdfReader(BytesIO(file_bytes))
+    pages_text: list[str] = []
+    for page in reader.pages:
+        text = page.extract_text()
+        if text:
+            pages_text.append(text.strip())
+
+    return "\n\n".join(pages_text)
+
+
+# ---------------------------------------------------------------------------
+# Core AI Service — Hybrid Engine
 # ---------------------------------------------------------------------------
 
 class AIService:
     """
-    Semantic comparison engine for mapping evidence to ISO 27001 controls.
+    Hybrid AI engine: Gemini API (primary) with local NLP fallback.
 
     On initialization:
-      1. Loads control data from iso27001-controls.json
-      2. Loads the sentence-transformer model
-      3. Pre-computes embeddings for all 93 controls
+      1. Loads ISO 27001 control data
+      2. Tries to init Gemini client (if GEMINI_API_KEY is set)
+      3. Loads local SentenceTransformer model as fallback
+      4. Pre-computes control embeddings using whichever engine is available
 
-    On each analysis request:
-      1. Converts the input text to an embedding
-      2. Computes cosine similarity against all control embeddings
-      3. Returns top-N matches above a confidence threshold
+    On each request:
+      - Attempts Gemini first
+      - Falls back to local model on any failure
     """
 
-    MODEL_NAME = "all-MiniLM-L6-v2"
+    LOCAL_MODEL_NAME = "all-MiniLM-L6-v2"
+    GEMINI_EMBED_MODEL = "text-embedding-004"
+    GEMINI_GENERATE_MODEL = "gemini-2.5-flash"
     DEFAULT_TOP_N = 5
-    DEFAULT_THRESHOLD = 0.30  # minimum cosine similarity to consider a match
+    DEFAULT_THRESHOLD = 0.30
 
     def __init__(self, controls_path: Optional[str] = None):
-        self._model: Optional[SentenceTransformer] = None
+        # State
         self._controls: list[dict] = []
         self._control_texts: list[str] = []
-        self._control_embeddings: Optional[np.ndarray] = None
         self._is_ready = False
 
-        # Resolve the controls JSON path
+        # Gemini engine
+        self._gemini_client = None
+        self._gemini_available = False
+        self._gemini_control_embeddings: Optional[np.ndarray] = None
+
+        # Local NLP engine
+        self._local_model = None
+        self._local_control_embeddings: Optional[np.ndarray] = None
+
+        # Resolve controls JSON path
         if controls_path:
             self._controls_path = Path(controls_path)
         else:
-            # Default: look relative to the project root
             self._controls_path = (
                 Path(__file__).resolve().parents[3]  # GRC main/
                 / "src" / "data" / "iso27001-controls.json"
@@ -140,40 +170,151 @@ class AIService:
     # ------------------------------------------------------------------
 
     def initialize(self) -> None:
-        """Load model and pre-compute control embeddings. Call once at startup."""
+        """Load models and pre-compute control embeddings. Call once at startup."""
         logger.info("AI Service: Loading ISO 27001 controls...")
         self._load_controls()
 
-        logger.info(f"AI Service: Loading sentence-transformer model '{self.MODEL_NAME}'...")
-        self._model = SentenceTransformer(self.MODEL_NAME)
+        # --- Try Gemini ---
+        self._init_gemini()
 
-        logger.info(f"AI Service: Computing embeddings for {len(self._controls)} controls...")
-        self._control_embeddings = self._model.encode(
-            self._control_texts, convert_to_numpy=True, show_progress_bar=False
-        )
+        # --- Always load local model as fallback ---
+        self._init_local_model()
 
         self._is_ready = True
-        logger.info("AI Service: Ready ✓")
+        engine = "Gemini (primary) + Local NLP (fallback)" if self._gemini_available else "Local NLP only"
+        logger.info(f"AI Service: Ready ✓  Engine: {engine}")
 
     def _load_controls(self) -> None:
         """Load and parse the ISO 27001 controls JSON."""
         if not self._controls_path.exists():
-            raise FileNotFoundError(
-                f"Controls file not found: {self._controls_path}"
-            )
+            raise FileNotFoundError(f"Controls file not found: {self._controls_path}")
 
         with open(self._controls_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         self._controls = data.get("controls", [])
-        # Combine title + description for richer semantic matching
         self._control_texts = [
             f"{c['title']}. {c['description']}" for c in self._controls
         ]
 
+    def _init_gemini(self) -> None:
+        """Try to initialize the Gemini client and pre-embed controls."""
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if not api_key:
+            logger.info("AI Service: No GEMINI_API_KEY found. Gemini disabled.")
+            return
+
+        try:
+            from google import genai
+
+            self._gemini_client = genai.Client(api_key=api_key)
+
+            # Pre-embed all controls using Gemini
+            logger.info(f"AI Service: Pre-embedding {len(self._controls)} controls with Gemini...")
+            embeddings = []
+            # Batch in groups of 20 to respect rate limits
+            batch_size = 20
+            for i in range(0, len(self._control_texts), batch_size):
+                batch = self._control_texts[i : i + batch_size]
+                response = self._gemini_client.models.embed_content(
+                    model=self.GEMINI_EMBED_MODEL,
+                    contents=batch,
+                )
+                for emb in response.embeddings:
+                    embeddings.append(emb.values)
+
+            self._gemini_control_embeddings = np.array(embeddings, dtype=np.float32)
+            self._gemini_available = True
+            logger.info("AI Service: Gemini initialized ✓")
+
+        except Exception as e:
+            logger.warning(f"AI Service: Gemini init failed ({e}). Will use local NLP.")
+            self._gemini_available = False
+
+    def _init_local_model(self) -> None:
+        """Load the local SentenceTransformer model and pre-embed controls."""
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            logger.info(f"AI Service: Loading local model '{self.LOCAL_MODEL_NAME}'...")
+            self._local_model = SentenceTransformer(self.LOCAL_MODEL_NAME)
+
+            logger.info(f"AI Service: Computing local embeddings for {len(self._controls)} controls...")
+            self._local_control_embeddings = self._local_model.encode(
+                self._control_texts, convert_to_numpy=True, show_progress_bar=False
+            )
+            logger.info("AI Service: Local NLP model loaded ✓")
+
+        except Exception as e:
+            logger.error(f"AI Service: Local model failed to load ({e})")
+            if not self._gemini_available:
+                raise RuntimeError(
+                    "AI Service: Neither Gemini nor local model available. Cannot start."
+                )
+
     @property
     def is_ready(self) -> bool:
         return self._is_ready
+
+    @property
+    def active_engine(self) -> str:
+        if self._gemini_available:
+            return "gemini"
+        return "local"
+
+    # ------------------------------------------------------------------
+    # Embedding helper
+    # ------------------------------------------------------------------
+
+    def _embed_text(self, text: str) -> np.ndarray:
+        """Embed text using Gemini (primary) or local model (fallback)."""
+        if self._gemini_available and self._gemini_client:
+            try:
+                response = self._gemini_client.models.embed_content(
+                    model=self.GEMINI_EMBED_MODEL,
+                    contents=[text],
+                )
+                return np.array([response.embeddings[0].values], dtype=np.float32)
+            except Exception as e:
+                logger.warning(f"Gemini embed failed ({e}). Falling back to local model.")
+
+        # Fallback to local
+        if self._local_model is not None:
+            return self._local_model.encode([text], convert_to_numpy=True)
+
+        raise RuntimeError("No embedding engine available.")
+
+    def _embed_texts(self, texts: list[str]) -> np.ndarray:
+        """Embed multiple texts using Gemini (primary) or local model (fallback)."""
+        if self._gemini_available and self._gemini_client:
+            try:
+                embeddings = []
+                batch_size = 20
+                for i in range(0, len(texts), batch_size):
+                    batch = texts[i : i + batch_size]
+                    response = self._gemini_client.models.embed_content(
+                        model=self.GEMINI_EMBED_MODEL,
+                        contents=batch,
+                    )
+                    for emb in response.embeddings:
+                        embeddings.append(emb.values)
+                return np.array(embeddings, dtype=np.float32)
+            except Exception as e:
+                logger.warning(f"Gemini batch embed failed ({e}). Falling back to local model.")
+
+        # Fallback to local
+        if self._local_model is not None:
+            return self._local_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+
+        raise RuntimeError("No embedding engine available.")
+
+    def _get_control_embeddings(self) -> np.ndarray:
+        """Get the pre-computed control embeddings for the active engine."""
+        if self._gemini_available and self._gemini_control_embeddings is not None:
+            return self._gemini_control_embeddings
+        if self._local_control_embeddings is not None:
+            return self._local_control_embeddings
+        raise RuntimeError("No control embeddings available.")
 
     # ------------------------------------------------------------------
     # Evidence Analysis
@@ -203,8 +344,9 @@ class AIService:
         category = self._categorize(text)
 
         # 2. Compute similarity against all controls
-        text_embedding = self._model.encode([text], convert_to_numpy=True)
-        similarities = cosine_similarity(text_embedding, self._control_embeddings)[0]
+        text_embedding = self._embed_text(text)
+        control_embeddings = self._get_control_embeddings()
+        similarities = cosine_similarity(text_embedding, control_embeddings)[0]
 
         # 3. Rank and filter
         ranked_indices = np.argsort(similarities)[::-1]
@@ -247,6 +389,28 @@ class AIService:
             summary=summary,
         )
 
+    def analyze_evidence_pdf(
+        self,
+        file_bytes: bytes,
+        top_n: int = DEFAULT_TOP_N,
+        threshold: float = DEFAULT_THRESHOLD,
+    ) -> EvidenceAnalysisResult:
+        """
+        Extract text from a PDF file and analyze it.
+
+        Args:
+            file_bytes: Raw bytes of the uploaded PDF.
+            top_n: Maximum number of control matches to return.
+            threshold: Minimum cosine similarity score.
+
+        Returns:
+            EvidenceAnalysisResult
+        """
+        text = extract_text_from_pdf(file_bytes)
+        if not text.strip():
+            raise ValueError("Could not extract any text from the uploaded PDF.")
+        return self.analyze_evidence(text, top_n=top_n, threshold=threshold)
+
     def _categorize(self, text: str) -> str:
         """Classify evidence into a category based on keyword matching."""
         text_lower = text.lower()
@@ -269,15 +433,85 @@ class AIService:
         """
         Analyze a risk description and suggest likelihood/impact scores.
 
-        Uses semantic similarity to find related controls, then estimates
-        risk based on how many controls are relevant and their domains.
+        Primary: Uses Gemini generative model with structured output.
+        Fallback: Heuristic based on local embedding similarity.
         """
         if not self._is_ready:
             raise RuntimeError("AI Service not initialized. Call initialize() first.")
 
-        # Find related controls
-        text_embedding = self._model.encode([description], convert_to_numpy=True)
-        similarities = cosine_similarity(text_embedding, self._control_embeddings)[0]
+        # --- Try Gemini generative model ---
+        if self._gemini_available and self._gemini_client:
+            try:
+                return self._suggest_risk_gemini(description)
+            except Exception as e:
+                logger.warning(f"Gemini risk suggestion failed ({e}). Falling back to local.")
+
+        # --- Fallback to local heuristic ---
+        return self._suggest_risk_local(description)
+
+    def _suggest_risk_gemini(self, description: str) -> RiskSuggestion:
+        """Use Gemini to generate a risk score with structured reasoning."""
+        # Build a context of all control names for the model
+        control_list = "\n".join(
+            f"- {c['annex']}: {c['title']}" for c in self._controls[:30]
+        )
+
+        prompt = f"""You are an ISO 27001 risk assessment expert. Analyze the following risk description and provide a structured risk assessment.
+
+Risk Description:
+{description}
+
+Available ISO 27001 Controls (partial list):
+{control_list}
+
+Respond with ONLY a valid JSON object with these exact fields:
+{{
+  "likelihood": <integer 1-5>,
+  "impact": <integer 1-5>,
+  "risk_score": <integer = likelihood * impact>,
+  "reasoning": "<brief explanation of the risk assessment>",
+  "related_controls": ["<annex_id> <control_title>", ...]
+}}
+
+Guidelines:
+- likelihood: 1=Rare, 2=Unlikely, 3=Possible, 4=Likely, 5=Almost Certain
+- impact: 1=Insignificant, 2=Minor, 3=Moderate, 4=Major, 5=Catastrophic
+- related_controls: List 1-5 ISO 27001 controls that can help mitigate this risk
+- reasoning: Explain why you chose these scores in 1-2 sentences"""
+
+        response = self._gemini_client.models.generate_content(
+            model=self.GEMINI_GENERATE_MODEL,
+            contents=prompt,
+        )
+
+        # Parse the JSON from Gemini's response
+        response_text = response.text.strip()
+
+        # Strip markdown code fences if present
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            # Remove first line (```json) and last line (```)
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            response_text = "\n".join(lines)
+
+        result = json.loads(response_text)
+
+        likelihood = max(1, min(5, int(result.get("likelihood", 3))))
+        impact = max(1, min(5, int(result.get("impact", 3))))
+
+        return RiskSuggestion(
+            likelihood=likelihood,
+            impact=impact,
+            risk_score=likelihood * impact,
+            reasoning=result.get("reasoning", "AI-generated assessment."),
+            related_controls=result.get("related_controls", []),
+        )
+
+    def _suggest_risk_local(self, description: str) -> RiskSuggestion:
+        """Fallback: heuristic risk scoring using local embeddings."""
+        text_embedding = self._embed_text(description)
+        control_embeddings = self._get_control_embeddings()
+        similarities = cosine_similarity(text_embedding, control_embeddings)[0]
         ranked_indices = np.argsort(similarities)[::-1]
 
         related_controls: list[str] = []
@@ -291,11 +525,10 @@ class AIService:
             related_controls.append(f"{control['annex']} {control['title']}")
             relevance_scores.append(score)
 
-        # Heuristic scoring based on number and strength of related controls
+        # Heuristic scoring
         avg_relevance = np.mean(relevance_scores) if relevance_scores else 0.0
         num_controls = len(related_controls)
 
-        # Higher relevance to more controls = potentially broader risk
         if avg_relevance > 0.6 and num_controls >= 3:
             likelihood, impact = 4, 4
             reasoning = "High semantic overlap with multiple controls suggests a broad, well-known risk."
@@ -327,8 +560,6 @@ class AIService:
         """
         Given all evidence texts in the system, identify which controls
         have NO matching evidence (compliance gaps).
-
-        Returns a list of unmatched controls.
         """
         if not self._is_ready:
             raise RuntimeError("AI Service not initialized. Call initialize() first.")
@@ -340,14 +571,13 @@ class AIService:
             ]
 
         # Encode all evidence
-        evidence_embeddings = self._model.encode(
-            evidence_texts, convert_to_numpy=True, show_progress_bar=False
-        )
+        evidence_embeddings = self._embed_texts(evidence_texts)
+        control_embeddings = self._get_control_embeddings()
 
         # For each control, check if ANY evidence matches above threshold
         gaps = []
         for idx, control in enumerate(self._controls):
-            control_emb = self._control_embeddings[idx].reshape(1, -1)
+            control_emb = control_embeddings[idx].reshape(1, -1)
             sims = cosine_similarity(control_emb, evidence_embeddings)[0]
             max_sim = float(np.max(sims))
 

@@ -2,14 +2,15 @@
 AI API Endpoints – Exposes the AI service to the frontend.
 
 Endpoints:
-  POST /ai/analyze-evidence   → Analyze evidence text, return matched controls
-  POST /ai/suggest-risk       → Suggest risk scores from a description
-  GET  /ai/compliance-gaps    → Identify controls with no evidence coverage
-  GET  /ai/status             → AI service health check
+  POST /ai/analyze-evidence      → Analyze evidence text, return matched controls
+  POST /ai/analyze-evidence-pdf  → Upload a PDF, extract text, analyze it
+  POST /ai/suggest-risk          → Suggest risk scores from a description
+  GET  /ai/compliance-gaps       → Identify controls with no evidence coverage
+  GET  /ai/status                → AI service health check
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -37,7 +38,8 @@ async def ai_status():
     """Check if the AI service is loaded and ready."""
     return AIStatusResponse(
         status="ready" if ai_service.is_ready else "not_initialized",
-        model_name=ai_service.MODEL_NAME,
+        model_name=ai_service.LOCAL_MODEL_NAME,
+        active_engine=ai_service.active_engine,
         controls_loaded=len(ai_service._controls),
         is_ready=ai_service.is_ready,
     )
@@ -79,6 +81,58 @@ async def analyze_evidence(
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
+@router.post("/analyze-evidence-pdf", response_model=EvidenceAnalysisResponse)
+async def analyze_evidence_pdf(
+    file: UploadFile = File(..., description="PDF file to analyze"),
+    top_n: int = Query(5, ge=1, le=20),
+    threshold: float = Query(0.30, ge=0.0, le=1.0),
+    current_user: models.User = Depends(deps.get_current_active_user),
+):
+    """
+    Upload a PDF file, extract its text, and analyze it against ISO 27001 controls.
+
+    This endpoint accepts a multipart file upload and returns the same result
+    as /analyze-evidence but handles PDF text extraction automatically.
+    """
+    if not ai_service.is_ready:
+        raise HTTPException(
+            status_code=503,
+            detail="AI service is not initialized. Please wait for model loading."
+        )
+
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are supported. Please upload a .pdf file."
+        )
+
+    try:
+        file_bytes = await file.read()
+
+        if len(file_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+        result = ai_service.analyze_evidence_pdf(
+            file_bytes=file_bytes,
+            top_n=top_n,
+            threshold=threshold,
+        )
+        return EvidenceAnalysisResponse(
+            category=result.category,
+            matched_controls=[
+                ControlMatchResponse(**m.to_dict())
+                for m in result.matched_controls
+            ],
+            summary=result.summary,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error(f"PDF evidence analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
 @router.post("/suggest-risk", response_model=RiskSuggestionResponse)
 async def suggest_risk(
     request: RiskSuggestionRequest,
@@ -87,6 +141,9 @@ async def suggest_risk(
     """
     Analyze a risk description and suggest likelihood/impact scores.
     Also returns related ISO 27001 controls that could mitigate the risk.
+
+    Uses Gemini AI for intelligent scoring when available, falls back to
+    embedding-based heuristics otherwise.
     """
     if not ai_service.is_ready:
         raise HTTPException(

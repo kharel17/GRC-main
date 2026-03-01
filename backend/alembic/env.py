@@ -9,7 +9,11 @@ from alembic import context
 
 from app.models.base import Base
 # import all models so that they are registered with Base.metadata
-from app.models import User, Risk, Control, ComplianceItem, Evidence, AuditLog, Ticket
+from app.models import (
+    User, Risk, RiskCategory, Control, RiskControlMapping, 
+    ComplianceItem, Evidence, EvidenceControlMatch, 
+    AuditLog, Ticket, TicketComment, RefreshToken
+)
 
 config = context.config
 

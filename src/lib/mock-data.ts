@@ -13,6 +13,7 @@ export const mockUsers: UserProfile[] = [
     fullName: 'Alice Johnson',
     role: 'admin',
     department: 'Compliance',
+    is_active: true,
     createdAt: '2024-01-01',
     updatedAt: '2024-01-28',
   },
@@ -22,6 +23,7 @@ export const mockUsers: UserProfile[] = [
     fullName: 'Bob Smith',
     role: 'analyst',
     department: 'Risk Management',
+    is_active: true,
     createdAt: '2024-01-05',
     updatedAt: '2024-01-28',
   },
@@ -31,8 +33,29 @@ export const mockUsers: UserProfile[] = [
     fullName: 'Carol Williams',
     role: 'manager',
     department: 'Operations',
+    is_active: true,
     createdAt: '2024-01-10',
     updatedAt: '2024-01-28',
+  },
+  {
+    id: 'user-4',
+    email: 'david@company.com',
+    fullName: 'David Miller',
+    role: 'analyst',
+    department: 'IT Security',
+    is_active: false,
+    createdAt: '2024-02-01',
+    updatedAt: '2024-02-15',
+  },
+  {
+    id: 'user-5',
+    email: 'eve@company.com',
+    fullName: 'Eve Adams',
+    role: 'manager',
+    department: 'Finance',
+    is_active: true,
+    createdAt: '2024-02-10',
+    updatedAt: '2024-02-10',
   },
 ];
 
@@ -590,6 +613,7 @@ export const mockTickets: Ticket[] = [
     updatedAt: '2024-01-28T17:00:00Z',
     resolvedAt: '2024-01-27T14:00:00Z',
     escalatedAt: '2024-01-22T11:00:00Z',
+    isAutoEscalationEnabled: true,
     comments: [
       {
         id: 'comment-10',

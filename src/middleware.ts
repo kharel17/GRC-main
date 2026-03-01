@@ -43,7 +43,7 @@ function decodeTokenPayload(token: string): { role: UserRole; exp: number } | nu
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    
+
     const payload = parts[1];
     const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
     return JSON.parse(decoded);
@@ -68,8 +68,8 @@ export function middleware(request: NextRequest) {
   }
 
   // Check for auth token cookie
-  const tokenCookie = request.cookies.get('grc_access_token');
-  
+  const tokenCookie = request.cookies.get('access_token');
+
   // If no cookie, let client-side auth handle it
   // The dashboard layout will redirect to login if not authenticated
   if (!tokenCookie?.value) {
@@ -83,11 +83,11 @@ export function middleware(request: NextRequest) {
 
   // Decode token to get role
   const payload = decodeTokenPayload(tokenCookie.value);
-  
+
   if (!payload?.role) {
     // Invalid token - clear the cookie and let client handle
     const response = NextResponse.next();
-    response.cookies.delete('grc_access_token');
+    response.cookies.delete('access_token');
     return response;
   }
 
@@ -96,13 +96,13 @@ export function middleware(request: NextRequest) {
   if (payload.exp && payload.exp < nowSeconds) {
     // Token expired - clear cookie and let client handle refresh
     const response = NextResponse.next();
-    response.cookies.delete('grc_access_token');
+    response.cookies.delete('access_token');
     return response;
   }
 
   // Check route permissions
   const allowedRoles = getRoutePermissions(pathname);
-  
+
   if (allowedRoles && !allowedRoles.includes(payload.role)) {
     // User doesn't have permission, redirect to dashboard with error
     const dashboardUrl = new URL('/dashboard', request.url);

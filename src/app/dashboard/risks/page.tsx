@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { mockRisks, mockRiskCategories } from "@/lib/mock-data";
+import { fetchRisks, getRiskCategories } from "@/lib/data-service";
+import { useApiData } from "@/hooks/use-api-data";
 import { RiskList } from "@/features/risk/RiskList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, LayoutGrid, List, AlertTriangle, Filter } from "lucide-react";
+import { Plus, LayoutGrid, List, AlertTriangle, Filter, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 
@@ -53,11 +54,15 @@ function getStatusStyles(status: string) {
 }
 
 export default function RisksPage() {
+  const { data: risks, loading, error } = useApiData(fetchRisks);
+  const riskCategories = getRiskCategories();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
 
-  const filteredRisks = mockRisks.filter((risk) => {
+  const allRisks = risks ?? [];
+
+  const filteredRisks = allRisks.filter((risk) => {
     if (statusFilter !== 'all' && risk.status !== statusFilter) return false;
     if (categoryFilter !== 'all' && risk.categoryId !== categoryFilter) return false;
     return true;
@@ -69,6 +74,25 @@ export default function RisksPage() {
   };
 
   const hasActiveFilters = statusFilter !== 'all' || categoryFilter !== 'all';
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-3 text-slate-600">Loading risks…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+        <h3 className="text-sm font-medium text-slate-900 mb-1">Failed to load risks</h3>
+        <p className="text-sm text-slate-500">{error.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -115,7 +139,7 @@ export default function RisksPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
-              {mockRiskCategories.map((cat) => (
+              {riskCategories.map((cat) => (
                 <SelectItem key={cat.id} value={cat.id}>
                   {cat.name}
                 </SelectItem>
@@ -153,7 +177,7 @@ export default function RisksPage() {
 
       {/* Results Info */}
       <div className="text-sm text-slate-500">
-        Showing {filteredRisks.length} of {mockRisks.length} risks
+        Showing {filteredRisks.length} of {allRisks.length} risks
       </div>
 
       {/* Empty State */}

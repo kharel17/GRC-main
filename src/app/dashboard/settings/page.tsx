@@ -23,10 +23,11 @@ import {
   Palette,
 } from 'lucide-react';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
+import { MfaSettings } from '@/components/settings/MfaSettings';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
-  
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -167,13 +168,9 @@ export default function SettingsPage() {
                 </div>
                 <Button variant="outline">Change Password</Button>
               </div>
-              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <p className="font-medium text-sm">Two-Factor Authentication</p>
-                  <p className="text-xs text-muted-foreground">Add an extra layer of security</p>
-                </div>
-                <Badge variant="outline">Not Enabled</Badge>
-              </div>
+
+              <MfaSettings />
+
               <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                 <div>
                   <p className="font-medium text-sm">Active Sessions</p>

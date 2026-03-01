@@ -36,7 +36,7 @@ async def create_ticket(
     *,
     db: AsyncSession = Depends(deps.get_db),
     ticket_in: schemas.TicketCreate,
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
 ) -> Any:
     """
     Create new ticket.
@@ -100,6 +100,35 @@ async def read_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
     return ticket
 
+@router.put("/{id}", response_model=schemas.Ticket)
+async def update_ticket(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: str,
+    ticket_in: schemas.TicketUpdate,
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+) -> Any:
+    """
+    Update a ticket.
+    """
+    result = await db.execute(
+        select(models.Ticket)
+        .where(models.Ticket.id == id)
+        .options(selectinload(models.Ticket.comments))
+    )
+    ticket = result.scalars().first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    update_data = ticket_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(ticket, field, value)
+    
+    db.add(ticket)
+    await db.commit()
+    await db.refresh(ticket)
+    return ticket
+
 @router.post("/{id}/escalate", response_model=schemas.Ticket)
 async def escalate_ticket(
     *,
@@ -107,7 +136,7 @@ async def escalate_ticket(
     id: str,
     escalated_to_id: str, # UUID via query/body? Let's assume body via schema or just generic query params for simplicity
     # Ideally should be a small Pydantic body.
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
 ) -> Any:
     """
     Escalate a ticket.

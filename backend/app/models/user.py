@@ -23,6 +23,10 @@ class User(Base):
     department = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     token_version = Column(Integer, default=1, nullable=False)
+    mfa_enabled = Column(Boolean, default=False)
+    totp_secret = Column(String, nullable=True)
+    reset_token = Column(String, nullable=True)
+    reset_token_expires = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

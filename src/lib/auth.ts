@@ -28,8 +28,8 @@ export interface AuthUser {
 // Constants
 // =============================================================================
 
-const TOKEN_KEY = 'grc_tokens';
-const USER_KEY = 'grc_user';
+const TOKEN_KEY = 'tokens';
+const USER_KEY = 'user';
 
 // Token expiry buffer (refresh 30 seconds before actual expiry)
 const EXPIRY_BUFFER_MS = 30 * 1000;
@@ -41,7 +41,7 @@ const EXPIRY_BUFFER_MS = 30 * 1000;
 export function setTokens(tokens: AuthTokens): void {
   if (typeof window === 'undefined') return;
   // Signal login (for cookie detection fallback)
-  localStorage.setItem('grc_is_logged_in', 'true');
+  localStorage.setItem('is_logged_in', 'true');
   // Store actual tokens if not empty (Mock/Manual support)
   if (tokens.accessToken !== '') {
     localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
@@ -62,7 +62,7 @@ export function getTokens(): AuthTokens | null {
   }
 
   // Fallback to checking the login flag (for cookie-only auth)
-  const isLoggedIn = localStorage.getItem('grc_is_logged_in');
+  const isLoggedIn = localStorage.getItem('is_logged_in');
   if (isLoggedIn) {
     return {
       accessToken: '',
@@ -75,7 +75,7 @@ export function getTokens(): AuthTokens | null {
 
 export function clearTokens(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem('grc_is_logged_in');
+  localStorage.removeItem('is_logged_in');
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
@@ -198,7 +198,9 @@ function generateMockToken(user: MockUser): string {
 export interface LoginResponse {
   access_token: string;
   refresh_token: string;
-  user: {
+  mfa_required?: boolean;
+  mfa_token?: string;
+  user?: {
     id: string;
     email: string;
     role: UserRole;
@@ -231,6 +233,16 @@ export async function login(email: string, password: string): Promise<LoginRespo
     }
 
     const data = await response.json();
+
+    if (data.mfa_required) {
+      return {
+        access_token: '',
+        refresh_token: '',
+        mfa_required: true,
+        mfa_token: data.mfa_token,
+        user: { id: '', email, role: 'analyst' as UserRole }
+      };
+    }
 
     // Store state flag
     setTokens({ accessToken: '', refreshToken: '' });
@@ -278,4 +290,27 @@ export async function mockLogin(email: string, password: string): Promise<LoginR
       role: user.role,
     },
   };
+}
+/**
+ * Verify MFA code for login.
+ */
+export async function verifyMfa(mfaToken: string, code: string): Promise<LoginResponse | null> {
+  try {
+    const response = await fetch(`${api.baseUrl}/auth/mfa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mfa_token: mfaToken, code }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) return null;
+
+    // Flag login
+    setTokens({ accessToken: '', refreshToken: '' });
+
+    return await response.json();
+  } catch (error) {
+    console.error('[Auth] MFA verification failed:', error);
+    return null;
+  }
 }

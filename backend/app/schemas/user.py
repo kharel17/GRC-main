@@ -34,6 +34,22 @@ class UserInDBBase(UserBase):
 class User(UserInDBBase):
     pass
 
+# MFA Schemas
+class MFAVerify(BaseModel):
+    code: str
+
+class MFALoginVerify(BaseModel):
+    mfa_token: str
+    code: str
+
+# Password Reset Schemas
+class ForgotPassword(BaseModel):
+    email: EmailStr
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str
+
 # Additional properties stored in DB
 class UserInDB(UserInDBBase):
     hashed_password: str

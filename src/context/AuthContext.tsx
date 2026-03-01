@@ -24,7 +24,8 @@ export interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; mfaRequired?: boolean; mfaToken?: string }>;
+  verifyMfa: (mfaToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   hasRole: (roles: UserRole | UserRole[]) => boolean;
 }
@@ -106,8 +107,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (!api.isMock) {
         try {
-          // Direct call to backend login endpoint
-          await api.post('/auth/login', { username: email, password });
+          const formData = new URLSearchParams();
+          formData.append('username', email);
+          formData.append('password', password);
+
+          const rawResponse = await fetch(`${api.baseUrl}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString(),
+          });
+
+          if (!rawResponse.ok) {
+            return { success: false, error: 'Invalid email or password' };
+          }
+
+          response = await rawResponse.json();
+
+          if (response?.mfa_required) {
+            return {
+              success: false,
+              mfaRequired: true,
+              mfaToken: response.mfa_token
+            };
+          }
 
           // Signal login (cookies carry the tokens)
           setTokens({ accessToken: '', refreshToken: '' });
@@ -136,15 +158,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Set user state
       setUser({
-        id: response.user.id,
-        email: response.user.email,
-        role: response.user.role,
+        id: response.user?.id || '',
+        email: response.user?.email || email,
+        role: response.user?.role || 'analyst',
       });
 
       return { success: true };
     } catch (error) {
       console.error('[Auth] Login failed:', error);
       return { success: false, error: 'An error occurred. Please try again.' };
+    }
+  }, []);
+
+  const verifyMfa = useCallback(async (mfaToken: string, code: string) => {
+    try {
+      const response = await api.post<LoginResponse>('/auth/mfa/verify', {
+        mfa_token: mfaToken,
+        code
+      });
+
+      if (!response) {
+        return { success: false, error: 'Invalid MFA code' };
+      }
+
+      // Signal login
+      setTokens({ accessToken: '', refreshToken: '' });
+
+      // Fetch user profile
+      const userData = await api.get<AuthUser>('/auth/me');
+      setUser(userData);
+      return { success: true };
+    } catch (error) {
+      console.error('[Auth] MFA verification failed:', error);
+      return { success: false, error: 'Invalid code or expired session.' };
     }
   }, []);
 
@@ -171,6 +217,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     isAuthenticated: !!user,
     login,
+    verifyMfa,
     logout,
     hasRole,
   };

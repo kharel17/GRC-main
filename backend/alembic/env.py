@@ -12,7 +12,7 @@ from app.models.base import Base
 from app.models import (
     User, Risk, RiskCategory, Control, RiskControlMapping, 
     ComplianceItem, Evidence, EvidenceControlMatch, 
-    AuditLog, Ticket, TicketComment
+    AuditLog, Ticket, TicketComment, RefreshToken
 )
 
 config = context.config

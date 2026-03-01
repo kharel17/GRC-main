@@ -52,6 +52,18 @@ async def get_current_user(
          
     return user_orm
 
+class RoleChecker:
+    def __init__(self, allowed_roles: list[models.UserRole]):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, user: models.User = Depends(get_current_user)):
+        if user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Role {user.role} does not have access to this resource",
+            )
+        return user
+
 def get_current_active_user(
     current_user: models.User = Depends(get_current_user),
 ) -> models.User:

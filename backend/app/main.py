@@ -66,10 +66,27 @@ async def request_logging_middleware(request: Request, call_next):
     response.headers["X-Request-ID"] = request_id
     return response
 
+# ── AI Service Initialization ─────────────────────────────
+from app.services.ai_service import ai_service
+
+@app.on_event("startup")
+async def startup_ai_service():
+    """Initialize the AI semantic engine on server startup."""
+    try:
+        ai_service.initialize()
+        logger.info("AI Service initialized successfully")
+    except Exception as e:
+        logger.warning(f"AI Service failed to initialize: {e}. AI endpoints will return 503.")
+
 # ── Health Check ───────────────────────────────────────────
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "environment": settings.ENVIRONMENT}
+    return {
+        "status": "healthy",
+        "environment": settings.ENVIRONMENT,
+        "ai_ready": ai_service.is_ready,
+        "ai_engine": ai_service.active_engine if ai_service.is_ready else "not_initialized",
+    }
 
 @app.get("/")
 def root():

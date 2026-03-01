@@ -1,8 +1,10 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+import hashlib
 from app import schemas, models
 from app.api import deps
 from app.utils import security
@@ -11,8 +13,12 @@ from app.config import settings
 
 router = APIRouter()
 
-@router.post("/login", response_model=schemas.Token)
+def get_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+@router.post("/login")
 async def login_access_token(
+    response: Response,
     db: AsyncSession = Depends(deps.get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
@@ -30,14 +36,118 @@ async def login_access_token(
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
-        user.id, expires_delta=access_token_expires
+    # Create tokens with current user version
+    access_token = security.create_access_token(user.id, token_version=user.token_version)
+    refresh_token = security.create_refresh_token(user.id, token_version=user.token_version)
+    
+    # Store refresh token hash in DB
+    db_refresh_token = models.RefreshToken(
+        token_hash=get_token_hash(refresh_token),
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
     )
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }
+    db.add(db_refresh_token)
+    await db.commit()
+    
+    # Set httpOnly cookies
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.ENVIRONMENT == "production",
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.ENVIRONMENT == "production",
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
+    )
+    
+    return {"message": "Successfully logged in"}
+
+@router.post("/refresh")
+async def refresh_token(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(deps.get_db)
+) -> Any:
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Refresh token missing")
+    
+    try:
+        payload = security.decode_token(token)
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        user_id = payload.get("sub")
+        token_version = payload.get("version")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    
+    # Check token in DB
+    token_hash = get_token_hash(token)
+    result = await db.execute(
+        select(models.RefreshToken).where(models.RefreshToken.token_hash == token_hash)
+    )
+    db_token = result.scalars().first()
+    
+    # Reuse detection: If token not in DB but was valid JWT, it might be a reused/stolen token
+    if not db_token:
+        # Revoke all tokens for this user as a safety measure
+        await db.execute(
+            delete(models.RefreshToken).where(models.RefreshToken.user_id == user_id)
+        )
+        # Increment user token version to invalidate all current JWTs
+        user = await db.get(models.User, user_id)
+        if user:
+            user.token_version += 1
+            db.add(user)
+        await db.commit()
+        
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        raise HTTPException(status_code=401, detail="Token reuse detected. All sessions revoked.")
+
+    user = await db.get(models.User, user_id)
+    if not user or not user.is_active or user.token_version != token_version:
+        await db.delete(db_token)
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user or token version")
+
+    # Rotate tokens: Invalidate old, issue new Access + Refresh
+    await db.delete(db_token)
+    
+    new_access_token = security.create_access_token(user.id, token_version=user.token_version)
+    new_refresh_token = security.create_refresh_token(user.id, token_version=user.token_version)
+    
+    new_db_token = models.RefreshToken(
+        token_hash=get_token_hash(new_refresh_token),
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+    )
+    db.add(new_db_token)
+    await db.commit()
+    
+    response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=settings.ENVIRONMENT == "production", samesite="lax")
+    response.set_cookie(key="refresh_token", value=new_refresh_token, httponly=True, secure=settings.ENVIRONMENT == "production", samesite="lax")
+    
+    return {"message": "Token refreshed"}
+
+@router.post("/logout")
+async def logout(request: Request, response: Response, db: AsyncSession = Depends(deps.get_db)):
+    token = request.cookies.get("refresh_token")
+    if token:
+        token_hash = get_token_hash(token)
+        await db.execute(delete(models.RefreshToken).where(models.RefreshToken.token_hash == token_hash))
+        await db.commit()
+    
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return {"message": "Logged out"}
 
 @router.post("/register", response_model=schemas.User)
 async def register_user(

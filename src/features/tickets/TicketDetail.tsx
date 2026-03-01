@@ -3,6 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { EscalationBadge } from './EscalationBadge';
 import { getPriorityStyles, getStatusStyles, getCategoryLabel } from './TicketCard';
 import { Ticket } from '@/types/ticket';
@@ -32,6 +34,17 @@ interface TicketDetailProps {
 export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
   const priorityStyles = getPriorityStyles(ticket.priority);
   const statusStyles = getStatusStyles(ticket.status);
+
+  const handleEscalate = () => {
+    // In a real app, this would call the API: POST /api/tickets/{ticket.id}/escalate
+    console.log('Manually escalating ticket:', ticket.id);
+    alert(`Ticket ${ticket.id} escalated manually!`);
+  };
+
+  const toggleAutoEscalation = (enabled: boolean) => {
+    // In a real app, this would call the API: PUT /api/tickets/{ticket.id}
+    console.log('Setting auto-escalation to:', enabled);
+  };
 
   return (
     <div className="space-y-6">
@@ -71,7 +84,12 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
           <div className="flex flex-wrap gap-2 flex-shrink-0">
             {ticket.status !== 'closed' && ticket.status !== 'resolved' && (
               <>
-                <Button size="sm" variant="outline" className="gap-1.5 text-orange-600 border-orange-200 hover:bg-orange-50 dark:hover:bg-orange-900/20">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="gap-1.5 text-orange-600 border-orange-200 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                  onClick={handleEscalate}
+                >
                   <ChevronUp className="h-4 w-4" />
                   Escalate
                 </Button>
@@ -320,6 +338,17 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
                 </div>
 
                 <div className="border-t border-border pt-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="auto-escalate" className="text-xs text-muted-foreground">Auto-Escalation</Label>
+                    </div>
+                    <Switch
+                      id="auto-escalate"
+                      defaultChecked={ticket.isAutoEscalationEnabled ?? true}
+                      onCheckedChange={toggleAutoEscalation}
+                    />
+                  </div>
+
                   <div>
                     <span className="text-xs text-muted-foreground block mb-1">Assigned To</span>
                     <div className="flex items-center gap-1.5">

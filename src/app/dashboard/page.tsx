@@ -1,18 +1,21 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { mockRisks, mockControls, mockComplianceItems } from "@/lib/mock-data";
+import { fetchRisks, fetchControls, fetchComplianceItems } from "@/lib/data-service";
+import { useApiData } from "@/hooks/use-api-data";
 import { DashboardSummary } from "@/features/dashboard/DashboardSummary";
 import { RiskHighlights } from "@/features/dashboard/RiskHighlights";
 import { OverdueItems } from "@/features/dashboard/OverdueItems";
-import { AlertCircle, TrendingUp, FileText, Shield, Clock, BarChart3 } from "lucide-react";
+import { AlertCircle, TrendingUp, FileText, Shield, Clock, BarChart3, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { Risk } from "@/types/risk";
+import type { Control } from "@/types/control";
 
 // =============================================================================
 // Role-Specific Widget Components
 // =============================================================================
 
-function AdminSystemOverview() {
+function AdminSystemOverview({ controls, risks }: { controls: Control[]; risks: Risk[] }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/40 dark:to-blue-900/40 dark:border-blue-800">
@@ -22,7 +25,7 @@ function AdminSystemOverview() {
               <Shield className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{mockControls.length}</p>
+              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{controls.length}</p>
               <p className="text-sm text-blue-700 dark:text-blue-300">Active Controls</p>
             </div>
           </div>
@@ -36,7 +39,7 @@ function AdminSystemOverview() {
             </div>
             <div>
               <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
-                {mockRisks.filter(r => r.status === 'identified').length}
+                {risks.filter(r => r.status === 'identified').length}
               </p>
               <p className="text-sm text-amber-700 dark:text-amber-300">Open Risks</p>
             </div>
@@ -161,6 +164,12 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const role = user?.role || 'manager';
 
+  const { data: risks, loading: risksLoading } = useApiData(fetchRisks);
+  const { data: controls, loading: controlsLoading } = useApiData(fetchControls);
+  const { data: complianceItems, loading: complianceLoading } = useApiData(fetchComplianceItems);
+
+  const loading = risksLoading || controlsLoading || complianceLoading;
+
   // Role-specific greeting
   const getGreeting = () => {
     switch (role) {
@@ -177,6 +186,25 @@ export default function DashboardPage() {
 
   const greeting = getGreeting();
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground mb-1">{greeting.title}</h1>
+          <p className="text-sm text-muted-foreground">{greeting.subtitle}</p>
+        </div>
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <span className="ml-3 text-slate-600">Loading dashboard data…</span>
+        </div>
+      </div>
+    );
+  }
+
+  const allRisks = risks ?? [];
+  const allControls = controls ?? [];
+  const allCompliance = complianceItems ?? [];
+
   return (
     <div className="space-y-6">
       <div>
@@ -185,7 +213,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Admin-specific system overview */}
-      {role === 'admin' && <AdminSystemOverview />}
+      {role === 'admin' && <AdminSystemOverview controls={allControls} risks={allRisks} />}
 
       {/* Analyst-specific task widget */}
       {role === 'analyst' && <AnalystTaskWidget />}
@@ -195,19 +223,19 @@ export default function DashboardPage() {
 
       {/* Common summary component - visible to all */}
       <DashboardSummary
-        risks={mockRisks}
-        controls={mockControls}
-        complianceItems={mockComplianceItems}
+        risks={allRisks}
+        controls={allControls}
+        complianceItems={allCompliance}
       />
 
       {/* Risk highlights and overdue items - visibility based on role */}
       {(role === 'admin' || role === 'analyst') && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <RiskHighlights risks={mockRisks} />
+            <RiskHighlights risks={allRisks} />
           </div>
           <div>
-            <OverdueItems complianceItems={mockComplianceItems} />
+            <OverdueItems complianceItems={allCompliance} />
           </div>
         </div>
       )}
@@ -215,7 +243,7 @@ export default function DashboardPage() {
       {/* Manager sees only reports-focused content */}
       {role === 'manager' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <OverdueItems complianceItems={mockComplianceItems} />
+          <OverdueItems complianceItems={allCompliance} />
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Quick Actions</CardTitle>

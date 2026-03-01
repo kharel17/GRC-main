@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { mockTickets } from '@/lib/mock-data';
+import { fetchTickets } from '@/lib/data-service';
+import { useApiData } from '@/hooks/use-api-data';
 import { TicketCard } from '@/features/tickets/TicketCard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import {
   CheckCircle2,
   Clock,
   Filter,
+  Loader2,
   Plus,
   Ticket,
   XCircle,
@@ -27,11 +29,14 @@ import { RoleGuard } from '@/components/auth/RoleGuard';
 import { TicketStatus, TicketPriority, TicketCategory } from '@/types/ticket';
 
 export default function TicketsPage() {
+  const { data: tickets, loading, error } = useApiData(fetchTickets);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  const filteredTickets = mockTickets.filter((ticket) => {
+  const allTickets = tickets ?? [];
+
+  const filteredTickets = allTickets.filter((ticket) => {
     if (statusFilter !== 'all' && ticket.status !== statusFilter) return false;
     if (priorityFilter !== 'all' && ticket.priority !== priorityFilter) return false;
     if (categoryFilter !== 'all' && ticket.category !== categoryFilter) return false;
@@ -47,10 +52,10 @@ export default function TicketsPage() {
   const hasActiveFilters = statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all';
 
   // Stats
-  const openCount = mockTickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
-  const escalatedCount = mockTickets.filter(t => t.status === 'escalated').length;
-  const resolvedCount = mockTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
-  const criticalCount = mockTickets.filter(t => t.priority === 'critical' && t.status !== 'resolved' && t.status !== 'closed').length;
+  const openCount = allTickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
+  const escalatedCount = allTickets.filter(t => t.status === 'escalated').length;
+  const resolvedCount = allTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
+  const criticalCount = allTickets.filter(t => t.priority === 'critical' && t.status !== 'resolved' && t.status !== 'closed').length;
 
   const stats = [
     {
@@ -86,6 +91,25 @@ export default function TicketsPage() {
       borderColor: 'border-orange-200 dark:border-orange-800',
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-3 text-slate-600">Loading tickets…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <Ticket className="h-12 w-12 text-red-400 mb-4" />
+        <h3 className="text-sm font-medium text-slate-900 mb-1">Failed to load tickets</h3>
+        <p className="text-sm text-slate-500">{error.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -187,7 +211,7 @@ export default function TicketsPage() {
 
       {/* Results Count */}
       <div className="text-sm text-muted-foreground">
-        Showing {filteredTickets.length} of {mockTickets.length} tickets
+        Showing {filteredTickets.length} of {allTickets.length} tickets
       </div>
 
       {/* Tickets Grid or Empty State */}

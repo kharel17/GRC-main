@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { mockEvidence } from "@/lib/mock-data";
+import { fetchEvidence } from "@/lib/data-service";
+import { useApiData } from "@/hooks/use-api-data";
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, CheckCircle2, Clock, Filter, LayoutGrid, List } from "lucide-react";
+import { Plus, FileText, CheckCircle2, Clock, Filter, LayoutGrid, List, Loader2 } from "lucide-react";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 
 type ViewMode = 'table' | 'cards';
@@ -26,6 +27,7 @@ function formatFileSize(bytes: number): string {
 }
 
 export default function EvidencePage() {
+  const { data: evidence, loading, error } = useApiData(fetchEvidence);
   const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [isMobile, setIsMobile] = useState(false);
@@ -37,20 +39,41 @@ export default function EvidencePage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const filteredEvidence = mockEvidence.filter((item) => {
+  const allEvidence = evidence ?? [];
+
+  const filteredEvidence = allEvidence.filter((item) => {
     if (verificationFilter === 'verified') return item.verified;
     if (verificationFilter === 'pending') return !item.verified;
     return true;
   });
 
   const filterButtons: { label: string; value: VerificationFilter; count: number }[] = [
-    { label: 'All', value: 'all', count: mockEvidence.length },
-    { label: 'Verified', value: 'verified', count: mockEvidence.filter(e => e.verified).length },
-    { label: 'Pending', value: 'pending', count: mockEvidence.filter(e => !e.verified).length },
+    { label: 'All', value: 'all', count: allEvidence.length },
+    { label: 'Verified', value: 'verified', count: allEvidence.filter(e => e.verified).length },
+    { label: 'Pending', value: 'pending', count: allEvidence.filter(e => !e.verified).length },
   ];
 
   // Auto-switch to cards on mobile
   const effectiveViewMode = isMobile ? 'cards' : viewMode;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-3 text-slate-600">Loading evidence…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <FileText className="h-12 w-12 text-red-400 mb-4" />
+        <h3 className="text-sm font-medium text-slate-900 mb-1">Failed to load evidence</h3>
+        <p className="text-sm text-slate-500">{error.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -111,7 +134,7 @@ export default function EvidencePage() {
 
       {/* Results Count */}
       <div className="text-sm text-slate-500">
-        Showing {filteredEvidence.length} of {mockEvidence.length} items
+        Showing {filteredEvidence.length} of {allEvidence.length} items
       </div>
 
       {/* Empty State */}

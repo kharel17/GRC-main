@@ -36,7 +36,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     ...(extraHeaders as Record<string, string> || {}),
   };
 
-  // Inject JWT
+  // Inject JWT (Optional if using cookies, but kept for compatibility with other APIs)
   if (!skipAuth) {
     const tokens = getTokens();
     if (tokens?.accessToken) {
@@ -47,11 +47,27 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...rest,
     headers,
+    credentials: 'include', // Ensure cookies are sent
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  // Handle 401 — force logout
-  if (response.status === 401) {
+  // Handle 401 — attempt token refresh
+  if (response.status === 401 && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
+    try {
+      const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (refreshResponse.ok) {
+        // Retry the original request
+        return request<T>(endpoint, options);
+      }
+    } catch (error) {
+      console.error('[API] Token refresh failed:', error);
+    }
+
+    // Refresh failed or not possible — force logout
     clearTokens();
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
@@ -101,6 +117,7 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,
+    credentials: 'include',
     body: formData,
   });
 

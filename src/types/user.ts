@@ -6,6 +6,7 @@ export interface UserProfile {
   fullName: string;
   role: UserRole;
   department?: string;
+  is_active?: boolean;
   createdAt: string;
   updatedAt: string;
 }

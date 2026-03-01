@@ -40,23 +40,42 @@ const EXPIRY_BUFFER_MS = 30 * 1000;
 
 export function setTokens(tokens: AuthTokens): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
+  // Signal login (for cookie detection fallback)
+  localStorage.setItem('grc_is_logged_in', 'true');
+  // Store actual tokens if not empty (Mock/Manual support)
+  if (tokens.accessToken !== '') {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
+  }
 }
 
 export function getTokens(): AuthTokens | null {
   if (typeof window === 'undefined') return null;
+
+  // Try to get actual stored tokens first
   const stored = localStorage.getItem(TOKEN_KEY);
-  if (!stored) return null;
-  
-  try {
-    return JSON.parse(stored) as AuthTokens;
-  } catch {
-    return null;
+  if (stored) {
+    try {
+      return JSON.parse(stored) as AuthTokens;
+    } catch {
+      // ignore
+    }
   }
+
+  // Fallback to checking the login flag (for cookie-only auth)
+  const isLoggedIn = localStorage.getItem('grc_is_logged_in');
+  if (isLoggedIn) {
+    return {
+      accessToken: '',
+      refreshToken: '',
+    };
+  }
+
+  return null;
 }
 
 export function clearTokens(): void {
   if (typeof window === 'undefined') return;
+  localStorage.removeItem('grc_is_logged_in');
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
@@ -69,7 +88,7 @@ export function decodeToken(token: string): JWTPayload | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    
+
     const payload = parts[1];
     const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
     return JSON.parse(decoded) as JWTPayload;
@@ -81,7 +100,7 @@ export function decodeToken(token: string): JWTPayload | null {
 export function isTokenExpired(token: string): boolean {
   const payload = decodeToken(token);
   if (!payload) return true;
-  
+
   const expiryMs = payload.exp * 1000;
   const nowMs = Date.now();
   return nowMs >= expiryMs - EXPIRY_BUFFER_MS;
@@ -90,7 +109,7 @@ export function isTokenExpired(token: string): boolean {
 export function getUserFromToken(token: string): AuthUser | null {
   const payload = decodeToken(token);
   if (!payload) return null;
-  
+
   return {
     id: payload.sub,
     email: payload.email,
@@ -131,7 +150,7 @@ export function canAccessRoute(route: string, role: UserRole): boolean {
   if (ROUTE_PERMISSIONS[route]) {
     return ROUTE_PERMISSIONS[route].includes(role);
   }
-  
+
   const segments = route.split('/').filter(Boolean);
   while (segments.length > 0) {
     const parentRoute = '/' + segments.join('/');
@@ -169,7 +188,7 @@ function generateMockToken(user: MockUser): string {
     iat: now,
     exp: now + 3600,
   };
-  
+
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const payloadB64 = btoa(JSON.stringify(payload));
   const signature = btoa('mock-signature');
@@ -213,19 +232,23 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
     const data = await response.json();
 
-    // Backend returns { access_token, token_type }
-    // Decode user from token
-    const userFromToken = getUserFromToken(data.access_token);
+    // Store state flag
+    setTokens({ accessToken: '', refreshToken: '' });
 
-    // Store tokens
-    setTokens({
-      accessToken: data.access_token,
-      refreshToken: data.access_token, // Same token until refresh is implemented
+    // Fetch user profile after login since token is in cookie
+    const userResponse = await fetch(`${api.baseUrl}/auth/me`, {
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
     });
 
+    let userFromToken = null;
+    if (userResponse.ok) {
+      userFromToken = await userResponse.json();
+    }
+
     return {
-      access_token: data.access_token,
-      refresh_token: data.access_token,
+      access_token: '',
+      refresh_token: '',
       user: userFromToken || { id: '', email, role: 'analyst' as UserRole },
     };
   } catch (error) {
@@ -239,13 +262,13 @@ export async function login(email: string, password: string): Promise<LoginRespo
  */
 export async function mockLogin(email: string, password: string): Promise<LoginResponse | null> {
   await new Promise(resolve => setTimeout(resolve, 800));
-  
+
   const user = MOCK_USERS.find(u => u.email === email && u.password === password);
   if (!user) return null;
-  
+
   const accessToken = generateMockToken(user);
   const refreshToken = generateMockToken({ ...user, id: `refresh-${user.id}` });
-  
+
   return {
     access_token: accessToken,
     refresh_token: refreshToken,

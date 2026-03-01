@@ -18,6 +18,7 @@ import {
   mockEvidence,
   mockAuditLogs,
   mockTickets,
+  mockUsers,
 } from './mock-data';
 import type { Risk, RiskCategory } from '@/types/risk';
 import type { Control } from '@/types/control';
@@ -25,6 +26,7 @@ import type { ComplianceItem } from '@/types/compliance';
 import type { Evidence } from '@/types/evidence';
 import type { AuditLog } from '@/types/audit';
 import type { Ticket } from '@/types/ticket';
+import type { UserProfile } from '@/types/user';
 
 // ── Helper ─────────────────────────────────────────────────
 async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
@@ -115,4 +117,34 @@ export async function createTicket(data: Partial<Ticket>): Promise<Ticket> {
 
 export async function updateTicket(id: string, data: Partial<Ticket>): Promise<Ticket> {
   return api.put<Ticket>(`/tickets/${id}`, data);
+}
+
+// ── Users ──────────────────────────────────────────────────
+export async function fetchUsers(): Promise<UserProfile[]> {
+  const users = await fetchOrFallback<any[]>('/users', mockUsers);
+  // Map snake_case from API to camelCase for frontend if needed, 
+  // but schemas seem to use snake_case often in this codebase.
+  // Actually, UserProfile type uses camelCase.
+  return users.map(u => ({
+    id: u.id,
+    email: u.email,
+    fullName: u.full_name || u.fullName,
+    role: u.role,
+    department: u.department,
+    is_active: u.is_active ?? true,
+    createdAt: u.created_at || u.createdAt,
+    updatedAt: u.updated_at || u.updatedAt,
+  }));
+}
+
+export async function createUser(data: any): Promise<UserProfile> {
+  return api.post<UserProfile>('/users', data);
+}
+
+export async function updateUser(id: string, data: any): Promise<UserProfile> {
+  return api.put<UserProfile>(`/users/${id}`, data);
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await api.delete(`/users/${id}`);
 }

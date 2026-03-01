@@ -14,6 +14,7 @@ import {
   mockLogin,
   LoginResponse,
 } from '@/lib/auth';
+import { api } from '@/lib/api-client';
 
 // =============================================================================
 // Types
@@ -51,48 +52,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initAuth = async () => {
       try {
         const tokens = getTokens();
-        
+
         if (!tokens) {
           setIsLoading(false);
           return;
         }
 
-        // Try to extract user from token first
-        const userData = getUserFromToken(tokens.accessToken);
-        
-        if (!userData) {
-          // Token is invalid/malformed, clear and force re-login
-          clearTokens();
-          setIsLoading(false);
-          return;
+        // Try to verify session with real API if possible
+        if (!api.isMock) {
+          try {
+            const userData = await api.get<AuthUser>('/auth/me');
+            if (userData) {
+              setUser(userData);
+              setIsLoading(false);
+              return;
+            }
+          } catch (apiError) {
+            console.log('[Auth] API session init failed, falling back to local tokens');
+          }
         }
 
-        // Check if token is expired or about to expire
-        if (isTokenExpired(tokens.accessToken)) {
-          // Attempt to refresh
-          const newTokens = await refreshAccessToken(tokens.refreshToken);
-          
-          if (newTokens) {
-            setTokens(newTokens);
-            const newUserData = getUserFromToken(newTokens.accessToken);
-            setUser(newUserData);
-          } else {
-            // Refresh failed - for development, still use the existing token
-            // if it's not actually expired (just within buffer)
-            // In production, you would force logout here
-            console.warn('[Auth] Token refresh failed, using existing token');
+        // Fallback to local token handling (Manual/Mock)
+        // Note: For cookie-based auth, tokens.accessToken might be empty string
+        if (tokens.accessToken) {
+          const userData = getUserFromToken(tokens.accessToken);
+          if (userData && !isTokenExpired(tokens.accessToken)) {
             setUser(userData);
           }
-        } else {
-          // Token is valid, set user
-          setUser(userData);
         }
       } catch (error) {
         console.error('[Auth] Init failed:', error);
         clearTokens();
+      } finally {
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     };
 
     initAuth();
@@ -103,44 +96,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // - Background timer
   // - Queue for concurrent requests
   // - Integration with service workers for offline support
-  useEffect(() => {
-    if (!user) return;
-
-    const tokens = getTokens();
-    if (!tokens) return;
-
-    const payload = getUserFromToken(tokens.accessToken);
-    if (!payload) return;
-
-    // Calculate time until expiry (with 5 minute buffer)
-    const checkInterval = setInterval(async () => {
-      const currentTokens = getTokens();
-      if (!currentTokens) return;
-
-      if (isTokenExpired(currentTokens.accessToken)) {
-        const newTokens = await refreshAccessToken(currentTokens.refreshToken);
-        
-        if (newTokens) {
-          setTokens(newTokens);
-          const userData = getUserFromToken(newTokens.accessToken);
-          setUser(userData);
-        } else {
-          // Refresh failed, logout user
-          clearTokens();
-          setUser(null);
-          window.location.href = '/login';
-        }
-      }
-    }, 60000); // Check every minute
-
-    return () => clearInterval(checkInterval);
-  }, [user]);
+  // Passive refresh loop removed:
+  // We now rely on api-client's 401 interceptor for JIT refresh.
+  // This is more efficient and works better with httpOnly cookies.
 
   const login = useCallback(async (email: string, password: string) => {
     try {
-      // Use mock login for development
-      // TODO: Replace with actual API call in production
-      const response: LoginResponse | null = await mockLogin(email, password);
+      let response: LoginResponse | null = null;
+
+      if (!api.isMock) {
+        try {
+          // Direct call to backend login endpoint
+          await api.post('/auth/login', { username: email, password });
+
+          // Signal login (cookies carry the tokens)
+          setTokens({ accessToken: '', refreshToken: '' });
+
+          // Fetch user profile
+          const userData = await api.get<AuthUser>('/auth/me');
+          setUser(userData);
+          return { success: true };
+        } catch (apiError) {
+          console.warn('[Auth] API login failed, checking fallback');
+        }
+      }
+
+      // Fallback to manual/mock login as requested
+      response = await mockLogin(email, password);
 
       if (!response) {
         return { success: false, error: 'Invalid email or password' };
@@ -166,10 +148,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    clearTokens();
-    setUser(null);
-    window.location.href = '/login';
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error('[Auth] Logout failed:', error);
+    } finally {
+      clearTokens();
+      setUser(null);
+      window.location.href = '/login';
+    }
   }, []);
 
   const hasRole = useCallback((roles: UserRole | UserRole[]) => {
@@ -196,10 +184,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 export function useAuthContext(): AuthContextType {
   const context = useContext(AuthContext);
-  
+
   if (context === undefined) {
     throw new Error('useAuthContext must be used within an AuthProvider');
   }
-  
+
   return context;
 }

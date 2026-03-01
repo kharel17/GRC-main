@@ -28,7 +28,7 @@ async def create_control(
     *,
     db: AsyncSession = Depends(deps.get_db),
     control_in: schemas.ControlCreate,
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
 ) -> Any:
     control = models.Control(
         **control_in.model_dump(),

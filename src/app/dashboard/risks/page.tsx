@@ -30,26 +30,26 @@ function getScoreStyles(score: number) {
   const level = getRiskLevel(score);
   switch (level) {
     case 'high':
-      return 'bg-red-100 text-red-700 border-red-200';
+      return 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 border-red-200 dark:border-red-700';
     case 'medium':
-      return 'bg-amber-100 text-amber-700 border-amber-200';
+      return 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-200 border-amber-200 dark:border-amber-700';
     case 'low':
-      return 'bg-green-100 text-green-700 border-green-200';
+      return 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 border-green-200 dark:border-green-700';
   }
 }
 
 function getStatusStyles(status: string) {
   switch (status) {
     case 'identified':
-      return 'bg-blue-100 text-blue-700';
+      return 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200';
     case 'assessed':
-      return 'bg-purple-100 text-purple-700';
+      return 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200';
     case 'mitigated':
-      return 'bg-green-100 text-green-700';
+      return 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200';
     case 'accepted':
-      return 'bg-slate-100 text-slate-700';
+      return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
     default:
-      return 'bg-slate-100 text-slate-700';
+      return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
   }
 }
 
@@ -79,7 +79,7 @@ export default function RisksPage() {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-3 text-slate-600">Loading risks…</span>
+        <span className="ml-3 text-slate-600 dark:text-slate-400">Loading risks…</span>
       </div>
     );
   }
@@ -87,9 +87,9 @@ export default function RisksPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
-        <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
-        <h3 className="text-sm font-medium text-slate-900 mb-1">Failed to load risks</h3>
-        <p className="text-sm text-slate-500">{error.message}</p>
+        <AlertTriangle className="h-12 w-12 text-red-400 dark:text-red-500 mb-4" />
+        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Failed to load risks</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{error.message}</p>
       </div>
     );
   }
@@ -99,8 +99,8 @@ export default function RisksPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">Risks</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">Risks</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Manage and assess organizational risks
           </p>
         </div>
@@ -116,8 +116,8 @@ export default function RisksPage() {
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-slate-500" />
-            <span className="text-sm text-slate-500 hidden sm:inline">Filters:</span>
+            <Filter className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+            <span className="text-sm text-slate-500 dark:text-slate-400 hidden sm:inline">Filters:</span>
           </div>
           
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -148,14 +148,14 @@ export default function RisksPage() {
           </Select>
 
           {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="text-slate-500">
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="text-slate-500 dark:text-slate-400">
               Clear
             </Button>
           )}
         </div>
 
         {/* View Toggle */}
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
           <Button
             variant={viewMode === 'table' ? 'secondary' : 'ghost'}
             size="sm"
@@ -176,7 +176,7 @@ export default function RisksPage() {
       </div>
 
       {/* Results Info */}
-      <div className="text-sm text-slate-500">
+      <div className="text-sm text-slate-500 dark:text-slate-400">
         Showing {filteredRisks.length} of {allRisks.length} risks
       </div>
 
@@ -184,9 +184,9 @@ export default function RisksPage() {
       {filteredRisks.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <AlertTriangle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-sm font-medium text-slate-900 mb-1">No risks found</h3>
-            <p className="text-sm text-slate-500 mb-4">
+            <AlertTriangle className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">No risks found</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
               {hasActiveFilters
                 ? 'Try adjusting your filters to see more results.'
                 : 'Get started by creating your first risk assessment.'}
@@ -208,7 +208,7 @@ export default function RisksPage() {
               <Card className="h-full hover:shadow-md transition-shadow cursor-pointer group">
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-medium text-sm text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+                    <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
                       {risk.title}
                     </h3>
                     <Badge className={`${getScoreStyles(risk.riskScore)} font-semibold shrink-0`}>
@@ -216,7 +216,7 @@ export default function RisksPage() {
                     </Badge>
                   </div>
                   
-                  <p className="text-xs text-slate-500 line-clamp-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
                     {risk.description}
                   </p>
                   
@@ -237,7 +237,7 @@ export default function RisksPage() {
                     </Badge>
                   </div>
                   
-                  <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t">
                     <span>L:{risk.likelihood} × I:{risk.impact}</span>
                     <span>{risk.ownerName || 'Unassigned'}</span>
                   </div>

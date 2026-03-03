@@ -1,3 +1,4 @@
+from fastapi import APIRouter
 from app.api import auth, risks, audit_logs, controls, compliance, evidence, tickets, reports
 
 api_router = APIRouter()

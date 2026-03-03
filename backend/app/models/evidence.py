@@ -39,7 +39,7 @@ class Evidence(Base):
     # Relationships
     uploader = relationship("User", foreign_keys=[uploaded_by])
     verifier = relationship("User", foreign_keys=[verified_by])
-    related_compliance_item = relationship("ComplianceItem", foreign_keys=[related_id], viewonly=True, sync_backref=False)
+    related_compliance_item = relationship("ComplianceItem", foreign_keys=[related_id], primaryjoin="and_(Evidence.related_id == ComplianceItem.id, Evidence.related_to == 'compliance_item')", viewonly=True, sync_backref=False)
     ai_control_matches = relationship("EvidenceControlMatch", back_populates="evidence", cascade="all, delete-orphan")
 
 

@@ -9,15 +9,21 @@ from app.config import settings
 from app.database import get_db
 from app.utils import security
 
-from fastapi.security import APIKeyCookie
+from fastapi.security import APIKeyCookie, OAuth2PasswordBearer
+from fastapi import Request
 
-# Use cookies instead of headers for better security (XSS protection)
-reusable_oauth2 = APIKeyCookie(name="access_token", auto_error=False)
+# Support both cookie and Bearer header auth
+reusable_oauth2_cookie = APIKeyCookie(name="access_token", auto_error=False)
+reusable_oauth2_header = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login", auto_error=False)
 
 async def get_current_user(
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    token: str = Depends(reusable_oauth2)
+    cookie_token: str = Depends(reusable_oauth2_cookie),
+    header_token: str = Depends(reusable_oauth2_header),
 ) -> models.User:
+    # Try Bearer header first, then fall back to cookie
+    token = header_token or cookie_token
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -1,0 +1,254 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import { useApiData } from "@/hooks/use-api-data";
+import { fetchUsers, createUser } from "@/lib/data-service";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { Plus, Loader2, AlertTriangle } from "lucide-react";
+import { RoleGuard } from "@/components/auth/RoleGuard";
+
+export default function UsersPage() {
+    const { data: users, loading, error, refetch } = useApiData(fetchUsers);
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
+
+    // Form state
+    const [email, setEmail] = useState("");
+    const [fullName, setFullName] = useState("");
+    const [password, setPassword] = useState("");
+    const [role, setRole] = useState("analyst");
+    const [department, setDepartment] = useState("");
+
+    const resetForm = () => {
+        setEmail("");
+        setFullName("");
+        setPassword("");
+        setRole("analyst");
+        setDepartment("");
+        setFormError(null);
+    };
+
+    const handleSubmit = useCallback(async () => {
+        setFormError(null);
+
+        if (!email || !fullName || !password) {
+            setFormError("Email, full name, and password are required.");
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            await createUser({
+                email,
+                full_name: fullName,
+                password,
+                role,
+                department: department || undefined,
+            });
+            resetForm();
+            setDialogOpen(false);
+            refetch();
+        } catch (err: any) {
+            setFormError(err?.message || "Failed to create user.");
+        } finally {
+            setSubmitting(false);
+        }
+    }, [email, fullName, password, role, department, refetch]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-24">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <span className="ml-3 text-slate-600">Loading users…</span>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+                <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+                <h3 className="text-sm font-medium text-slate-900 mb-1">Failed to load users</h3>
+                <p className="text-sm text-slate-500">{error.message}</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900 mb-1">User Management</h1>
+                    <p className="text-sm text-slate-600">
+                        Manage system users and their roles
+                    </p>
+                </div>
+                <RoleGuard allowedRoles={['admin']}>
+                    <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+                        <DialogTrigger asChild>
+                            <Button className="gap-2 w-full sm:w-auto">
+                                <Plus className="h-4 w-4" />
+                                Add User
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                                <DialogTitle>Add New User</DialogTitle>
+                                <DialogDescription>
+                                    Create a new user account. They can use these credentials to log in.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="grid gap-4 py-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">Full Name *</label>
+                                    <Input
+                                        placeholder="e.g. Jane Doe"
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">Email *</label>
+                                    <Input
+                                        type="email"
+                                        placeholder="e.g. jane@company.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">Password *</label>
+                                    <Input
+                                        type="password"
+                                        placeholder="Minimum 6 characters"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">Role</label>
+                                    <Select value={role} onValueChange={setRole}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="admin">Admin</SelectItem>
+                                            <SelectItem value="analyst">Analyst</SelectItem>
+                                            <SelectItem value="manager">Manager</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">Department</label>
+                                    <Input
+                                        placeholder="e.g. IT, Finance, Operations"
+                                        value={department}
+                                        onChange={(e) => setDepartment(e.target.value)}
+                                    />
+                                </div>
+
+                                {formError && (
+                                    <div className="rounded-md bg-red-50 border border-red-200 p-3">
+                                        <p className="text-sm text-red-700">{formError}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
+                                    Cancel
+                                </Button>
+                                <Button onClick={handleSubmit} disabled={submitting}>
+                                    {submitting ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                            Creating…
+                                        </>
+                                    ) : (
+                                        "Create User"
+                                    )}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </RoleGuard>
+            </div>
+
+            {/* Users Table */}
+            <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium border-b hidden sm:table-header-group">
+                            <tr>
+                                <th className="px-6 py-4">User</th>
+                                <th className="px-6 py-4">Role</th>
+                                <th className="px-6 py-4">Department</th>
+                                <th className="px-6 py-4 text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {users?.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                                        No users found. Click &quot;Add User&quot; to create one.
+                                    </td>
+                                </tr>
+                            ) : (
+                                users?.map((user: any) => (
+                                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors flex flex-col sm:table-row">
+                                        <td className="px-6 py-4 flex gap-3 items-center">
+                                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold shrink-0">
+                                                {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-slate-900">{user.full_name || 'No Name'}</div>
+                                                <div className="text-slate-500 text-xs">{user.email}</div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-2 sm:py-4">
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${user.role === 'admin' ? 'bg-red-100 text-red-700' :
+                                                user.role === 'manager' ? 'bg-amber-100 text-amber-700' :
+                                                    'bg-purple-100 text-purple-700'
+                                                }`}>
+                                                {user.role}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-2 sm:py-4 text-slate-600">
+                                            {user.department || '—'}
+                                        </td>
+                                        <td className="px-6 py-2 sm:py-4 sm:text-right">
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                                }`}>
+                                                {user.is_active ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}

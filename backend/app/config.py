@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     def assemble_db_connection(cls, v: Union[str, None], info: dict) -> any:
         if isinstance(v, str):
             return v
-        return str(PostgresDsn.build(
+        uri = str(PostgresDsn.build(
             scheme="postgresql+asyncpg",
             username=info.data.get("POSTGRES_USER"),
             password=info.data.get("POSTGRES_PASSWORD"),
@@ -31,6 +31,11 @@ class Settings(BaseSettings):
             port=info.data.get("POSTGRES_PORT"),
             path=f"{info.data.get('POSTGRES_DB') or ''}",
         ))
+        # Add SSL for cloud databases (non-localhost)
+        server = info.data.get("POSTGRES_SERVER", "localhost")
+        if server and server != "localhost" and "127.0.0.1" not in server:
+            uri += "?ssl=require"
+        return uri
 
     # CORS
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []

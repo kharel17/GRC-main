@@ -21,39 +21,39 @@ type ControlType = 'all' | 'preventive' | 'detective' | 'corrective';
 function getEffectivenessStyles(effectiveness: string) {
   switch (effectiveness) {
     case 'high':
-      return 'bg-green-100 text-green-700';
+      return 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200';
     case 'medium':
-      return 'bg-amber-100 text-amber-700';
+      return 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-200';
     case 'low':
-      return 'bg-red-100 text-red-700';
+      return 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200';
     default:
-      return 'bg-slate-100 text-slate-700';
+      return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
   }
 }
 
 function getStatusStyles(status: string) {
   switch (status) {
     case 'implemented':
-      return 'bg-green-100 text-green-700';
+      return 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200';
     case 'under_review':
-      return 'bg-blue-100 text-blue-700';
+      return 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200';
     case 'planned':
-      return 'bg-amber-100 text-amber-700';
+      return 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-200';
     default:
-      return 'bg-slate-100 text-slate-700';
+      return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
   }
 }
 
 function getTypeColor(type: string) {
   switch (type) {
     case 'preventive':
-      return 'border-blue-200 bg-blue-50';
+      return 'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900';
     case 'detective':
-      return 'border-purple-200 bg-purple-50';
+      return 'border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900';
     case 'corrective':
-      return 'border-amber-200 bg-amber-50';
+      return 'border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900';
     default:
-      return 'border-slate-200 bg-white';
+      return 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950';
   }
 }
 
@@ -89,9 +89,9 @@ export default function ControlsPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
-        <Shield className="h-12 w-12 text-red-400 mb-4" />
-        <h3 className="text-sm font-medium text-slate-900 mb-1">Failed to load controls</h3>
-        <p className="text-sm text-slate-500">{error.message}</p>
+        <Shield className="h-12 w-12 text-red-400 dark:text-red-500 mb-4" />
+        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Failed to load controls</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{error.message}</p>
       </div>
     );
   }
@@ -101,8 +101,8 @@ export default function ControlsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">Controls</h1>
-          <p className="text-sm text-slate-600">Manage risk mitigation controls</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">Controls</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Manage risk mitigation controls</p>
         </div>
         <RoleGuard allowedRoles={['admin', 'analyst']}>
           <Button className="gap-2 w-full sm:w-auto">
@@ -122,8 +122,8 @@ export default function ControlsPage() {
               onClick={() => setTypeFilter(btn.value)}
               className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                 typeFilter === btn.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-blue-600 dark:bg-blue-500 text-white dark:text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
               {btn.label} ({btn.count})
@@ -149,7 +149,7 @@ export default function ControlsPage() {
       </div>
 
       {/* Results Count */}
-      <div className="text-sm text-slate-500">
+      <div className="text-sm text-slate-500 dark:text-slate-400">
         Showing {filteredControls.length} of {allControls.length} controls
       </div>
 
@@ -157,9 +157,9 @@ export default function ControlsPage() {
       {filteredControls.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <Shield className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-sm font-medium text-slate-900 mb-1">No controls found</h3>
-            <p className="text-sm text-slate-500">
+            <Shield className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">No controls found</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Try adjusting your filters to see more results.
             </p>
           </CardContent>
@@ -175,7 +175,7 @@ export default function ControlsPage() {
                 <CardTitle className="text-sm font-medium line-clamp-2">{control.title}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-xs text-slate-600 line-clamp-2">{control.description}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">{control.description}</p>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="text-xs capitalize">
                     {control.controlType}
@@ -187,7 +187,7 @@ export default function ControlsPage() {
                     {control.status.replace('_', ' ')}
                   </Badge>
                 </div>
-                <div className="pt-2 border-t text-xs text-slate-500 flex items-center justify-between">
+                <div className="pt-2 border-t text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
                   <span>Owner: {control.ownerName}</span>
                 </div>
               </CardContent>

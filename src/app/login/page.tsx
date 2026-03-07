@@ -138,7 +138,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
-                  className="bg-slate-50"
+                  className="bg-slate-50 dark:bg-slate-900"
                   autoComplete="email"
                   aria-describedby="email-hint"
                 />
@@ -158,7 +158,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
-                  className="bg-slate-50"
+                  className="bg-slate-50 dark:bg-slate-900"
                   autoComplete="current-password"
                   aria-describedby="password-hint"
                 />
@@ -188,15 +188,15 @@ export default function LoginPage() {
                 Test Accounts:
               </p>
 
-              <div className="space-y-2 text-xs text-slate-600">
+              <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
                 <p>
-                  <strong className="text-blue-600">Admin:</strong> alice@company.com / demo
+                  <strong className="text-blue-600 dark:text-blue-400">Admin:</strong> alice@company.com / demo
                 </p>
                 <p>
-                  <strong className="text-green-600">Analyst:</strong> bob@company.com / demo
+                  <strong className="text-green-600 dark:text-green-400">Analyst:</strong> bob@company.com / demo
                 </p>
                 <p>
-                  <strong className="text-purple-600">Manager:</strong> carol@company.com / demo
+                  <strong className="text-purple-600 dark:text-purple-400">Manager:</strong> carol@company.com / demo
                 </p>
               </div>
             </div>

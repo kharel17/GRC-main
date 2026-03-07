@@ -18,7 +18,7 @@ interface HeaderProps {
 
 export function Header({ user, title }: HeaderProps) {
   // Generate initials from email or fullName
-  const displayName = user.fullName || user.email.split('@')[0];
+  const displayName = user.fullName || user.email?.split('@')[0] || 'User';
   const initials = displayName
     .split(/[\s._-]/)
     .map((n) => n[0])
@@ -46,23 +46,23 @@ export function Header({ user, title }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           className="text-muted-foreground hover:text-foreground h-10 w-10 sm:h-9 sm:w-9"
           aria-label="Help"
         >
           <HelpCircle className="h-5 w-5" />
         </Button>
 
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           className="text-muted-foreground hover:text-foreground relative h-10 w-10 sm:h-9 sm:w-9"
           aria-label="Notifications"
           onClick={() => {
-             // Placeholder for notification logic
-             // Could trigger a toast or open a popover
+            // Placeholder for notification logic
+            // Could trigger a toast or open a popover
           }}
         >
           <Bell className="h-5 w-5" />

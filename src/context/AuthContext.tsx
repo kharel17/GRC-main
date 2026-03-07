@@ -51,7 +51,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initAuth = async () => {
       try {
         const tokens = getTokens();
-        
+
         if (!tokens) {
           setIsLoading(false);
           return;
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // Try to extract user from token first
         const userData = getUserFromToken(tokens.accessToken);
-        
+
         if (!userData) {
           // Token is invalid/malformed, clear and force re-login
           clearTokens();
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (isTokenExpired(tokens.accessToken)) {
           // Attempt to refresh
           const newTokens = await refreshAccessToken(tokens.refreshToken);
-          
+
           if (newTokens) {
             setTokens(newTokens);
             const newUserData = getUserFromToken(newTokens.accessToken);
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (isTokenExpired(currentTokens.accessToken)) {
         const newTokens = await refreshAccessToken(currentTokens.refreshToken);
-        
+
         if (newTokens) {
           setTokens(newTokens);
           const userData = getUserFromToken(newTokens.accessToken);
@@ -138,9 +138,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = useCallback(async (email: string, password: string) => {
     try {
-      // Use mock login for development
-      // TODO: Replace with actual API call in production
-      const response: LoginResponse | null = await mockLogin(email, password);
+      // Import the real login function from auth.ts
+      const { login: authLogin } = await import('@/lib/auth');
+      const response: LoginResponse | null = await authLogin(email, password);
 
       if (!response) {
         return { success: false, error: 'Invalid email or password' };
@@ -196,10 +196,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 export function useAuthContext(): AuthContextType {
   const context = useContext(AuthContext);
-  
+
   if (context === undefined) {
     throw new Error('useAuthContext must be used within an AuthProvider');
   }
-  
+
   return context;
 }

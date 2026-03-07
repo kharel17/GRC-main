@@ -15,8 +15,10 @@ interface EscalationBadgeProps {
   showLevel?: boolean;
 }
 
+const DEFAULT_CONFIG = { label: 'Unknown', color: 'text-slate-700 dark:text-slate-300', bgColor: 'bg-slate-100 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800' };
+
 export function EscalationBadge({ level, showLevel = true }: EscalationBadgeProps) {
-  const config = ESCALATION_CONFIG[level];
+  const config = ESCALATION_CONFIG[level] || DEFAULT_CONFIG;
   return (
     <Badge variant="outline" className={`${config.bgColor} ${config.color} text-xs font-medium border`}>
       {showLevel && <span className="mr-1 opacity-60">L{level}</span>}

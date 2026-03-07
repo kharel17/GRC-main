@@ -37,7 +37,10 @@ async def login_access_token(
         raise HTTPException(status_code=400, detail="Inactive user")
     
     # Create tokens with current user version
-    access_token = security.create_access_token(user.id, token_version=user.token_version)
+    access_token = security.create_access_token(
+        user.id, token_version=user.token_version,
+        email=user.email, role=user.role.value if user.role else None,
+    )
     refresh_token = security.create_refresh_token(user.id, token_version=user.token_version)
     
     # Store refresh token hash in DB
@@ -67,7 +70,7 @@ async def login_access_token(
         max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
     )
     
-    return {"message": "Successfully logged in"}
+    return {"message": "Successfully logged in", "access_token": access_token, "token_type": "bearer"}
 
 @router.post("/refresh")
 async def refresh_token(

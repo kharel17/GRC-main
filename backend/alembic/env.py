@@ -68,6 +68,7 @@ async def run_migrations_online() -> None:
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"statement_cache_size": 0},  # Required for Supabase pgbouncer
     )
 
     async with connectable.connect() as connection:

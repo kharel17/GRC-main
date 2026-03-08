@@ -44,10 +44,15 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
+            origins = [i.strip() for i in v.split(",")]
+            # Filter out empty strings and return as-is (including wildcards)
+            return [o for o in origins if o]
         elif isinstance(v, str) and v.startswith("["):
             import json
-            return json.loads(v)
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return []
         elif isinstance(v, list):
             return v
         return []

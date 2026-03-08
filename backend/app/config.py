@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "GRC Platform"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
+    SUPABASE_JWT_SECRET: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     ENVIRONMENT: str = "development"  # development | staging | production

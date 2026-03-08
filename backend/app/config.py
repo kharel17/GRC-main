@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 24
     ENVIRONMENT: str = "development"  # development | staging | production
     
     # DATABASE

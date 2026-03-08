@@ -102,10 +102,25 @@ export function getUserFromToken(token: string): AuthUser | null {
 // Token Refresh
 // =============================================================================
 
-export async function refreshAccessToken(refreshToken: string): Promise<AuthTokens | null> {
+export async function refreshAccessToken(): Promise<AuthTokens | null> {
   try {
-    console.warn('[Auth] Token refresh not implemented - using mock');
-    return null;
+    const response = await fetch(`${api.baseUrl}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const tokens: AuthTokens = {
+      accessToken: data.access_token,
+      refreshToken: data.access_token, // Simplified for now since cookies store the real refresh token
+    };
+
+    setTokens(tokens);
+    return tokens;
   } catch (error) {
     console.error('[Auth] Token refresh failed:', error);
     return null;

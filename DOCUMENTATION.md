@@ -855,10 +855,10 @@ git clone https://github.com/kharel17/GRC-main.git
 cd "GRC main"
 
 # Install dependencies
-npm install
+yarn install
 
 # Start development server
-npm run dev
+yarn run dev
 ```
 
 Visit `http://localhost:3000` in browser.
@@ -867,19 +867,19 @@ Visit `http://localhost:3000` in browser.
 
 ```bash
 # Development with hot reload
-npm run dev
+yarn run dev
 
 # Type checking
-npm run typecheck
+yarn run typecheck
 
 # Linting
-npm run lint
+yarn run lint
 
 # Production build
-npm run build
+yarn run build
 
 # Serve production build
-npm start
+yarn start
 ```
 
 ### Key Features to Try

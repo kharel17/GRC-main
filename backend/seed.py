@@ -59,7 +59,7 @@ async def seed_data():
 
         # Controls
         controls = [
-            Control(title="Multi-Factor Authentication", description="Implement MFA for all system access", control_type=ControlType.preventive, effectiveness=ControlEffectiveness.high, status=ControlStatus.implemented, owner_id=users[1].id, created_by=users[1].id),
+            Control(title="Access Control Policy", description="Implement robust access controls for all system access", control_type=ControlType.preventive, effectiveness=ControlEffectiveness.high, status=ControlStatus.implemented, owner_id=users[1].id, created_by=users[1].id),
             Control(title="Security Awareness Training", description="Quarterly training for all employees", control_type=ControlType.preventive, effectiveness=ControlEffectiveness.medium, status=ControlStatus.implemented, owner_id=users[1].id, created_by=users[0].id),
             Control(title="Data Encryption", description="Encrypt all data at rest and in transit", control_type=ControlType.preventive, effectiveness=ControlEffectiveness.high, status=ControlStatus.implemented, owner_id=users[1].id, created_by=users[1].id),
             Control(title="Audit Logging", description="Comprehensive audit trail for all system actions", control_type=ControlType.detective, effectiveness=ControlEffectiveness.high, status=ControlStatus.under_review, owner_id=users[1].id, created_by=users[1].id),
@@ -79,7 +79,7 @@ async def seed_data():
 
         # Evidence
         evidence = [
-            Evidence(title="MFA Implementation Report", description="Verification of MFA", file_url="/documents/mfa-report.pdf", file_name="mfa-report.pdf", file_type="pdf", file_size=2048000, related_to=EvidenceRelatedTo.control, related_id=controls[0].id, uploaded_by=users[1].id, verified=True, verified_by=users[0].id, verified_at=datetime.utcnow()),
+            Evidence(title="Access Control Implementation Report", description="Verification of access control", file_url="/documents/access-control-report.pdf", file_name="access-control-report.pdf", file_type="pdf", file_size=2048000, related_to=EvidenceRelatedTo.control, related_id=controls[0].id, uploaded_by=users[1].id, verified=True, verified_by=users[0].id, verified_at=datetime.utcnow()),
             Evidence(title="GDPR DPO Notification", description="Official notification", file_url="/documents/dpo-notification.pdf", file_name="dpo-notification.pdf", file_type="pdf", file_size=512000, related_to=EvidenceRelatedTo.compliance_item, related_id=compliance[0].id, uploaded_by=users[0].id, verified=True, verified_by=users[0].id, verified_at=datetime.utcnow()),
         ]
         session.add_all(evidence)

@@ -28,7 +28,7 @@ async def create_evidence(
     *,
     db: AsyncSession = Depends(deps.get_db),
     evidence_in: schemas.EvidenceCreate,
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
 ) -> Any:
     evidence = models.Evidence(
         **evidence_in.model_dump()

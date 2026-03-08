@@ -162,9 +162,11 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   aria-describedby="password-hint"
                 />
-                <p id="password-hint" className="text-xs text-slate-500 mt-1">
-                  Demo: demo
-                </p>
+                <div className="flex justify-between items-center mt-1">
+                  <p id="password-hint" className="text-xs text-slate-500">
+                    Demo: demo
+                  </p>
+                </div>
               </div>
 
               <Button

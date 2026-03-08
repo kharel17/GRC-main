@@ -131,8 +131,8 @@ export const mockRisks: Risk[] = [
 export const mockControls: Control[] = [
   {
     id: 'control-1',
-    title: 'Multi-Factor Authentication',
-    description: 'Implement MFA for all system access',
+    title: 'Access Control Policy',
+    description: 'Implement robust access controls for all system access',
     controlType: 'preventive',
     effectiveness: 'high',
     status: 'implemented',
@@ -262,10 +262,10 @@ export const mockComplianceItems: ComplianceItem[] = [
 export const mockEvidence: Evidence[] = [
   {
     id: 'evidence-1',
-    title: 'MFA Implementation Report',
-    description: 'Verification of MFA rollout completion',
-    fileUrl: '/documents/mfa-report.pdf',
-    fileName: 'mfa-report.pdf',
+    title: 'Access Control Implementation Report',
+    description: 'Verification of access control rollout completion',
+    fileUrl: '/documents/access-control-report.pdf',
+    fileName: 'access-control-report.pdf',
     fileType: 'pdf',
     fileSize: 2048000,
     relatedTo: 'control',
@@ -332,7 +332,7 @@ export const mockAuditLogs: AuditLog[] = [
     action: 'created',
     entityType: 'evidence',
     entityId: 'evidence-1',
-    entityName: 'MFA Implementation Report',
+    entityName: 'Access Control Implementation Report',
     timestamp: '2024-01-28T09:00:00Z',
     description: 'Evidence uploaded for control',
   },
@@ -451,8 +451,8 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: 'ticket-4',
-    title: 'MFA Evidence Review for ISO 27001 Audit',
-    description: 'MFA implementation evidence has been uploaded and requires verification review before the upcoming ISO 27001 certification audit. This is a key control that auditors will assess.',
+    title: 'Access Control Evidence Review for ISO 27001 Audit',
+    description: 'Access control implementation evidence has been uploaded and requires verification review before the upcoming ISO 27001 certification audit. This is a key control that auditors will assess.',
     priority: 'medium',
     status: 'open',
     category: 'audit_finding',

@@ -49,11 +49,9 @@ async def read_user_by_id(
 async def create_user(
     user_in: schemas.UserCreate,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_active_user),
+    current_user: User = Depends(deps.RoleChecker([UserRole.admin])),
 ) -> Any:
     """Create a new user (admin only)."""
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=403, detail="Only admins can create users")
 
     # Check if email already exists
     stmt = select(User).where(User.email == user_in.email)

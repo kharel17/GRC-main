@@ -2,13 +2,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Search, ExternalLink } from "lucide-react";
@@ -38,10 +38,10 @@ export default function ISOEvidencePage() {
     }
   };
 
-  const filteredEvidence = evidence.filter(item => 
-    item.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredEvidence = evidence.filter(item =>
+    item.fileName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.controlId.includes(searchTerm)
+    item.controlId?.includes(searchTerm)
   );
 
   if (loading) {
@@ -63,8 +63,8 @@ export default function ISOEvidencePage() {
       <div className="flex items-center gap-4">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-500" />
-          <Input 
-            placeholder="Search evidence..." 
+          <Input
+            placeholder="Search evidence..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-8"
@@ -95,11 +95,11 @@ export default function ISOEvidencePage() {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                       <FileText className="h-4 w-4 text-blue-500" />
-                       <div className="flex flex-col">
-                         <span className="font-medium text-sm">{item.fileName}</span>
-                         {item.description && <span className="text-xs text-slate-500">{item.description}</span>}
-                       </div>
+                      <FileText className="h-4 w-4 text-blue-500" />
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm">{item.fileName}</span>
+                        {item.description && <span className="text-xs text-slate-500">{item.description}</span>}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -115,7 +115,7 @@ export default function ISOEvidencePage() {
                     <div className="flex justify-end">
                       <Button variant="ghost" size="icon" asChild>
                         <a href={item.fileUrl} target="_blank" rel="noopener noreferrer" download>
-                           <Download className="h-4 w-4" />
+                          <Download className="h-4 w-4" />
                         </a>
                       </Button>
                     </div>

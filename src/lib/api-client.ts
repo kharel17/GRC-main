@@ -47,6 +47,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...rest,
     headers,
+    credentials: 'include',
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -92,15 +93,13 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
   }
 
   const headers: Record<string, string> = {};
-  const tokens = getTokens();
-  if (tokens?.accessToken) {
-    headers['Authorization'] = `Bearer ${tokens.accessToken}`;
-  }
+  // Auth is via httpOnly cookies — no need for Bearer header
   // Do NOT set Content-Type — browser sets it with boundary for multipart
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,
+    credentials: 'include',
     body: formData,
   });
 

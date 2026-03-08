@@ -10,6 +10,10 @@ from app.models.audit_log import AuditLog, AuditAction, AuditEntityType
 from app.models.ticket import Ticket, TicketPriority, TicketStatus, TicketCategory, TicketComment
 import uuid
 from datetime import datetime, timedelta
+import bcrypt
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 # Create tables
 async def init_db():
@@ -23,9 +27,9 @@ async def seed_data():
     async with SessionLocal() as session:
         # Users
         users = [
-            User(id=uuid.UUID('00000000-0000-0000-0000-000000000001'), email="alice@company.com", full_name="Alice Johnson", hashed_password="hashed_secret", role=UserRole.admin, department="Compliance"),
-            User(id=uuid.UUID('00000000-0000-0000-0000-000000000002'), email="bob@company.com", full_name="Bob Smith", hashed_password="hashed_secret", role=UserRole.analyst, department="Risk Management"),
-            User(id=uuid.UUID('00000000-0000-0000-0000-000000000003'), email="carol@company.com", full_name="Carol Williams", hashed_password="hashed_secret", role=UserRole.manager, department="Operations"),
+            User(id=uuid.UUID('00000000-0000-0000-0000-000000000001'), email="alice@company.com", full_name="Alice Johnson", hashed_password=hash_password("demo"), role=UserRole.admin, department="Compliance"),
+            User(id=uuid.UUID('00000000-0000-0000-0000-000000000002'), email="bob@company.com", full_name="Bob Smith", hashed_password=hash_password("demo"), role=UserRole.analyst, department="Risk Management"),
+            User(id=uuid.UUID('00000000-0000-0000-0000-000000000003'), email="carol@company.com", full_name="Carol Williams", hashed_password=hash_password("demo"), role=UserRole.manager, department="Operations"),
         ]
         session.add_all(users)
         await session.flush()

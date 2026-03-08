@@ -39,13 +39,13 @@ async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
 
 // ── Risk ───────────────────────────────────────────────────
 export async function fetchRisks(): Promise<Risk[]> {
-  return fetchOrFallback<Risk[]>('/risks', mockRisks);
+  return fetchOrFallback<Risk[]>('/risks/', mockRisks);
 }
 
 export async function fetchRisk(id: string): Promise<Risk | undefined> {
   if (api.isMock) return mockRisks.find((r) => r.id === id);
   try {
-    return await api.get<Risk>(`/risks/${id}`);
+    return await api.get<Risk>(`/risks/${id}/`);
   } catch (err) {
     console.warn(`[DataService] GET /risks/${id} failed, using mock`, err);
     return mockRisks.find((r) => r.id === id);
@@ -53,7 +53,7 @@ export async function fetchRisk(id: string): Promise<Risk | undefined> {
 }
 
 export async function createRisk(data: Partial<Risk>): Promise<Risk> {
-  return api.post<Risk>('/risks', data);
+  return api.post<Risk>('/risks/', data);
 }
 
 export function getRiskCategories(): RiskCategory[] {
@@ -64,20 +64,20 @@ export function getRiskCategories(): RiskCategory[] {
 
 // ── Controls ───────────────────────────────────────────────
 export async function fetchControls(): Promise<Control[]> {
-  return fetchOrFallback<Control[]>('/controls', mockControls);
+  return fetchOrFallback<Control[]>('/controls/', mockControls);
 }
 
 export async function createControl(data: Partial<Control>): Promise<Control> {
-  return api.post<Control>('/controls', data);
+  return api.post<Control>('/controls/', data);
 }
 
 // ── Evidence ───────────────────────────────────────────────
 export async function fetchEvidence(): Promise<Evidence[]> {
-  return fetchOrFallback<Evidence[]>('/evidence', mockEvidence);
+  return fetchOrFallback<Evidence[]>('/evidence/', mockEvidence);
 }
 
 export async function createEvidence(data: Partial<Evidence>): Promise<Evidence> {
-  return api.post<Evidence>('/evidence', data);
+  return api.post<Evidence>('/evidence/', data);
 }
 
 export async function uploadEvidence(file: File, fields?: Record<string, string>): Promise<Evidence> {
@@ -86,23 +86,23 @@ export async function uploadEvidence(file: File, fields?: Record<string, string>
 
 // ── Audit Logs ─────────────────────────────────────────────
 export async function fetchAuditLogs(): Promise<AuditLog[]> {
-  return fetchOrFallback<AuditLog[]>('/audit-logs', mockAuditLogs);
+  return fetchOrFallback<AuditLog[]>('/audit-logs/', mockAuditLogs);
 }
 
 // ── Compliance ─────────────────────────────────────────────
 export async function fetchComplianceItems(): Promise<ComplianceItem[]> {
-  return fetchOrFallback<ComplianceItem[]>('/compliance', mockComplianceItems);
+  return fetchOrFallback<ComplianceItem[]>('/compliance/', mockComplianceItems);
 }
 
 // ── Tickets ────────────────────────────────────────────────
 export async function fetchTickets(): Promise<Ticket[]> {
-  return fetchOrFallback<Ticket[]>('/tickets', mockTickets);
+  return fetchOrFallback<Ticket[]>('/tickets/', mockTickets);
 }
 
 export async function fetchTicket(id: string): Promise<Ticket | undefined> {
   if (api.isMock) return mockTickets.find((t) => t.id === id);
   try {
-    return await api.get<Ticket>(`/tickets/${id}`);
+    return await api.get<Ticket>(`/tickets/${id}/`);
   } catch (err) {
     console.warn(`[DataService] GET /tickets/${id} failed, using mock`, err);
     return mockTickets.find((t) => t.id === id);
@@ -110,9 +110,29 @@ export async function fetchTicket(id: string): Promise<Ticket | undefined> {
 }
 
 export async function createTicket(data: Partial<Ticket>): Promise<Ticket> {
-  return api.post<Ticket>('/tickets', data);
+  return api.post<Ticket>('/tickets/', data);
 }
 
 export async function updateTicket(id: string, data: Partial<Ticket>): Promise<Ticket> {
-  return api.put<Ticket>(`/tickets/${id}`, data);
+  return api.put<Ticket>(`/tickets/${id}/`, data);
+}
+
+// ── Users ──────────────────────────────────────────────────
+export async function fetchUsers(): Promise<any[]> {
+  try {
+    return await api.get<any[]>('/users/');
+  } catch (err) {
+    console.warn(`[DataService] GET /users/ failed`, err);
+    return [];
+  }
+}
+
+export async function createUser(data: {
+  email: string;
+  full_name: string;
+  password: string;
+  role?: string;
+  department?: string;
+}): Promise<any> {
+  return api.post<any>('/users/', data);
 }

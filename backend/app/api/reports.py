@@ -13,6 +13,16 @@ from app import models
 
 router = APIRouter()
 
+@router.get("/")
+async def list_reports(
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """List available report types."""
+    return [
+        {"id": "risk-summary", "title": "Risk Summary Report", "description": "Overview of all risks and their scores"},
+        {"id": "compliance-status", "title": "Compliance Status Report", "description": "Current compliance posture across frameworks"},
+    ]
+
 # Setup Jinja2 Environment pointing to the templates directory
 TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))

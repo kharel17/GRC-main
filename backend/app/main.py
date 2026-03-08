@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.config import settings
 from app.api.api import api_router
 from app.logging_config import setup_logging
@@ -22,7 +23,7 @@ app = FastAPI(
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+        allow_origins=[str(origin).rstrip("/") for origin in settings.BACKEND_CORS_ORIGINS],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -81,8 +82,19 @@ async def startup_ai_service():
 # ── Health Check ───────────────────────────────────────────
 @app.get("/health")
 async def health_check():
+    # Check database connectivity
+    db_healthy = False
+    try:
+        from app.database import engine
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+            db_healthy = True
+    except Exception:
+        db_healthy = False
+
     return {
-        "status": "healthy",
+        "status": "healthy" if db_healthy else "degraded",
+        "database": "connected" if db_healthy else "disconnected",
         "environment": settings.ENVIRONMENT,
         "ai_ready": ai_service.is_ready,
         "ai_engine": ai_service.active_engine if ai_service.is_ready else "not_initialized",

@@ -12,7 +12,7 @@ from app.models.base import Base
 from app.models import (
     User, Risk, RiskCategory, Control, RiskControlMapping, 
     ComplianceItem, Evidence, EvidenceControlMatch, 
-    AuditLog, Ticket, TicketComment
+    AuditLog, Ticket, TicketComment, RefreshToken
 )
 
 config = context.config
@@ -68,6 +68,7 @@ async def run_migrations_online() -> None:
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"statement_cache_size": 0},  # Required for Supabase pgbouncer
     )
 
     async with connectable.connect() as connection:

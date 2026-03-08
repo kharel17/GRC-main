@@ -22,10 +22,12 @@ class User(Base):
     role = Column(SAEnum(UserRole), default=UserRole.analyst)
     department = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+    token_version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     risks_owned = relationship("Risk", foreign_keys="Risk.owner_id", back_populates="owner")
     risks_created = relationship("Risk", foreign_keys="Risk.created_by", back_populates="creator")
     tickets_assigned = relationship("Ticket", foreign_keys="Ticket.assigned_to_id", back_populates="assignee")

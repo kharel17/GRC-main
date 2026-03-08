@@ -36,7 +36,7 @@ async def create_ticket(
     *,
     db: AsyncSession = Depends(deps.get_db),
     ticket_in: schemas.TicketCreate,
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
     Create new ticket.
@@ -136,7 +136,7 @@ async def escalate_ticket(
     id: str,
     escalated_to_id: str, # UUID via query/body? Let's assume body via schema or just generic query params for simplicity
     # Ideally should be a small Pydantic body.
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
     Escalate a ticket.

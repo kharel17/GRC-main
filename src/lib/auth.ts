@@ -47,7 +47,7 @@ export function getTokens(): AuthTokens | null {
   if (typeof window === 'undefined') return null;
   const stored = localStorage.getItem(TOKEN_KEY);
   if (!stored) return null;
-  
+
   try {
     return JSON.parse(stored) as AuthTokens;
   } catch {
@@ -69,7 +69,7 @@ export function decodeToken(token: string): JWTPayload | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    
+
     const payload = parts[1];
     const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
     return JSON.parse(decoded) as JWTPayload;
@@ -81,7 +81,7 @@ export function decodeToken(token: string): JWTPayload | null {
 export function isTokenExpired(token: string): boolean {
   const payload = decodeToken(token);
   if (!payload) return true;
-  
+
   const expiryMs = payload.exp * 1000;
   const nowMs = Date.now();
   return nowMs >= expiryMs - EXPIRY_BUFFER_MS;
@@ -90,7 +90,7 @@ export function isTokenExpired(token: string): boolean {
 export function getUserFromToken(token: string): AuthUser | null {
   const payload = decodeToken(token);
   if (!payload) return null;
-  
+
   return {
     id: payload.sub,
     email: payload.email,
@@ -131,7 +131,7 @@ export function canAccessRoute(route: string, role: UserRole): boolean {
   if (ROUTE_PERMISSIONS[route]) {
     return ROUTE_PERMISSIONS[route].includes(role);
   }
-  
+
   const segments = route.split('/').filter(Boolean);
   while (segments.length > 0) {
     const parentRoute = '/' + segments.join('/');
@@ -169,7 +169,7 @@ function generateMockToken(user: MockUser): string {
     iat: now,
     exp: now + 3600,
   };
-  
+
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const payloadB64 = btoa(JSON.stringify(payload));
   const signature = btoa('mock-signature');
@@ -205,6 +205,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData.toString(),
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -213,19 +214,19 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
     const data = await response.json();
 
-    // Backend returns { access_token, token_type }
-    // Decode user from token
-    const userFromToken = getUserFromToken(data.access_token);
+    // Backend returns { access_token, token_type, message }
+    const accessToken = data.access_token;
+    const userFromToken = getUserFromToken(accessToken);
 
-    // Store tokens
+    // Store tokens in localStorage for Bearer header usage
     setTokens({
-      accessToken: data.access_token,
-      refreshToken: data.access_token, // Same token until refresh is implemented
+      accessToken: accessToken,
+      refreshToken: accessToken, // Same token until refresh is implemented
     });
 
     return {
-      access_token: data.access_token,
-      refresh_token: data.access_token,
+      access_token: accessToken,
+      refresh_token: accessToken,
       user: userFromToken || { id: '', email, role: 'analyst' as UserRole },
     };
   } catch (error) {
@@ -239,13 +240,13 @@ export async function login(email: string, password: string): Promise<LoginRespo
  */
 export async function mockLogin(email: string, password: string): Promise<LoginResponse | null> {
   await new Promise(resolve => setTimeout(resolve, 800));
-  
+
   const user = MOCK_USERS.find(u => u.email === email && u.password === password);
   if (!user) return null;
-  
+
   const accessToken = generateMockToken(user);
   const refreshToken = generateMockToken({ ...user, id: `refresh-${user.id}` });
-  
+
   return {
     access_token: accessToken,
     refresh_token: refreshToken,

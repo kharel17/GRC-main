@@ -161,8 +161,8 @@ class AIService:
             self._controls_path = Path(controls_path)
         else:
             self._controls_path = (
-                Path(__file__).resolve().parents[3]  # GRC main/
-                / "src" / "data" / "iso27001-controls.json"
+                Path(__file__).resolve().parents[2]  # backend/ (or /app/ in Docker)
+                / "data" / "iso27001-controls.json"
             )
 
     # ------------------------------------------------------------------

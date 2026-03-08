@@ -1,8 +1,6 @@
 
 "use client";
 
-import { ISOComplianceWidget } from "@/features/iso27001/ISOComplianceWidget";
-import { ISOControlsStatusWidget } from "@/features/iso27001/ISOControlsStatusWidget";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -14,6 +12,17 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import dynamic from "next/dynamic";
+
+const ISOComplianceWidget = dynamic(
+  () => import("@/features/iso27001/ISOComplianceWidget").then(mod => mod.ISOComplianceWidget),
+  { ssr: false }
+);
+
+const ISOControlsStatusWidget = dynamic(
+  () => import("@/features/iso27001/ISOControlsStatusWidget").then(mod => mod.ISOControlsStatusWidget),
+  { ssr: false }
+);
 
 export default function ISODashboardPage() {
   const { user } = useAuth();

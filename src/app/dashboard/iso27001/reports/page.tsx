@@ -2,13 +2,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ComplianceScoring } from "@/features/iso27001/ComplianceScoring";
 import { isoService } from "@/lib/iso-service";
 import { ISOControl } from "@/types/iso27001";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import dynamic from "next/dynamic";
+
+const ComplianceScoring = dynamic(
+  () => import("@/features/iso27001/ComplianceScoring").then(mod => mod.ComplianceScoring),
+  { ssr: false }
+);
 
 export default function ISOReportsPage() {
   const [controls, setControls] = useState<ISOControl[]>([]);

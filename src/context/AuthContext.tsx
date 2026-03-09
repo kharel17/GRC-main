@@ -55,13 +55,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     async function getInitialSession() {
       try {
+        console.log('[Auth] Fetching initial session...');
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('[Auth] Error getting session:', error.message);
         } else if (initialSession && mounted) {
+          console.log('[Auth] Initial session found:', {
+            user_id: initialSession.user.id,
+            email: initialSession.user.email,
+          });
           setSession(initialSession);
           setUser(mapSupabaseUser(initialSession.user));
+        } else if (!initialSession) {
+          console.log('[Auth] No initial session found');
         }
       } catch (e) {
         console.error('[Auth] Failed to initialize session', e);
@@ -77,12 +84,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       async (event, currentSession) => {
         if (!mounted) return;
         
-        console.log(`[Auth] State changed: ${event}`);
+        console.log(`[Auth] State changed: ${event}`, {
+          has_session: !!currentSession,
+          user_id: currentSession?.user.id,
+          event_details: event,
+        });
+        
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          console.log('[Auth] User authenticated, setting session');
+        }
         
         setSession(currentSession);
         if (currentSession?.user) {
+          console.log('[Auth] Setting user:', {
+            id: currentSession.user.id,
+            email: currentSession.user.email,
+          });
           setUser(mapSupabaseUser(currentSession.user));
         } else {
+          console.log('[Auth] Clearing user');
           setUser(null);
         }
         setIsLoading(false);
@@ -118,17 +138,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const loginWithGoogle = useCallback(async () => {
     try {
+      console.log('[Auth] Starting Google OAuth flow...');
+      // Redirect to callback handler to process OAuth state validation
+      // The callback handler will verify the session and redirect to dashboard
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${window.location.origin}/auth/callback`,
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[Auth] OAuth initialization error:', error);
+        throw error;
+      }
+      
+      console.log('[Auth] OAuth flow initiated, user redirected to Google');
       return { success: true };
     } catch (error: any) {
-      console.error('[Auth] Google login failed:', error);
+      console.error('[Auth] Google login failed:', {
+        message: error.message,
+        error: error,
+      });
       return { success: false, error: error.message || 'Google login failed' };
     }
   }, []);

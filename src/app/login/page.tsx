@@ -28,6 +28,21 @@ export default function LoginPage() {
 
   // Redirect if already authenticated
   useEffect(() => {
+    // Check for OAuth callback errors
+    const oauthError = searchParams.get("error");
+    const oauthErrorDescription = searchParams.get("error_description");
+    
+    if (oauthError) {
+      console.error("[Login] OAuth Error:", { oauthError, oauthErrorDescription });
+      // Decode the error description if URL encoded
+      const decodedDescription = oauthErrorDescription 
+        ? decodeURIComponent(oauthErrorDescription) 
+        : "Authentication failed. Please try again.";
+      setError(decodedDescription);
+      return;
+    }
+
+    // Redirect if already authenticated
     if (isAuthenticated && !authLoading) {
       const redirect = searchParams.get("redirect") || "/dashboard";
       router.push(redirect);

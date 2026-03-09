@@ -1,5 +1,5 @@
 /**
- * GRC Platform — API Client
+ * GRC Platform - API Client
  * 
  * Centralized HTTP client for all backend API calls.
  * Handles JWT injection, token refresh, and error mapping.
@@ -52,7 +52,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  // Handle 401 — force logout
+  // Handle 401 - force logout
   if (response.status === 401) {
     await supabase.auth.signOut();
     if (typeof window !== 'undefined') {
@@ -94,8 +94,8 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
   }
 
   const headers: Record<string, string> = {};
-  // Auth is via httpOnly cookies — no need for Bearer header
-  // Do NOT set Content-Type — browser sets it with boundary for multipart
+  // Auth is via httpOnly cookies - no need for Bearer header
+  // Do NOT set Content-Type - browser sets it with boundary for multipart
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
@@ -112,7 +112,7 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
   return response.json() as Promise<T>;
 }
 
-// ── Convenience Methods ────────────────────────────────────
+// -- Convenience Methods --
 
 export const api = {
   get: <T>(endpoint: string, options?: RequestOptions) =>

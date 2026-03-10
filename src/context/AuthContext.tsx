@@ -139,12 +139,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const loginWithGoogle = useCallback(async () => {
     try {
       console.log('[Auth] Starting Google OAuth flow...');
-      // Redirect to callback handler to process OAuth state validation
-      // The callback handler will verify the session and redirect to dashboard
+      // Supabase will redirect to /login after OAuth with Google
+      // The onAuthStateChange listener will pick up the authenticated session
+      // Login page will then redirect to /dashboard
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/login`,
         }
       });
 

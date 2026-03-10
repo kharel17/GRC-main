@@ -59,7 +59,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     async function getInitialSession() {
       try {
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        
+
         if (error) {
           console.error('[Auth] Error getting session:', error.message);
         } else if (initialSession && mounted) {
@@ -79,9 +79,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         if (!mounted) return;
-        
-        console.log(`[Auth] State changed: ${event}`);
-        
         setSession(currentSession);
         if (currentSession?.user) {
           setUser(mapSupabaseUser(currentSession.user));
@@ -138,7 +135,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
       setUser(null);
       setSession(null);
       window.location.href = '/login';

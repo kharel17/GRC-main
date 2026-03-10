@@ -19,7 +19,7 @@ if (typeof window !== 'undefined') {
   storageService.getControls()
     .then(controls => {
       if (controls && controls.length === 0) {
-        console.log('ISO Controls empty, seeding initial data...');
+
         const initialControls: ISOControl[] = isoData.controls.map(c => ({
           ...c,
           status: c.status as ISOControlStatus,
@@ -29,13 +29,13 @@ if (typeof window !== 'undefined') {
 
         // Save all initial controls safely
         Promise.all(initialControls.map(c => storageService.saveControl(c)))
-          .then(() => console.log('ISO Controls initialized successfully'))
+
           .catch(err => console.error('Failed to save initial controls:', err));
       }
     })
     .catch(err => {
       // Crucial: Catch the 401 or network errors so they don't bubble up as "Failed to fetch" crashes!
-      console.warn('Skipping ISO Controls initialization (expected if logged out or backend is loading):', err.message || err);
+      console.warn('[ISO Service] Initial controls seeding skipped. This is expected if the backend is unreachable, or you are logged out.', err.message || err);
     });
 }
 

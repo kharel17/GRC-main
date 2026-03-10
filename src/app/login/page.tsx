@@ -210,6 +210,11 @@ export default function LoginPage() {
                 <Label htmlFor="password" className="text-sm font-medium">
                   Password
                 </Label>
+                <div className="flex justify-between items-center mt-1">
+                  <p id="password-hint" className="text-xs text-slate-500">
+                    Demo: demo
+                  </p>
+                </div>
                 <Input
                   id="password"
                   type="password"
@@ -220,14 +225,6 @@ export default function LoginPage() {
                   className="bg-slate-50 dark:bg-slate-900"
                   autoComplete="current-password"
                 />
-<<<<<<< HEAD
-                <div className="flex justify-between items-center mt-1">
-                  <p id="password-hint" className="text-xs text-slate-500">
-                    Demo: demo
-                  </p>
-                </div>
-=======
->>>>>>> 42168cb2fdec1ec52ab0262d1f577c0211c45c5e
               </div>
 
               <Button

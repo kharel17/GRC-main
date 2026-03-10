@@ -9,6 +9,8 @@
  */
 
 import { supabase } from './supabase';
+import { clearTokens } from './token-storage';
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
@@ -47,18 +49,11 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...rest,
     headers,
-    // Credentials mode optional depending on cross-origin needs, but usually omitted for pure Bearer token auth
-    // credentials: 'omit', 
     body: body ? JSON.stringify(body) : undefined,
   });
 
-<<<<<<< HEAD
   // Handle 401 — attempt token refresh
-=======
-  // Handle 401 - force logout
->>>>>>> 617f04277046541a2939033a222f16b16414a25b
   if (response.status === 401) {
-<<<<<<< HEAD
     if (skipAuth || endpoint === '/auth/refresh' || endpoint === '/auth/login') {
       clearTokens();
       if (typeof window !== 'undefined' && endpoint !== '/auth/login') {
@@ -92,9 +87,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
     // If refresh failed or wasn't possible, log out
     clearTokens();
-=======
-    await supabase.auth.signOut();
->>>>>>> 42168cb2fdec1ec52ab0262d1f577c0211c45c5e
+
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
     }
@@ -140,7 +133,6 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,
-    credentials: 'include',
     body: formData,
   });
 

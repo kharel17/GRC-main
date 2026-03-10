@@ -13,10 +13,15 @@ export function ISOControlsStatusWidget() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    isoService.getComplianceStats().then(data => {
-      setStats(data);
-      setLoading(false);
-    });
+    isoService.getComplianceStats()
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("[ISOControlsStatusWidget] Failed to fetch stats:", err);
+        setLoading(false);
+      });
   }, []);
 
   if (loading) {

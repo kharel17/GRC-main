@@ -1,4 +1,7 @@
 import { UserRole } from '@/types/user';
+import { setTokens as storageSetTokens, getTokens as storageGetTokens, clearTokens as storageClearTokens } from './token-storage';
+import { api } from './api-client';
+
 
 // =============================================================================
 // Types
@@ -10,8 +13,20 @@ export interface AuthUser {
   role: UserRole;
 }
 
+export interface JWTPayload {
+  sub: string;
+  email: string;
+  role: UserRole;
+  exp: number;
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+
 // =============================================================================
-<<<<<<< HEAD
 // Constants
 // =============================================================================
 
@@ -25,28 +40,18 @@ const EXPIRY_BUFFER_MS = 30 * 1000;
 // Token Storage
 // =============================================================================
 
-export function setTokens(tokens: AuthTokens): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
+export function setTokens(tokens: any): void {
+  storageSetTokens(tokens);
 }
 
-export function getTokens(): AuthTokens | null {
-  if (typeof window === 'undefined') return null;
-  const stored = localStorage.getItem(TOKEN_KEY);
-  if (!stored) return null;
-
-  try {
-    return JSON.parse(stored) as AuthTokens;
-  } catch {
-    return null;
-  }
+export function getTokens(): any | null {
+  return storageGetTokens();
 }
 
 export function clearTokens(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  storageClearTokens();
 }
+
 
 // =============================================================================
 // JWT Utilities
@@ -115,8 +120,6 @@ export async function refreshAccessToken(): Promise<AuthTokens | null> {
 }
 
 // =============================================================================
-=======
->>>>>>> 42168cb2fdec1ec52ab0262d1f577c0211c45c5e
 // Route Access Configuration
 // =============================================================================
 

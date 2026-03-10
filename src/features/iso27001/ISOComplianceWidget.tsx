@@ -14,10 +14,15 @@ export function ISOComplianceWidget() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    isoService.getComplianceStats().then(data => {
-      setStats(data);
-      setLoading(false);
-    });
+    isoService.getComplianceStats()
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("[ISOComplianceWidget] Failed to fetch stats:", err);
+        setLoading(false); // Stop loading even on error
+      });
   }, []);
 
   if (loading) {
@@ -31,10 +36,9 @@ export function ISOComplianceWidget() {
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold flex items-center justify-between">
           <span>Overall Compliance</span>
-          <span className={`text-2xl font-bold ${
-            stats.complianceScore >= 80 ? 'text-green-600' :
-            stats.complianceScore >= 50 ? 'text-amber-600' : 'text-red-600'
-          }`}>
+          <span className={`text-2xl font-bold ${stats.complianceScore >= 80 ? 'text-green-600' :
+              stats.complianceScore >= 50 ? 'text-amber-600' : 'text-red-600'
+            }`}>
             {stats.complianceScore}%
           </span>
         </CardTitle>

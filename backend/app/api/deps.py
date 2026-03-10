@@ -62,10 +62,32 @@ async def get_current_user(
         email = payload.get("email", "")
         role_str = payload.get("user_metadata", {}).get("role", "analyst")
         
+        # Dev seed accounts only - do not use in production
+        DEV_ROLE_MAP = {
+            "alice@company.com": models.UserRole.admin,
+            "carol@company.com": models.UserRole.manager,
+            "bob@company.com": models.UserRole.analyst,
+        }
+
         try:
             role_enum = models.UserRole(role_str)
         except ValueError:
             role_enum = models.UserRole.analyst
+
+        # 1. Check if email maps to a dev seed account
+        if email in DEV_ROLE_MAP:
+            role_enum = DEV_ROLE_MAP[email]
+        else:
+            # 2. If not a dev seed account, check if database is empty to make the first user an admin
+            from sqlalchemy import select, func
+            try:
+                user_count_query = await db.execute(select(func.count()).select_from(models.User))
+                user_count = user_count_query.scalar_one()
+
+                if user_count == 0:
+                    role_enum = models.UserRole.admin
+            except Exception as e:
+                print(f"Error checking user count: {e}")
 
         new_user = models.User(
             id=user_id,

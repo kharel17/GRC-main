@@ -32,8 +32,9 @@ async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
   try {
     return await api.get<T>(endpoint);
   } catch (err) {
-    console.warn(`[DataService] API call ${endpoint} failed, using mock data`, err);
-    return fallback;
+    console.error(`[DataService] API call ${endpoint} failed:`, err);
+    // In production, do not fall back to rich mock data. Return empty array/undefined.
+    return (Array.isArray(fallback) ? [] : undefined) as unknown as T;
   }
 }
 
@@ -47,8 +48,8 @@ export async function fetchRisk(id: string): Promise<Risk | undefined> {
   try {
     return await api.get<Risk>(`/risks/${id}/`);
   } catch (err) {
-    console.warn(`[DataService] GET /risks/${id} failed, using mock`, err);
-    return mockRisks.find((r) => r.id === id);
+    console.error(`[DataService] GET /risks/${id} failed:`, err);
+    return undefined;
   }
 }
 
@@ -104,8 +105,8 @@ export async function fetchTicket(id: string): Promise<Ticket | undefined> {
   try {
     return await api.get<Ticket>(`/tickets/${id}/`);
   } catch (err) {
-    console.warn(`[DataService] GET /tickets/${id} failed, using mock`, err);
-    return mockTickets.find((t) => t.id === id);
+    console.error(`[DataService] GET /tickets/${id} failed:`, err);
+    return undefined;
   }
 }
 

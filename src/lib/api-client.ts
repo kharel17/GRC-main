@@ -94,13 +94,17 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
   }
 
   const headers: Record<string, string> = {};
-  // Auth is via httpOnly cookies - no need for Bearer header
   // Do NOT set Content-Type - browser sets it with boundary for multipart
+
+  // Inject Supabase JWT Bearer token
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
+  }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,
-    credentials: 'include',
     body: formData,
   });
 
@@ -123,6 +127,9 @@ export const api = {
 
   put: <T>(endpoint: string, body?: unknown, options?: RequestOptions) =>
     request<T>(endpoint, { ...options, method: 'PUT', body }),
+
+  patch: <T>(endpoint: string, body?: unknown, options?: RequestOptions) =>
+    request<T>(endpoint, { ...options, method: 'PATCH', body }),
 
   delete: <T>(endpoint: string, options?: RequestOptions) =>
     request<T>(endpoint, { ...options, method: 'DELETE' }),

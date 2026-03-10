@@ -6,6 +6,8 @@ import { AuthUser, canAccessRoute } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
 
+const IS_DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -14,6 +16,7 @@ export interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isDevMode: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -118,10 +121,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
         return { success: false, error: error.message };
@@ -191,6 +191,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     isLoading,
     isAuthenticated: !!user && !!session,
+    isDevMode: IS_DEV_MODE,
     login,
     loginWithGoogle,
     logout,

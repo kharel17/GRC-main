@@ -60,7 +60,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         console.log('[Auth] Fetching initial session...');
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        
+
         if (error) {
           console.error('[Auth] Error getting session:', error.message);
         } else if (initialSession && mounted) {
@@ -86,17 +86,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         if (!mounted) return;
-        
+
         console.log(`[Auth] State changed: ${event}`, {
           has_session: !!currentSession,
           user_id: currentSession?.user.id,
           event_details: event,
         });
-        
+
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           console.log('[Auth] User authenticated, setting session');
         }
-        
+
         setSession(currentSession);
         if (currentSession?.user) {
           console.log('[Auth] Setting user:', {
@@ -121,7 +121,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      let { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      // Auto-signup fallback for Dev Mode seed users if they don't exist yet in Supabase Auth
+      if (
+        error &&
+        error.message.includes('Invalid login credentials') &&
+        IS_DEV_MODE &&
+        ['alice@company.com', 'bob@company.com', 'carol@company.com'].includes(email)
+      ) {
+        console.log(`[Auth] Seed user ${email} not found. Auto-creating...`);
+        const signupRes = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              role: email === 'alice@company.com' ? 'admin' : (email === 'carol@company.com' ? 'manager' : 'analyst'),
+              full_name: email.split('@')[0]
+            }
+          }
+        });
+        error = signupRes.error;
+      }
 
       if (error) {
         return { success: false, error: error.message };
@@ -153,7 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.error('[Auth] OAuth initialization error:', error);
         throw error;
       }
-      
+
       console.log('[Auth] OAuth flow initiated, user redirected to Google');
       return { success: true };
     } catch (error: any) {
@@ -170,7 +191,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
       setUser(null);
       setSession(null);
       window.location.href = '/login';

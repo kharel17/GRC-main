@@ -9,11 +9,14 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { getStatusColor, getScoreBadgeColor } from '@/features/risk/risk.logic';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { EvidenceDropzone } from '@/components/evidence/EvidenceDropzone';
+import { EvidenceList } from '@/components/evidence/EvidenceList';
 
 export default function RiskDetailPage({ params }: { params: { id: string } }) {
   const fetcher = useCallback(() => fetchRisk(params.id), [params.id]);
   const { data: risk, loading, error } = useApiData(fetcher, [params.id]);
+  const [evidenceRefresh, setEvidenceRefresh] = useState(0);
 
   if (loading) {
     return (
@@ -119,22 +122,27 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
               </Button>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Supporting Evidence</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-600">
-                No evidence uploaded yet. Upload documents to support this risk assessment.
-              </p>
-              <Button variant="outline" className="w-full mt-4">
-                Upload Evidence
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </div>
+
+      {/* ── Mitigating Evidence ─────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Mitigating Evidence</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <EvidenceDropzone
+            relatedTo="risk"
+            relatedId={params.id}
+            onUploadSuccess={() => setEvidenceRefresh((k) => k + 1)}
+          />
+          <EvidenceList
+            relatedTo="risk"
+            relatedId={params.id}
+            refreshKey={evidenceRefresh}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

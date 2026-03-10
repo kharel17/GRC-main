@@ -1,5 +1,5 @@
 /**
- * GRC Platform — Data Service
+ * GRC Platform - Data Service
  *
  * Centralized data fetching: calls the real FastAPI backend when available,
  * gracefully falls back to mock data when the API is unreachable or when
@@ -26,7 +26,7 @@ import type { Evidence } from '@/types/evidence';
 import type { AuditLog } from '@/types/audit';
 import type { Ticket } from '@/types/ticket';
 
-// ── Helper ─────────────────────────────────────────────────
+// -- Helper --────────
 async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
   if (api.isMock) return fallback;
   try {
@@ -37,7 +37,7 @@ async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
   }
 }
 
-// ── Risk ───────────────────────────────────────────────────
+// -- Risk --────────
 export async function fetchRisks(): Promise<Risk[]> {
   return fetchOrFallback<Risk[]>('/risks/', mockRisks);
 }
@@ -57,12 +57,12 @@ export async function createRisk(data: Partial<Risk>): Promise<Risk> {
 }
 
 export function getRiskCategories(): RiskCategory[] {
-  // Categories are small and rarely change — keep local until a backend
+  // Categories are small and rarely change - keep local until a backend
   // endpoint exists for them.
   return mockRiskCategories;
 }
 
-// ── Controls ───────────────────────────────────────────────
+// -- Controls --──────
 export async function fetchControls(): Promise<Control[]> {
   return fetchOrFallback<Control[]>('/controls/', mockControls);
 }
@@ -71,7 +71,7 @@ export async function createControl(data: Partial<Control>): Promise<Control> {
   return api.post<Control>('/controls/', data);
 }
 
-// ── Evidence ───────────────────────────────────────────────
+// -- Evidence --──────
 export async function fetchEvidence(): Promise<Evidence[]> {
   return fetchOrFallback<Evidence[]>('/evidence/', mockEvidence);
 }
@@ -84,17 +84,17 @@ export async function uploadEvidence(file: File, fields?: Record<string, string>
   return api.upload<Evidence>('/evidence/upload', file, fields);
 }
 
-// ── Audit Logs ─────────────────────────────────────────────
+// -- Audit Logs --────────
 export async function fetchAuditLogs(): Promise<AuditLog[]> {
   return fetchOrFallback<AuditLog[]>('/audit-logs/', mockAuditLogs);
 }
 
-// ── Compliance ─────────────────────────────────────────────
+// -- Compliance --────────
 export async function fetchComplianceItems(): Promise<ComplianceItem[]> {
   return fetchOrFallback<ComplianceItem[]>('/compliance/', mockComplianceItems);
 }
 
-// ── Tickets ────────────────────────────────────────────────
+// -- Tickets --──────
 export async function fetchTickets(): Promise<Ticket[]> {
   return fetchOrFallback<Ticket[]>('/tickets/', mockTickets);
 }
@@ -117,7 +117,7 @@ export async function updateTicket(id: string, data: Partial<Ticket>): Promise<T
   return api.put<Ticket>(`/tickets/${id}/`, data);
 }
 
-// ── Users ──────────────────────────────────────────────────
+// -- Users --────────
 export async function fetchUsers(): Promise<any[]> {
   try {
     return await api.get<any[]>('/users/');

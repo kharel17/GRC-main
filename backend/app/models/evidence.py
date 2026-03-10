@@ -11,6 +11,12 @@ class EvidenceRelatedTo(str, enum.Enum):
     control = "control"
     compliance_item = "compliance_item"
 
+class EvidenceStatus(str, enum.Enum):
+    active = "active"
+    expired = "expired"
+    rejected = "rejected"
+
+
 class Evidence(Base):
     __tablename__ = "evidence"
 
@@ -21,6 +27,9 @@ class Evidence(Base):
     file_name = Column(String, nullable=True)
     file_type = Column(String, nullable=True)
     file_size = Column(Integer, nullable=True)
+    
+    status = Column(SAEnum(EvidenceStatus), default=EvidenceStatus.active, nullable=False)
+    valid_until = Column(DateTime, nullable=True)
     
     related_to = Column(SAEnum(EvidenceRelatedTo), nullable=False)
     related_id = Column(UUID(as_uuid=True), nullable=False)

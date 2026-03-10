@@ -19,7 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, loginWithGoogle, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, loginWithGoogle, isDevMode, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,6 +92,24 @@ export default function LoginPage() {
       }
     } catch {
       setError("An error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuickLogin = async (roleEmail: string) => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const result = await login(roleEmail, 'demo');
+      if (result.success) {
+        const redirect = searchParams.get("redirect") || "/dashboard";
+        window.location.href = redirect;
+      } else {
+        setError(`Failed to login as ${roleEmail}. Did you create this user in Supabase Auth yet?`);
+      }
+    } catch {
+      setError("An error occurred during quick login.");
     } finally {
       setIsLoading(false);
     }
@@ -227,6 +245,40 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
+
+            {/* Dev quick-login - only visible in local development */}
+            {isDevMode && (
+              <div className="mt-6 pt-5 border-t border-dashed border-slate-200">
+                <p className="text-xs text-slate-400 text-center mb-3 font-mono">&#x26a1; DEV QUICK LOGIN — one click, no password</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('alice@company.com')}
+                    disabled={isLoading}
+                    className="text-xs py-2 px-2 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-semibold disabled:opacity-50"
+                  >
+                    &#x1f451; Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('carol@company.com')}
+                    disabled={isLoading}
+                    className="text-xs py-2 px-2 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors font-semibold disabled:opacity-50"
+                  >
+                    &#x1f9ed; Manager
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('bob@company.com')}
+                    disabled={isLoading}
+                    className="text-xs py-2 px-2 rounded border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition-colors font-semibold disabled:opacity-50"
+                  >
+                    &#x1f50d; Analyst
+                  </button>
+                </div>
+              </div>
+
+            )}
           </CardContent>
         </Card>
       </div>

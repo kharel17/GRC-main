@@ -30,31 +30,60 @@ async def get_current_user(
             detail="Not authenticated",
         )
     try:
-        payload = security.decode_token(token)
-        token_data = schemas.token.TokenPayload(**payload)
+        # Decode the Supabase JWT
+        # Supabase uses HS256 and the JWT secret is in the dashboard
+        payload = jwt.decode(
+            token, 
+            settings.SUPABASE_JWT_SECRET, 
+            algorithms=["HS256"],
+            options={"verify_aud": False} # Accept the default Supabase 'authenticated' audience
+        )
         
-        if payload.get("type") != "access":
+        user_id = payload.get("sub")
+        if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type",
+                detail="Invalid token structure",
             )
             
-    except (JWTError, ValidationError):
+    except (JWTError, ValidationError) as e:
+        print(f"Token validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
     
-    user_orm = await db.get(models.User, token_data.sub)
-    if not user_orm:
-         raise HTTPException(status_code=404, detail="User not found")
+    # Check if user exists in our local database
+    user_orm = await db.get(models.User, user_id)
     
-    # Check if token version matches the current user version
-    if token_data.version != user_orm.token_version:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked",
+    if not user_orm:
+        # Auto-provision user on first Supabase login
+        # Extract email from app_metadata or user_metadata if available
+        email = payload.get("email", "")
+        role_str = payload.get("user_metadata", {}).get("role", "analyst")
+        
+        try:
+            role_enum = models.UserRole(role_str)
+        except ValueError:
+            role_enum = models.UserRole.analyst
+
+        new_user = models.User(
+            id=user_id,
+            email=email,
+            full_name=payload.get("user_metadata", {}).get("full_name", email.split('@')[0] if email else "Unknown"),
+            hashed_password="SUPABASE_AUTH", # Password managed by Supabase
+            role=role_enum,
+            is_active=True
         )
+        db.add(new_user)
+        try:
+            await db.commit()
+            await db.refresh(new_user)
+            user_orm = new_user
+        except Exception as e:
+            await db.rollback()
+            print(f"Error auto-provisioning user: {e}")
+            raise HTTPException(status_code=500, detail="Error creating user profile")
          
     return user_orm
 

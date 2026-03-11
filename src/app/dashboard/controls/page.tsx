@@ -14,7 +14,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Plus, Shield, Filter, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { NewControlDialog } from '@/features/control/NewControlDialog';
 
 type ControlType = 'all' | 'preventive' | 'detective' | 'corrective';
 
@@ -58,9 +60,10 @@ function getTypeColor(type: string) {
 }
 
 export default function ControlsPage() {
-  const { data: controls, loading, error } = useApiData(fetchControls);
+  const { data: controls, loading, error, refetch } = useApiData(fetchControls);
   const [typeFilter, setTypeFilter] = useState<ControlType>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [newControlOpen, setNewControlOpen] = useState(false);
 
   const allControls = controls ?? [];
 
@@ -105,7 +108,7 @@ export default function ControlsPage() {
           <p className="text-sm text-slate-600 dark:text-slate-400">Manage risk mitigation controls</p>
         </div>
         <RoleGuard allowedRoles={['admin', 'analyst']}>
-          <Button className="gap-2 w-full sm:w-auto">
+          <Button className="gap-2 w-full sm:w-auto" onClick={() => setNewControlOpen(true)}>
             <Plus className="h-4 w-4" />
             New Control
           </Button>
@@ -120,11 +123,10 @@ export default function ControlsPage() {
             <button
               key={btn.value}
               onClick={() => setTypeFilter(btn.value)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                typeFilter === btn.value
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${typeFilter === btn.value
                   ? 'bg-blue-600 dark:bg-blue-500 text-white dark:text-white'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
+                }`}
             >
               {btn.label} ({btn.count})
             </button>
@@ -167,34 +169,41 @@ export default function ControlsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredControls.map((control) => (
-            <Card 
-              key={control.id} 
-              className={`hover:shadow-md transition-shadow border-l-4 ${getTypeColor(control.controlType)}`}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium line-clamp-2">{control.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">{control.description}</p>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline" className="text-xs capitalize">
-                    {control.controlType}
-                  </Badge>
-                  <Badge className={`text-xs capitalize ${getEffectivenessStyles(control.effectiveness)}`}>
-                    {control.effectiveness}
-                  </Badge>
-                  <Badge variant="secondary" className={`text-xs capitalize ${getStatusStyles(control.status)}`}>
-                    {control.status.replace('_', ' ')}
-                  </Badge>
-                </div>
-                <div className="pt-2 border-t text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                  <span>Owner: {control.ownerName}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <Link key={control.id} href={`/dashboard/controls/${control.id}`}>
+              <Card
+                className={`h-full hover:shadow-md transition-shadow border-l-4 cursor-pointer group ${getTypeColor(control.controlType)}`}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium line-clamp-2 group-hover:text-blue-600 transition-colors">{control.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">{control.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {control.controlType}
+                    </Badge>
+                    <Badge className={`text-xs capitalize ${getEffectivenessStyles(control.effectiveness)}`}>
+                      {control.effectiveness}
+                    </Badge>
+                    <Badge variant="secondary" className={`text-xs capitalize ${getStatusStyles(control.status)}`}>
+                      {control.status.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  <div className="pt-2 border-t text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                    <span>Owner: {control.ownerName}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       )}
+
+      <NewControlDialog
+        open={newControlOpen}
+        onOpenChange={setNewControlOpen}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

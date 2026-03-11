@@ -89,6 +89,20 @@ export async function createControl(data: Partial<Control>): Promise<Control> {
   return api.post<Control>('/controls/', data);
 }
 
+export async function fetchControl(id: string): Promise<Control | undefined> {
+  if (api.isMock) return mockControls.find((c) => c.id === id);
+  try {
+    return await api.get<Control>(`/controls/${id}/`);
+  } catch (err) {
+    console.error(`[DataService] GET /controls/${id} failed:`, err);
+    return undefined;
+  }
+}
+
+export async function updateControl(id: string, data: Partial<Control>): Promise<Control> {
+  return api.put<Control>(`/controls/${id}/`, data);
+}
+
 // -- Evidence --──────
 export async function fetchEvidence(): Promise<Evidence[]> {
   return fetchOrFallback<Evidence[]>('/evidence/', mockEvidence);

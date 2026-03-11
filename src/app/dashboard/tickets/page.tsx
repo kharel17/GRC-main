@@ -1,10 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { fetchTickets } from '@/lib/data-service';
+import { fetchTickets, createTicket } from '@/lib/data-service';
 import { useApiData } from '@/hooks/use-api-data';
 import { TicketCard } from '@/features/tickets/TicketCard';
+import { CreateTicketDialog } from '@/features/tickets/CreateTicketDialog';
 import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,10 +33,14 @@ import { RoleGuard } from '@/components/auth/RoleGuard';
 import { TicketStatus, TicketPriority, TicketCategory } from '@/types/ticket';
 
 export default function TicketsPage() {
-  const { data: tickets, loading, error } = useApiData(fetchTickets);
+  const { user } = useAuth();
+  const { data: tickets, loading, error, refetch } = useApiData(fetchTickets);
+  
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [showMyTickets, setShowMyTickets] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const allTickets = tickets ?? [];
 
@@ -40,6 +48,14 @@ export default function TicketsPage() {
     if (statusFilter !== 'all' && ticket.status !== statusFilter) return false;
     if (priorityFilter !== 'all' && ticket.priority !== priorityFilter) return false;
     if (categoryFilter !== 'all' && ticket.category !== categoryFilter) return false;
+    
+    if (showMyTickets && user) {
+      const isAssignedTo = ticket.assignedTo === user.email;
+      const isOwner = ticket.ownerUserId === user.id;
+      const isEscalatedToRole = ticket.escalatedToRole === user.role;
+      return isAssignedTo || isOwner || isEscalatedToRole;
+    }
+    
     return true;
   });
 
@@ -47,6 +63,12 @@ export default function TicketsPage() {
     setStatusFilter('all');
     setPriorityFilter('all');
     setCategoryFilter('all');
+    setShowMyTickets(false);
+  };
+
+  const handleCreateTicket = async (data: any) => {
+    await createTicket(data);
+    refetch(); // Refresh the list
   };
 
   const hasActiveFilters = statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all';
@@ -121,13 +143,22 @@ export default function TicketsPage() {
             Track, escalate, and share risk findings with stakeholders
           </p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'analyst']}>
-          <Button className="gap-2 w-full sm:w-auto">
+        <RoleGuard allowedRoles={['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive']}>
+          <Button 
+            className="gap-2 w-full sm:w-auto"
+            onClick={() => setIsDialogOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             New Ticket
           </Button>
         </RoleGuard>
       </div>
+      
+      <CreateTicketDialog 
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSubmit={handleCreateTicket}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -157,6 +188,17 @@ export default function TicketsPage() {
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground hidden sm:inline">Filters:</span>
+          </div>
+          
+          <div className="flex items-center gap-2 mr-2 pr-2 border-r border-border">
+            <Switch
+              id="my-tickets"
+              checked={showMyTickets}
+              onCheckedChange={setShowMyTickets}
+            />
+            <Label htmlFor="my-tickets" className="text-sm cursor-pointer py-1">
+              My Tickets
+            </Label>
           </div>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>

@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, FileText, CheckCircle2, Clock, Filter, LayoutGrid, List, Loader2 } from "lucide-react";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { EvidenceUploadDialog } from "@/components/evidence/EvidenceUploadDialog";
 
 type ViewMode = 'table' | 'cards';
 type VerificationFilter = 'all' | 'verified' | 'pending';
@@ -27,10 +28,11 @@ function formatFileSize(bytes: number): string {
 }
 
 export default function EvidencePage() {
-  const { data: evidence, loading, error } = useApiData(fetchEvidence);
+  const { data: evidence, loading, error, refetch } = useApiData(fetchEvidence);
   const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [isMobile, setIsMobile] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -86,7 +88,7 @@ export default function EvidencePage() {
           </p>
         </div>
         <RoleGuard allowedRoles={['admin', 'analyst']}>
-          <Button className="gap-2 w-full sm:w-auto">
+          <Button className="gap-2 w-full sm:w-auto" onClick={() => setUploadDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Upload Evidence
           </Button>
@@ -100,11 +102,10 @@ export default function EvidencePage() {
             <button
               key={btn.value}
               onClick={() => setVerificationFilter(btn.value)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                verificationFilter === btn.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${verificationFilter === btn.value
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
             >
               {btn.label} ({btn.count})
             </button>
@@ -212,7 +213,7 @@ export default function EvidencePage() {
                     <p className="text-xs text-slate-500 truncate">{item.fileName}</p>
                   </div>
                 </div>
-                
+
                 <div className="text-xs text-slate-500 space-y-1">
                   <p>Related: {item.relatedName}</p>
                   <p>Size: {formatFileSize(item.fileSize ?? 0)}</p>
@@ -237,6 +238,12 @@ export default function EvidencePage() {
           ))}
         </div>
       )}
+
+      <EvidenceUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

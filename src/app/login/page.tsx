@@ -28,6 +28,7 @@ export default function LoginPage() {
 
   // Redirect if already authenticated
   useEffect(() => {
+    // Redirect if already authenticated
     if (isAuthenticated && !authLoading) {
       const redirect = searchParams.get("redirect") || "/dashboard";
       router.push(redirect);

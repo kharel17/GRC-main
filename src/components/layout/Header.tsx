@@ -27,16 +27,31 @@ export function Header({ user, title }: HeaderProps) {
     .slice(0, 2);
 
   const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
-      case 'analyst':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
-      case 'manager':
-        return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
-      default:
-        return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
-    }
+    const colors: Record<string, string> = {
+      admin: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+      analyst: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      control_owner: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+      risk_owner: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+      compliance_officer: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+      department_manager: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+      executive: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+      auditor: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300',
+    };
+    return colors[role] || 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    const names: Record<string, string> = {
+      admin: 'Administrator',
+      analyst: 'Risk Analyst',
+      control_owner: 'Control Owner',
+      risk_owner: 'Risk Owner',
+      compliance_officer: 'Compliance Officer',
+      department_manager: 'Dept. Manager',
+      executive: 'Executive',
+      auditor: 'Auditor',
+    };
+    return names[role] || role;
   };
 
   return (
@@ -72,8 +87,8 @@ export function Header({ user, title }: HeaderProps) {
         <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-border">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium text-foreground">{displayName}</p>
-            <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium capitalize ${getRoleBadgeColor(user.role)}`}>
-              {user.role}
+            <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${getRoleBadgeColor(user.role)}`}>
+              {getRoleDisplayName(user.role)}
             </span>
           </div>
           <Avatar className="h-10 w-10 sm:h-9 sm:w-9 bg-muted">

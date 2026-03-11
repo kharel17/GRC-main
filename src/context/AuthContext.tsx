@@ -98,7 +98,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
 
         setSession(currentSession);
-
         if (currentSession?.user) {
           console.log('[Auth] Setting user:', {
             id: currentSession.user.id,
@@ -137,7 +136,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           password,
           options: {
             data: {
-              role: email === 'alice@company.com' ? 'admin' : (email === 'carol@company.com' ? 'manager' : 'analyst'),
+              role: email === 'alice@company.com' ? 'admin' : (email === 'carol@company.com' ? 'department_manager' : 'analyst'),
               full_name: email.split('@')[0]
             }
           }

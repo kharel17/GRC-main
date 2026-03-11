@@ -5,13 +5,14 @@ import { UserRole } from '@/types/user';
 
 
 const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
-  '/dashboard': ['admin', 'analyst', 'manager'],
-  '/dashboard/risks': ['admin', 'analyst'],
-  '/dashboard/controls': ['admin', 'analyst'],
-  '/dashboard/evidence': ['admin', 'analyst'],
-  '/dashboard/audits': ['admin', 'manager'],
-  '/dashboard/reports': ['admin', 'analyst', 'manager'],
-  '/dashboard/iso27001': ['admin', 'analyst', 'manager'],
+  '/dashboard': ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'],
+  '/dashboard/risks': ['admin', 'analyst', 'risk_owner', 'compliance_officer', 'executive', 'auditor'],
+  '/dashboard/controls': ['admin', 'analyst', 'control_owner', 'compliance_officer', 'auditor'],
+  '/dashboard/evidence': ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'auditor'],
+  '/dashboard/audits': ['admin', 'compliance_officer', 'department_manager', 'executive', 'auditor'],
+  '/dashboard/reports': ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'],
+  '/dashboard/tickets': ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'],
+  '/dashboard/iso27001': ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'],
   '/dashboard/settings': ['admin'],
   '/dashboard/users': ['admin'],
 };

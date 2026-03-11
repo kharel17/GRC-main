@@ -152,9 +152,14 @@ export default function UsersPage() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="admin">Admin</SelectItem>
-                                            <SelectItem value="analyst">Analyst</SelectItem>
-                                            <SelectItem value="manager">Manager</SelectItem>
+                                            <SelectItem value="admin">Administrator</SelectItem>
+                                            <SelectItem value="analyst">Risk Analyst</SelectItem>
+                                            <SelectItem value="control_owner">Control Owner</SelectItem>
+                                            <SelectItem value="risk_owner">Risk Owner</SelectItem>
+                                            <SelectItem value="compliance_officer">Compliance Officer</SelectItem>
+                                            <SelectItem value="department_manager">Department Manager</SelectItem>
+                                            <SelectItem value="executive">Executive (CISO/CTO)</SelectItem>
+                                            <SelectItem value="auditor">Auditor (Read-only)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -226,11 +231,26 @@ export default function UsersPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-2 sm:py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${user.role === 'admin' ? 'bg-red-100 text-red-700' :
-                                                user.role === 'manager' ? 'bg-amber-100 text-amber-700' :
-                                                    'bg-purple-100 text-purple-700'
-                                                }`}>
-                                                {user.role}
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${{
+                                                admin: 'bg-purple-100 text-purple-700',
+                                                analyst: 'bg-blue-100 text-blue-700',
+                                                control_owner: 'bg-teal-100 text-teal-700',
+                                                risk_owner: 'bg-orange-100 text-orange-700',
+                                                compliance_officer: 'bg-indigo-100 text-indigo-700',
+                                                department_manager: 'bg-green-100 text-green-700',
+                                                executive: 'bg-rose-100 text-rose-700',
+                                                auditor: 'bg-slate-100 text-slate-700',
+                                            }[user.role as string] || 'bg-slate-100 text-slate-700'}`}>
+                                                {{
+                                                    admin: 'Administrator',
+                                                    analyst: 'Risk Analyst',
+                                                    control_owner: 'Control Owner',
+                                                    risk_owner: 'Risk Owner',
+                                                    compliance_officer: 'Compliance Officer',
+                                                    department_manager: 'Dept. Manager',
+                                                    executive: 'Executive',
+                                                    auditor: 'Auditor',
+                                                }[user.role as string] || user.role}
                                             </span>
                                         </td>
                                         <td className="px-6 py-2 sm:py-4 text-slate-600">

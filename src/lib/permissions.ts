@@ -1,5 +1,24 @@
 import { UserRole } from '@/types/user';
 
+// =============================================================================
+// Role Display Configuration
+// =============================================================================
+
+export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
+  admin: 'Administrator',
+  analyst: 'Risk Analyst',
+  control_owner: 'Control Owner',
+  risk_owner: 'Risk Owner',
+  compliance_officer: 'Compliance Officer',
+  department_manager: 'Department Manager',
+  executive: 'Executive (CISO/CTO)',
+  auditor: 'Auditor',
+};
+
+// =============================================================================
+// Permission Definitions
+// =============================================================================
+
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: [
     'manage_users',
@@ -19,6 +38,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'view_audit_logs',
     'export_reports',
     'configure_system',
+    'create_ticket',
+    'escalate_ticket',
+    'resolve_ticket',
+    'assign_ticket',
   ],
   analyst: [
     'create_risk',
@@ -30,14 +53,65 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'edit_compliance',
     'view_audit_logs',
     'export_reports',
+    'create_ticket',
+    'escalate_ticket',
+    'resolve_ticket',
   ],
-  manager: [
+  control_owner: [
+    'edit_control',
+    'create_evidence',
+    'view_audit_logs',
+    'create_ticket',
+    'escalate_ticket',
+    'resolve_ticket',
+  ],
+  risk_owner: [
+    'edit_risk',
+    'create_evidence',
+    'view_audit_logs',
+    'create_ticket',
+    'escalate_ticket',
+    'resolve_ticket',
+  ],
+  compliance_officer: [
+    'view_all_data',
+    'create_compliance',
+    'edit_compliance',
+    'verify_evidence',
+    'view_audit_logs',
+    'export_reports',
+    'create_ticket',
+    'escalate_ticket',
+    'resolve_ticket',
+    'approve_actions',
+  ],
+  department_manager: [
     'view_all_data',
     'approve_actions',
     'view_audit_logs',
     'export_reports',
+    'create_ticket',
+    'escalate_ticket',
+    'resolve_ticket',
+  ],
+  executive: [
+    'view_all_data',
+    'approve_actions',
+    'view_audit_logs',
+    'export_reports',
+    'escalate_ticket',
+    'resolve_ticket',
+  ],
+  auditor: [
+    'view_all_data',
+    'view_audit_logs',
+    'export_reports',
   ],
 };
+
+// =============================================================================
+// Permission Helpers
+// =============================================================================
 
 export function hasPermission(role: UserRole, permission: string): boolean {
   return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
@@ -92,5 +166,5 @@ export function isAnalyst(role: UserRole): boolean {
 }
 
 export function isManager(role: UserRole): boolean {
-  return role === 'manager';
+  return role === 'department_manager';
 }

@@ -19,6 +19,24 @@ export interface TicketComment {
   timestamp: string;
 }
 
+export interface EscalationHistoryEntry {
+  escalatedBy: string;
+  escalatedByRole: string;
+  escalatedTo: string;
+  escalatedToRole: string;
+  level: EscalationLevel;
+  timestamp: string;
+  note?: string;
+}
+
+export interface ActivityLogEntry {
+  action: 'created' | 'assigned' | 'escalated' | 'resolved' | 'closed' | 'commented' | 'reopened';
+  performedBy: string;
+  performedByRole: string;
+  timestamp: string;
+  details?: string;
+}
+
 export interface Ticket {
   id: string;
   title: string;
@@ -27,21 +45,35 @@ export interface Ticket {
   status: TicketStatus;
   category: TicketCategory;
   sourceAuditLogId: string;
+  
+  // Ownership and Assignment
   assignedTo: string;
   assignedToRole: string;
+  ownerUserId?: string; // The current acting owner
+  
+  // Escalation
   escalatedTo?: string;
   escalatedToRole?: string;
   escalationLevel: EscalationLevel;
+  escalationHistory?: EscalationHistoryEntry[];
+  
+  // Context
   relatedRiskId?: string;
   relatedRiskTitle?: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
+  
+  // Metadata & Audit
   createdBy: string;
   createdByName: string;
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
   escalatedAt?: string;
+  dueDate?: string; // SLA deadline
+  resolutionNotes?: string;
+  activityLog?: ActivityLogEntry[];
+  
   isAutoEscalationEnabled?: boolean;
   comments: TicketComment[];
 }

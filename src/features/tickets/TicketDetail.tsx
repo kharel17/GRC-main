@@ -7,7 +7,12 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { EscalationBadge } from './EscalationBadge';
 import { getPriorityStyles, getStatusStyles, getCategoryLabel } from './TicketCard';
-import { Ticket } from '@/types/ticket';
+import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { updateTicket } from '@/lib/data-service';
+import { canActOnTicket, isTicketOverdue, getNextEscalationLevel } from '@/lib/ticket-utils';
+import { toast } from 'sonner';
+import { Ticket, TicketStatus, EscalationHistoryEntry, ActivityLogEntry } from '@/types/ticket';
 import { AuditLog } from '@/types/audit';
 import {
   ArrowLeft,
@@ -31,17 +36,103 @@ interface TicketDetailProps {
   sourceAuditLog?: AuditLog;
 }
 
-export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
+export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDetailProps) {
+  const { user } = useAuth();
+  const [ticket, setTicket] = useState<Ticket>(initialTicket);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [showResolveNotes, setShowResolveNotes] = useState(false);
+  const [resolveNotes, setResolveNotes] = useState('');
+
   const priorityStyles = getPriorityStyles(ticket.priority);
   const statusStyles = getStatusStyles(ticket.status);
+  
+  const canAct = user ? canActOnTicket(ticket, user.id, user.role) : false;
+  const isOverdue = isTicketOverdue(ticket);
 
-  const handleEscalate = () => {
-    // In a real app, this would call the API: POST /api/tickets/{ticket.id}/escalate
-    alert(`Ticket ${ticket.id} escalated manually!`);
+  const handleEscalate = async () => {
+    if (!user) return;
+    setIsUpdating(true);
+    
+    try {
+      const nextLevel = getNextEscalationLevel(user.role);
+      const newEscalationEntry: EscalationHistoryEntry = {
+        escalatedBy: user.id,
+        escalatedByRole: user.role,
+        escalatedTo: 'Next Tier Queue', // In Step 3, admin will pick this
+        escalatedToRole: 'L' + nextLevel,
+        level: nextLevel,
+        timestamp: new Date().toISOString(),
+      };
+      
+      const newActivityEntry: ActivityLogEntry = {
+        action: 'escalated',
+        performedBy: user.id,
+        performedByRole: user.role,
+        timestamp: new Date().toISOString(),
+      };
+
+      const updateData = {
+        status: 'escalated' as TicketStatus,
+        escalationLevel: nextLevel,
+        escalationHistory: [...(ticket.escalationHistory || []), newEscalationEntry],
+        activityLog: [...(ticket.activityLog || []), newActivityEntry],
+        ownerUserId: 'unassigned', // Transfers ownership up
+      };
+
+      const updated = await updateTicket(ticket.id, updateData);
+      setTicket(updated);
+      toast.success('Ticket escalated successfully');
+    } catch (error) {
+      toast.error('Failed to escalate ticket');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const toggleAutoEscalation = (enabled: boolean) => {
-    // In a real app, this would call the API: PUT /api/tickets/{ticket.id}
+  const handleResolve = async () => {
+    if (!user || !resolveNotes.trim()) {
+      toast.error('Resolution notes are required');
+      return;
+    }
+    
+    setIsUpdating(true);
+    try {
+      const newActivityEntry: ActivityLogEntry = {
+        action: 'resolved',
+        performedBy: user.id,
+        performedByRole: user.role,
+        timestamp: new Date().toISOString(),
+        details: resolveNotes,
+      };
+
+      const updated = await updateTicket(ticket.id, {
+        status: 'resolved',
+        resolvedAt: new Date().toISOString(),
+        resolutionNotes: resolveNotes,
+        activityLog: [...(ticket.activityLog || []), newActivityEntry],
+      });
+      
+      setTicket(updated);
+      setShowResolveNotes(false);
+      toast.success('Ticket resolved successfully');
+    } catch (error) {
+      toast.error('Failed to resolve ticket');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const toggleAutoEscalation = async (enabled: boolean) => {
+    setIsUpdating(true);
+    try {
+      const updated = await updateTicket(ticket.id, { isAutoEscalationEnabled: enabled });
+      setTicket(updated);
+      toast.success(enabled ? 'Auto-escalation enabled' : 'Auto-escalation disabled');
+    } catch (error) {
+      toast.error('Failed to update auto-escalation');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   return (
@@ -80,7 +171,7 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-2 flex-shrink-0">
-            {ticket.status !== 'closed' && ticket.status !== 'resolved' && (
+            {canAct && ticket.status !== 'closed' && ticket.status !== 'resolved' && !showResolveNotes && (
               <>
                 <Button
                   size="sm"
@@ -91,13 +182,38 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
                   <ChevronUp className="h-4 w-4" />
                   Escalate
                 </Button>
-                <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button 
+                  size="sm" 
+                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => setShowResolveNotes(true)}
+                  disabled={isUpdating}
+                >
                   <CheckCircle2 className="h-4 w-4" />
                   Resolve
                 </Button>
               </>
             )}
-            {ticket.status === 'resolved' && (
+            
+            {showResolveNotes && (
+              <div className="flex gap-2 items-center bg-muted/50 p-2 rounded-lg border border-border">
+                <input
+                  type="text"
+                  placeholder="Resolution notes..."
+                  className="text-sm px-3 py-1.5 rounded-md border border-border bg-background min-w-[200px]"
+                  value={resolveNotes}
+                  onChange={(e) => setResolveNotes(e.target.value)}
+                  autoFocus
+                />
+                <Button size="sm" onClick={handleResolve} disabled={isUpdating || !resolveNotes.trim()}>
+                  Confirm
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setShowResolveNotes(false)} disabled={isUpdating}>
+                  Cancel
+                </Button>
+              </div>
+            )}
+            
+            {canAct && ticket.status === 'resolved' && (
               <Button size="sm" variant="outline" className="gap-1.5">
                 <XCircle className="h-4 w-4" />
                 Close
@@ -111,6 +227,37 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Main Content */}
         <div className="lg:col-span-2 space-y-6">
+          
+          {/* Overdue Alert */}
+          {isOverdue && ticket.dueDate && (
+            <div className="flex items-start gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-sm animate-pulse-slow">
+              <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-sm text-red-800 dark:text-red-300">
+                  SLA Breached: Ticket is Overdue
+                </h3>
+                <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
+                  Due date was {new Date(ticket.dueDate).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* Ownership Lock Alert */}
+          {!canAct && user && ticket.status !== 'closed' && ticket.status !== 'resolved' && (
+            <div className="flex items-start gap-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+              <Shield className="h-5 w-5 text-slate-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-sm text-slate-700 dark:text-slate-300">
+                  Read-Only Mode
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  This ticket is owned by {ticket.ownerUserId || ticket.assignedTo}. You can view the details and activity, but cannot resolve or escalate it.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Escalation Alert */}
           {ticket.escalatedTo && (
             <div className="flex items-start gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -210,24 +357,61 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
                   </div>
 
                   {/* Escalated */}
-                  {ticket.escalatedAt && (
-                    <div className="relative flex gap-3 pl-10">
+                  {ticket.escalationHistory?.map((entry, idx) => (
+                    <div key={`esc-${idx}`} className="relative flex gap-3 pl-10">
                       <div className="absolute left-2 p-1.5 rounded-full bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
                         <ChevronUp className="h-3.5 w-3.5" />
                       </div>
-                      <div className="bg-muted/50 rounded-lg p-3 flex-1">
+                      <div className="bg-muted/50 rounded-lg p-3 flex-1 border border-orange-100 dark:border-orange-900/30">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                           <span className="text-sm font-medium text-foreground">Escalated</span>
                           <time className="text-xs text-muted-foreground">
-                            {new Date(ticket.escalatedAt).toLocaleString()}
+                            {new Date(entry.timestamp).toLocaleString()}
                           </time>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Escalated to {ticket.escalatedTo} ({ticket.escalatedToRole}) • Level {ticket.escalationLevel}
+                        <p className="text-xs text-muted-foreground mt-1 text-orange-700 dark:text-orange-400">
+                          Escalated by {entry.escalatedByRole} to Level {entry.level} ({entry.escalatedToRole})
                         </p>
+                        {entry.note && (
+                          <div className="mt-2 text-xs bg-orange-50 dark:bg-black/20 p-2 rounded">
+                            <span className="font-medium">Note:</span> {entry.note}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
+                  ))}
+
+                  {/* Activity Log Entries */}
+                  {ticket.activityLog?.map((entry, idx) => {
+                    if (entry.action === 'escalated' || entry.action === 'created' || entry.action === 'resolved') {
+                      return null; // Handled separately
+                    }
+                    return (
+                      <div key={`act-${idx}`} className="relative flex gap-3 pl-10">
+                        <div className="absolute left-2 p-1.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                          <Activity className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-3 flex-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                            <span className="text-sm font-medium text-foreground capitalize">
+                              Ticket {entry.action}
+                            </span>
+                            <time className="text-xs text-muted-foreground">
+                              {new Date(entry.timestamp).toLocaleString()}
+                            </time>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            By {entry.performedByRole}
+                          </p>
+                          {entry.details && (
+                            <p className="text-xs mt-1 text-slate-600 dark:text-slate-400 italic">
+                              &quot;{entry.details}&quot;
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
 
                   {/* Resolved */}
                   {ticket.resolvedAt && (
@@ -235,13 +419,19 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
                       <div className="absolute left-2 p-1.5 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                       </div>
-                      <div className="bg-muted/50 rounded-lg p-3 flex-1">
+                      <div className="bg-emerald-50/50 dark:bg-emerald-900/10 rounded-lg p-3 flex-1 border border-emerald-100 dark:border-emerald-900/30">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                          <span className="text-sm font-medium text-foreground">Resolved</span>
-                          <time className="text-xs text-muted-foreground">
+                          <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Resolved</span>
+                          <time className="text-xs text-emerald-600/70 dark:text-emerald-400/70">
                             {new Date(ticket.resolvedAt).toLocaleString()}
                           </time>
                         </div>
+                        {ticket.resolutionNotes && (
+                          <div className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
+                            <strong className="block text-xs uppercase tracking-wider mb-1 opacity-80">Resolution Notes</strong>
+                            {ticket.resolutionNotes}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -266,8 +456,8 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {ticket.comments.map((comment) => (
-                    <div key={comment.id} className="bg-muted/50 rounded-lg p-4">
+                  {ticket.comments.map((comment, idx) => (
+                    <div key={`comm-${idx}`} className="bg-muted/50 rounded-lg p-4">
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
@@ -293,7 +483,7 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
               )}
 
               {/* Add Comment (UI only) */}
-              {ticket.status !== 'closed' && (
+              {canAct && ticket.status !== 'closed' && (
                 <div className="mt-4 pt-4 border-t border-border">
                   <textarea
                     placeholder="Add a comment..."

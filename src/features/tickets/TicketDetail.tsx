@@ -37,13 +37,11 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
 
   const handleEscalate = () => {
     // In a real app, this would call the API: POST /api/tickets/{ticket.id}/escalate
-    console.log('Manually escalating ticket:', ticket.id);
     alert(`Ticket ${ticket.id} escalated manually!`);
   };
 
   const toggleAutoEscalation = (enabled: boolean) => {
     // In a real app, this would call the API: PUT /api/tickets/{ticket.id}
-    console.log('Setting auto-escalation to:', enabled);
   };
 
   return (
@@ -84,9 +82,9 @@ export function TicketDetail({ ticket, sourceAuditLog }: TicketDetailProps) {
           <div className="flex flex-wrap gap-2 flex-shrink-0">
             {ticket.status !== 'closed' && ticket.status !== 'resolved' && (
               <>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
+                <Button
+                  size="sm"
+                  variant="outline"
                   className="gap-1.5 text-orange-600 border-orange-200 hover:bg-orange-50 dark:hover:bg-orange-900/20"
                   onClick={handleEscalate}
                 >

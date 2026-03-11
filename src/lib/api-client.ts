@@ -9,6 +9,8 @@
  */
 
 import { supabase } from './supabase';
+import { clearTokens } from './token-storage';
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
@@ -47,14 +49,45 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...rest,
     headers,
-    // Credentials mode optional depending on cross-origin needs, but usually omitted for pure Bearer token auth
-    // credentials: 'omit', 
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  // Handle 401 - force logout
+  // Handle 401 — attempt token refresh
   if (response.status === 401) {
-    await supabase.auth.signOut();
+    if (skipAuth || endpoint === '/auth/refresh' || endpoint === '/auth/login') {
+      clearTokens();
+      if (typeof window !== 'undefined' && endpoint !== '/auth/login') {
+        window.location.href = '/login';
+      }
+      throw new ApiError(401, 'Unauthorized');
+    }
+
+    try {
+      // Import refresh function dynamically to avoid circular dependencies
+      const { refreshAccessToken } = await import('./auth');
+      const refreshed = await refreshAccessToken();
+
+      if (refreshed) {
+        // Retry the original request with the new token
+        const newHeaders = { ...headers, 'Authorization': `Bearer ${refreshed.accessToken}` };
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+          ...rest,
+          headers: newHeaders,
+          credentials: 'include',
+          body: body ? JSON.stringify(body) : undefined,
+        });
+
+        if (retryResponse.ok) {
+          return retryResponse.json() as Promise<T>;
+        }
+      }
+    } catch (refreshError) {
+      console.error('[API] Refresh failed:', refreshError);
+    }
+
+    // If refresh failed or wasn't possible, log out
+    clearTokens();
+
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
     }

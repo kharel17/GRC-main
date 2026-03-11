@@ -57,6 +57,23 @@ export async function createRisk(data: Partial<Risk>): Promise<Risk> {
   return api.post<Risk>('/risks/', data);
 }
 
+export async function updateRisk(id: string, data: Partial<Risk>): Promise<Risk> {
+  return api.put<Risk>(`/risks/${id}/`, data);
+}
+
+export async function fetchRiskControls(riskId: string): Promise<any[]> {
+  try {
+    return await api.get<any[]>(`/risks/${riskId}/controls`);
+  } catch (err) {
+    console.error(`[DataService] GET /risks/${riskId}/controls failed:`, err);
+    return [];
+  }
+}
+
+export async function mapControlToRisk(riskId: string, controlId: string): Promise<any> {
+  return api.post<any>(`/risks/${riskId}/controls`, { control_id: controlId });
+}
+
 export function getRiskCategories(): RiskCategory[] {
   // Categories are small and rarely change - keep local until a backend
   // endpoint exists for them.
@@ -70,6 +87,20 @@ export async function fetchControls(): Promise<Control[]> {
 
 export async function createControl(data: Partial<Control>): Promise<Control> {
   return api.post<Control>('/controls/', data);
+}
+
+export async function fetchControl(id: string): Promise<Control | undefined> {
+  if (api.isMock) return mockControls.find((c) => c.id === id);
+  try {
+    return await api.get<Control>(`/controls/${id}/`);
+  } catch (err) {
+    console.error(`[DataService] GET /controls/${id} failed:`, err);
+    return undefined;
+  }
+}
+
+export async function updateControl(id: string, data: Partial<Control>): Promise<Control> {
+  return api.put<Control>(`/controls/${id}/`, data);
 }
 
 // -- Evidence --──────

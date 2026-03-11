@@ -211,6 +211,11 @@ export default function LoginPage() {
                 <Label htmlFor="password" className="text-sm font-medium">
                   Password
                 </Label>
+                <div className="flex justify-between items-center mt-1">
+                  <p id="password-hint" className="text-xs text-slate-500">
+                    Demo: demo
+                  </p>
+                </div>
                 <Input
                   id="password"
                   type="password"

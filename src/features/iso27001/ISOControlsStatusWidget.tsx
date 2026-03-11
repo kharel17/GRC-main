@@ -7,23 +7,31 @@ import { useEffect, useState } from "react";
 import { isoService } from "@/lib/iso-service";
 import { ISOComplianceStats } from "@/types/iso27001";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { getIsUsingFallback } from "@/lib/storage-service";
+
 
 export function ISOControlsStatusWidget() {
   const [stats, setStats] = useState<ISOComplianceStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    isoService.getComplianceStats().then(data => {
-      setStats(data);
-      setLoading(false);
-    });
+    isoService.getComplianceStats()
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      });
   }, []);
+
 
   if (loading) {
     return <Skeleton className="h-[300px] w-full rounded-xl" />;
   }
 
   if (!stats) return null;
+
+  const isFallback = getIsUsingFallback();
+
 
   const data = [
     { name: 'Implemented', value: stats.implementedControls, color: '#16a34a' }, // green-600
@@ -34,8 +42,13 @@ export function ISOControlsStatusWidget() {
 
   return (
     <Card className="h-full">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-lg">Controls Status</CardTitle>
+        {isFallback && (
+          <Badge variant="outline" className="text-[10px] h-5 bg-amber-50 text-amber-600 border-amber-200 animate-pulse">
+            Offline
+          </Badge>
+        )}
       </CardHeader>
       <CardContent>
         <div className="h-[200px] w-full">

@@ -86,7 +86,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         if (!mounted) return;
-
         console.log(`[Auth] State changed: ${event}`, {
           has_session: !!currentSession,
           user_id: currentSession?.user.id,
@@ -96,7 +95,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           console.log('[Auth] User authenticated, setting session');
         }
-
         setSession(currentSession);
         if (currentSession?.user) {
           console.log('[Auth] Setting user:', {

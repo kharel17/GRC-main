@@ -138,7 +138,11 @@ async def refresh_token(
     response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=settings.ENVIRONMENT == "production", samesite="lax")
     response.set_cookie(key="refresh_token", value=new_refresh_token, httponly=True, secure=settings.ENVIRONMENT == "production", samesite="lax")
     
-    return {"message": "Token refreshed"}
+    return {
+        "message": "Token refreshed",
+        "access_token": new_access_token,
+        "token_type": "bearer"
+    }
 
 @router.post("/logout")
 async def logout(request: Request, response: Response, db: AsyncSession = Depends(deps.get_db)):

@@ -1,4 +1,4 @@
-from .token import Token, TokenPayload
+from .token import Token, TokenPayload, Message
 from .user import User, UserCreate, UserUpdate
 from .risk import Risk, RiskCreate, RiskUpdate, RiskCategory, RiskCategoryCreate
 from .control import Control, ControlCreate, ControlUpdate

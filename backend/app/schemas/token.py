@@ -8,3 +8,7 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     sub: Optional[str] = None
     version: Optional[int] = None
+
+class Message(BaseModel):
+    message: str
+

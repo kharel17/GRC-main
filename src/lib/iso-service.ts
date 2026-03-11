@@ -1,9 +1,9 @@
 
-import { 
-  ISOControl, 
-  ISOControlStatus, 
-  ISOEvidence, 
-  ISOComplianceStats, 
+import {
+  ISOControl,
+  ISOControlStatus,
+  ISOEvidence,
+  ISOComplianceStats,
   ISOClause,
   ISOAuditLog
 } from '@/types/iso27001';
@@ -13,22 +13,30 @@ import isoData from '@/data/iso27001-controls.json';
 import { UserRole } from '@/types/user';
 
 // Initialize data if needed
-// This effectively acts as a database migration/seeder
+// This effectively acts as a database migration/seeder for the local session
 if (typeof window !== 'undefined') {
-  storageService.getControls().then(controls => {
-    if (controls.length === 0) {
-      const initialControls: ISOControl[] = isoData.controls.map(c => ({
-        ...c,
-        status: c.status as ISOControlStatus,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-      
-      // Save all initial controls
-      Promise.all(initialControls.map(c => storageService.saveControl(c)))
-        .then(() => console.log('ISO Controls initialized'));
-    }
-  });
+  // Safe initialization that catches network/auth errors to prevent app crashes
+  storageService.getControls()
+    .then(controls => {
+      if (controls && controls.length === 0) {
+
+        const initialControls: ISOControl[] = isoData.controls.map(c => ({
+          ...c,
+          status: c.status as ISOControlStatus,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+
+        // Save all initial controls safely
+        Promise.all(initialControls.map(c => storageService.saveControl(c)))
+
+          .catch(err => console.error('Failed to save initial controls:', err));
+      }
+    })
+    .catch(err => {
+      // Crucial: Catch the 401 or network errors so they don't bubble up as "Failed to fetch" crashes!
+      console.warn('[ISO Service] Initial controls seeding skipped. This is expected if the backend is unreachable, or you are logged out.', err.message || err);
+    });
 }
 
 export const isoService = {
@@ -49,14 +57,14 @@ export const isoService = {
   },
 
   async updateControlStatus(
-    id: string, 
-    status: ISOControlStatus, 
+    id: string,
+    status: ISOControlStatus,
     userCtx: { id: string; name: string; role: UserRole },
     notes?: string
   ): Promise<ISOControl> {
     // 1. RBAC Check
     if (!DataValidator.canUpdateControl(userCtx.role)) {
-       throw new Error('Unauthorized: Insufficient permissions to update control');
+      throw new Error('Unauthorized: Insufficient permissions to update control');
     }
 
     const control = await storageService.getControlById(id);
@@ -94,8 +102,8 @@ export const isoService = {
   },
 
   async assignOwner(
-    id: string, 
-    ownerId: string, 
+    id: string,
+    ownerId: string,
     ownerName: string,
     userCtx: { id: string; name: string; role: UserRole }
   ): Promise<ISOControl> {
@@ -144,8 +152,8 @@ export const isoService = {
   },
 
   async uploadEvidence(
-    controlId: string, 
-    file: File, 
+    controlId: string,
+    file: File,
     userCtx: { id: string; name: string; role: UserRole },
     description?: string
   ): Promise<ISOEvidence> {
@@ -192,7 +200,7 @@ export const isoService = {
     await storageService.logAction({
       action: 'upload_evidence',
       entityId: controlId, // Log against control? or evidence?
-      entityType: 'control', 
+      entityType: 'control',
       userId: userCtx.id,
       userName: userCtx.name,
       details: `Uploaded evidence: ${file.name}`
@@ -202,13 +210,13 @@ export const isoService = {
   },
 
   async deleteEvidence(
-    id: string, 
+    id: string,
     controlId: string,
     userCtx: { id: string; name: string; role: UserRole }
   ): Promise<void> {
     if (!DataValidator.canManageFramework(userCtx.role)) {
-       // Only admin/analyst
-       if (userCtx.role === 'manager') throw new Error('Unauthorized');
+      // Only admin/analyst
+      if (userCtx.role === 'manager') throw new Error('Unauthorized');
     }
 
     await storageService.deleteEvidence(id);
@@ -221,12 +229,12 @@ export const isoService = {
     }
 
     await storageService.logAction({
-        action: 'delete_evidence',
-        entityId: controlId,
-        entityType: 'control',
-        userId: userCtx.id,
-        userName: userCtx.name,
-        details: `Deleted evidence ID: ${id}`
+      action: 'delete_evidence',
+      entityId: controlId,
+      entityType: 'control',
+      userId: userCtx.id,
+      userName: userCtx.name,
+      details: `Deleted evidence ID: ${id}`
     });
   },
 
@@ -244,13 +252,13 @@ export const isoService = {
     // Wait, Permissions.ts says analyst: view_audit_logs. So all can view.
     return storageService.getAuditLogs(entityId);
   },
-  
+
   // ===========================================================================
   // Risk Integration
   // ===========================================================================
-  
+
   async linkRiskToControl(
-    controlId: string, 
+    controlId: string,
     riskId: string,
     userCtx: { id: string; name: string; role: UserRole }
   ): Promise<void> {
@@ -261,17 +269,17 @@ export const isoService = {
 
     const riskIds = control.riskIds || [];
     if (!riskIds.includes(riskId)) {
-        riskIds.push(riskId);
-        await storageService.updateControl({ ...control, riskIds });
-        
-        await storageService.logAction({
-            action: 'link_risk',
-            entityId: controlId,
-            entityType: 'control',
-            userId: userCtx.id,
-            userName: userCtx.name,
-            details: `Linked Risk ID: ${riskId}`
-        });
+      riskIds.push(riskId);
+      await storageService.updateControl({ ...control, riskIds });
+
+      await storageService.logAction({
+        action: 'link_risk',
+        entityId: controlId,
+        entityType: 'control',
+        userId: userCtx.id,
+        userName: userCtx.name,
+        details: `Linked Risk ID: ${riskId}`
+      });
     }
   }
 };

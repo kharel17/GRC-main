@@ -91,12 +91,17 @@ def _derive_file_type(filename: str) -> str:
 async def create_evidence(
     *,
     db: AsyncSession = Depends(deps.get_db),
+<<<<<<< HEAD
+    evidence_in: schemas.EvidenceCreate,
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+=======
     current_user: models.User = Depends(deps.get_current_active_user),
     file: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
     related_to: str = Form(...),  # "control" or "risk"
     related_id: str = Form(...),  # UUID as string
+>>>>>>> origin/sanskar
 ) -> Any:
     """Upload evidence file to Supabase Storage and persist metadata."""
 

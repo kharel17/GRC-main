@@ -8,17 +8,22 @@ import { useEffect, useState } from "react";
 import { isoService } from "@/lib/iso-service";
 import { ISOComplianceStats } from "@/types/iso27001";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { getIsUsingFallback } from "@/lib/storage-service";
+
 
 export function ISOComplianceWidget() {
   const [stats, setStats] = useState<ISOComplianceStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    isoService.getComplianceStats().then(data => {
-      setStats(data);
-      setLoading(false);
-    });
+    isoService.getComplianceStats()
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      });
   }, []);
+
 
   if (loading) {
     return <Skeleton className="h-[200px] w-full rounded-xl" />;
@@ -26,15 +31,25 @@ export function ISOComplianceWidget() {
 
   if (!stats) return null;
 
+  const isFallback = getIsUsingFallback();
+
+
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold flex items-center justify-between">
-          <span>Overall Compliance</span>
-          <span className={`text-2xl font-bold ${
-            stats.complianceScore >= 80 ? 'text-green-600' :
+          <div className="flex items-center gap-2">
+            <span>Overall Compliance</span>
+            {isFallback && (
+              <Badge variant="outline" className="text-[10px] h-5 bg-amber-50 text-amber-600 border-amber-200 animate-pulse">
+                Offline Mode
+              </Badge>
+            )}
+          </div>
+          <span className={`text-2xl font-bold ${stats.complianceScore >= 80 ? 'text-green-600' :
             stats.complianceScore >= 50 ? 'text-amber-600' : 'text-red-600'
-          }`}>
+            }`}>
             {stats.complianceScore}%
           </span>
         </CardTitle>

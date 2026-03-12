@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { fetchTickets, createTicket } from '@/lib/data-service';
+import { fetchTickets } from '@/lib/data-service';
 import { useApiData } from '@/hooks/use-api-data';
 import { TicketCard } from '@/features/tickets/TicketCard';
-import { CreateTicketDialog } from '@/features/tickets/CreateTicketDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -40,7 +39,6 @@ export default function TicketsPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showMyTickets, setShowMyTickets] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const allTickets = tickets ?? [];
 
@@ -50,8 +48,8 @@ export default function TicketsPage() {
     if (categoryFilter !== 'all' && ticket.category !== categoryFilter) return false;
     
     if (showMyTickets && user) {
-      const isAssignedTo = ticket.assignedTo === user.email;
-      const isOwner = ticket.ownerUserId === user.id;
+      const isAssignedTo = ticket.assignedToId === user.id || ticket.assignedToName === user.email;
+      const isOwner = ticket.createdBy === user.id;
       const isEscalatedToRole = ticket.escalatedToRole === user.role;
       return isAssignedTo || isOwner || isEscalatedToRole;
     }
@@ -66,15 +64,11 @@ export default function TicketsPage() {
     setShowMyTickets(false);
   };
 
-  const handleCreateTicket = async (data: any) => {
-    await createTicket(data);
-    refetch(); // Refresh the list
-  };
 
   const hasActiveFilters = statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all';
 
   // Stats
-  const openCount = allTickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
+  const openCount = allTickets.filter(t => t.status === 'open' || t.status === 'in_review').length;
   const escalatedCount = allTickets.filter(t => t.status === 'escalated').length;
   const resolvedCount = allTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
   const criticalCount = allTickets.filter(t => t.priority === 'critical' && t.status !== 'resolved' && t.status !== 'closed').length;
@@ -143,22 +137,7 @@ export default function TicketsPage() {
             Track, escalate, and share risk findings with stakeholders
           </p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive']}>
-          <Button 
-            className="gap-2 w-full sm:w-auto"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            New Ticket
-          </Button>
-        </RoleGuard>
       </div>
-      
-      <CreateTicketDialog 
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        onSubmit={handleCreateTicket}
-      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -208,7 +187,8 @@ export default function TicketsPage() {
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="in_review">In Review</SelectItem>
+              <SelectItem value="pending_evidence">Pending Evidence</SelectItem>
               <SelectItem value="escalated">Escalated</SelectItem>
               <SelectItem value="resolved">Resolved</SelectItem>
               <SelectItem value="closed">Closed</SelectItem>

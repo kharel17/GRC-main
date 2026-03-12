@@ -1,5 +1,16 @@
 export type TicketPriority = 'critical' | 'high' | 'medium' | 'low';
-export type TicketStatus = 'open' | 'in_progress' | 'escalated' | 'resolved' | 'closed';
+export type TicketStatus = 
+  | 'open' 
+  | 'in_review' 
+  | 'pending_evidence' 
+  | 'escalated' 
+  | 'rejected' 
+  | 'resolved' 
+  | 'pending_l2_review' 
+  | 'pending_l1_signoff' 
+  | 'closed' 
+  | 'archived'
+  | 'overdue';
 export type TicketCategory =
   | 'risk_identified'
   | 'risk_mitigated'
@@ -29,12 +40,25 @@ export interface EscalationHistoryEntry {
   note?: string;
 }
 
-export interface ActivityLogEntry {
-  action: 'created' | 'assigned' | 'escalated' | 'resolved' | 'closed' | 'commented' | 'reopened';
-  performedBy: string;
-  performedByRole: string;
+export type TicketActivityType =
+  | 'status_change'
+  | 'priority_change'
+  | 'assignment_change'
+  | 'escalation'
+  | 'resolution'
+  | 'comment_added'
+  | 'sla_missed'
+  | 'other';
+
+export interface TicketActivity {
+  id: string;
+  ticketId: string;
+  userId?: string;
+  activityType: TicketActivityType;
+  oldValue?: string;
+  newValue?: string;
+  description?: string;
   timestamp: string;
-  details?: string;
 }
 
 export interface Ticket {
@@ -47,33 +71,39 @@ export interface Ticket {
   sourceAuditLogId: string;
   
   // Ownership and Assignment
-  assignedTo: string;
+  assignedToId: string;
   assignedToRole: string;
-  ownerUserId?: string; // The current acting owner
+  assignedToName: string;
+  managerId?: string;
+  isActingAdmin?: boolean;
   
   // Escalation
-  escalatedTo?: string;
+  escalatedToId?: string;
   escalatedToRole?: string;
+  escalatedToName?: string;
   escalationLevel: EscalationLevel;
-  escalationHistory?: EscalationHistoryEntry[];
+  isAutoEscalationEnabled: boolean;
   
   // Context
   relatedRiskId?: string;
-  relatedRiskTitle?: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
+  isRepeatFinding: boolean;
+  isoClause?: string;
+  riskScore?: number;
+  previousTicketId?: string;
   
   // Metadata & Audit
   createdBy: string;
-  createdByName: string;
+  creatorName: string;
   createdAt: string;
   updatedAt: string;
+  statusUpdatedAt: string;
   resolvedAt?: string;
   escalatedAt?: string;
   dueDate?: string; // SLA deadline
   resolutionNotes?: string;
-  activityLog?: ActivityLogEntry[];
   
-  isAutoEscalationEnabled?: boolean;
+  activities: TicketActivity[];
   comments: TicketComment[];
 }

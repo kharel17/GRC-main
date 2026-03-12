@@ -9,12 +9,16 @@ Endpoints:
 """
 from typing import Any, List, Optional
 from datetime import datetime
+import json
+from pathlib import Path
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app import models
+from app.api import deps
 from app.services import audit_service
+from app.services.gap_analysis_service import generate_gap_report
 from fastapi.responses import Response
 
 router = APIRouter()

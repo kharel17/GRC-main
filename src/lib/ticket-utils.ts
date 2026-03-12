@@ -13,6 +13,7 @@ export const ROLE_ESCALATION_LEVEL: Record<UserRole, EscalationLevel | null> = {
   
   compliance_officer: 2,
   department_manager: 2,
+  manager: 2,
   
   executive: 3,
   
@@ -47,11 +48,17 @@ export function getDefaultDueDate(priority: TicketPriority): Date {
 // ============================================================================
 
 export const VALID_STATUS_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
-  open: ['in_progress', 'escalated', 'closed'],
-  in_progress: ['escalated', 'resolved', 'closed'],
-  escalated: ['in_progress', 'resolved', 'closed', 'escalated'], // Can escalate further
-  resolved: ['closed', 'in_progress'], // Can be reopened
-  closed: ['in_progress'], // Can be reopened
+  open: ['in_review', 'escalated', 'closed'],
+  in_review: ['pending_evidence', 'resolved', 'escalated', 'rejected'],
+  pending_evidence: ['in_review', 'escalated'],
+  escalated: ['in_review', 'resolved', 'closed', 'escalated'],
+  resolved: ['pending_l2_review', 'pending_l1_signoff', 'closed', 'in_review'],
+  pending_l2_review: ['resolved', 'pending_l1_signoff', 'rejected'],
+  pending_l1_signoff: ['closed', 'rejected'],
+  rejected: ['in_review', 'open'],
+  closed: ['open'],
+  archived: [],
+  overdue: ['escalated', 'in_review'],
 };
 
 // ============================================================================
@@ -68,24 +75,20 @@ export function canActOnTicket(ticket: Ticket, userId: string, userRole: UserRol
   // Admins can always act
   if (userRole === 'admin') return true;
   
-  // Determine who the current acting owner is
-  // If ownerUserId is set, they are the sole owner
-  if (ticket.ownerUserId) {
-    return ticket.ownerUserId === userId;
-  }
-  
-  // Fallback to legacy assignment checking
+  // If the ticket is escalated, special roles can act
   if (ticket.status === 'escalated') {
-    return ticket.escalatedTo === userId;
+    return ticket.escalatedToId === userId || userRole === 'department_manager' || userRole === 'executive';
   }
   
-  return ticket.assignedTo === userId;
+  // Default: Assigned user can act
+  return ticket.assignedToId === userId;
 }
 
 export function isTicketOverdue(ticket: Ticket): boolean {
   if (ticket.status === 'resolved' || ticket.status === 'closed') return false;
   if (!ticket.dueDate) return false;
   
+  // backend provides ISO string
   return isPast(parseISO(ticket.dueDate));
 }
 

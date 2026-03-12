@@ -1,7 +1,8 @@
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Bell, HelpCircle } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
+import { NotificationPopover } from '@/features/dashboard/NotificationPopover';
 import { Button } from '@/components/ui/button';
 import { UserRole } from '@/types/user';
 
@@ -36,6 +37,7 @@ export function Header({ user, title }: HeaderProps) {
       department_manager: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
       executive: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
       auditor: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300',
+      manager: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
     };
     return colors[role] || 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
   };
@@ -50,6 +52,7 @@ export function Header({ user, title }: HeaderProps) {
       department_manager: 'Dept. Manager',
       executive: 'Executive',
       auditor: 'Auditor',
+      manager: 'Manager',
     };
     return names[role] || role;
   };
@@ -70,19 +73,7 @@ export function Header({ user, title }: HeaderProps) {
           <HelpCircle className="h-5 w-5" />
         </Button>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground relative h-10 w-10 sm:h-9 sm:w-9"
-          aria-label="Notifications"
-          onClick={() => {
-            // Placeholder for notification logic
-            // Could trigger a toast or open a popover
-          }}
-        >
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-background" />
-        </Button>
+        <NotificationPopover />
 
         <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-border">
           <div className="text-right hidden sm:block">

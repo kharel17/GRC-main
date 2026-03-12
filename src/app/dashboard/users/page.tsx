@@ -23,9 +23,11 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2, AlertTriangle } from "lucide-react";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function UsersPage() {
     const { data: users, loading, error, refetch } = useApiData(fetchUsers);
+    const { user: currentUser } = useAuth();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
@@ -36,6 +38,8 @@ export default function UsersPage() {
     const [password, setPassword] = useState("");
     const [role, setRole] = useState("analyst");
     const [department, setDepartment] = useState("");
+    const [managerId, setManagerId] = useState("");
+    const [isActingAdmin, setIsActingAdmin] = useState(0);
 
     const resetForm = () => {
         setEmail("");
@@ -43,6 +47,8 @@ export default function UsersPage() {
         setPassword("");
         setRole("analyst");
         setDepartment("");
+        setManagerId("");
+        setIsActingAdmin(0);
         setFormError(null);
     };
 
@@ -62,6 +68,8 @@ export default function UsersPage() {
                 password,
                 role,
                 department: department || undefined,
+                manager_id: managerId || undefined,
+                is_acting_admin: isActingAdmin,
             });
             resetForm();
             setDialogOpen(false);
@@ -71,7 +79,7 @@ export default function UsersPage() {
         } finally {
             setSubmitting(false);
         }
-    }, [email, fullName, password, role, department, refetch]);
+    }, [email, fullName, password, role, department, managerId, isActingAdmin, refetch]);
 
     if (loading) {
         return (
@@ -171,6 +179,37 @@ export default function UsersPage() {
                                         onChange={(e) => setDepartment(e.target.value)}
                                     />
                                 </div>
+                                
+                                {currentUser?.role === 'admin' && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-slate-700">Manager</label>
+                                            <Select value={managerId} onValueChange={setManagerId}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a manager" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none">None</SelectItem>
+                                                    {users?.filter((u: any) => u.role === 'admin' || u.role === 'manager').map((m: any) => (
+                                                        <SelectItem key={m.id} value={m.id}>{m.full_name} ({m.role})</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="flex items-center gap-2 py-2">
+                                            <input 
+                                                type="checkbox" 
+                                                id="acting-admin"
+                                                checked={isActingAdmin === 1}
+                                                onChange={(e) => setIsActingAdmin(e.target.checked ? 1 : 0)}
+                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <label htmlFor="acting-admin" className="text-sm font-medium text-slate-700">
+                                                Grant Acting Admin Privileges
+                                            </label>
+                                        </div>
+                                    </>
+                                )}
 
                                 {formError && (
                                     <div className="rounded-md bg-red-50 border border-red-200 p-3">

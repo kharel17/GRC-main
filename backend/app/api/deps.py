@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import models, schemas
 from app.config import settings
 from app.database import get_db
-from app.utils import security
+import logging
+logger = logging.getLogger("grc.deps")
 
 from fastapi.security import APIKeyCookie, OAuth2PasswordBearer
 from fastapi import Request
@@ -29,28 +30,52 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
+    # Debug: strip Bearer if improperly passed (unlikely but safe)
+    if token.startswith("Bearer "):
+        token = token[7:].strip()
+        
     try:
-        # Decode the Supabase JWT
-        # Supabase uses HS256 and the JWT secret is in the dashboard
-        payload = jwt.decode(
-            token, 
-            settings.SUPABASE_JWT_SECRET, 
-            algorithms=["HS256", "RS256"],
-            options={"verify_aud": False} # Accept the default Supabase 'authenticated' audience
-        )
+        # Debug: extract header to see what's in there
+        try:
+            from jose import jwt as jose_jwt
+            header = jose_jwt.get_unverified_header(token)
+            logger.info(f"JWT Header: {header}")
+        except Exception as e:
+            logger.warning(f"Could not extract token header: {e}")
+            
+        # Try decoding with Supabase secret first
+        try:
+            # Broaden algorithms to avoid "alg not allowed" errors
+            allowed_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"]
+            payload = jwt.decode(
+                token, 
+                settings.SUPABASE_JWT_SECRET, 
+                algorithms=allowed_algs,
+                options={"verify_aud": False}
+            )
+        except JWTError as e:
+            # Fallback: Try with app's internal SECRET_KEY
+            logger.info(f"Supabase decode failed ({e}), trying internal secret...")
+            payload = jwt.decode(
+                token,
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+                options={"verify_aud": False}
+            )
         
         user_id = payload.get("sub")
         if not user_id:
+            logger.error("Token structure invalid: no 'sub' claim")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token structure",
             )
             
     except (JWTError, ValidationError) as e:
-        print(f"Token validation error: {e}")
+        logger.error(f"Token validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
+            detail=f"Could not validate credentials: {str(e)}",
         )
     
     # Check if user exists in our local database

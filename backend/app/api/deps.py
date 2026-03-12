@@ -45,21 +45,34 @@ async def get_current_user(
         
         try:
             # Attempt 1: Decode with Supabase JWT Secret
+            # Note: For Supabase, even if 'alg' is ES256, it's often verifiable with the secret as HS256
+            # We try decoding it normally first.
             payload = jwt.decode(
                 token, 
                 settings.SUPABASE_JWT_SECRET, 
-                algorithms=allowed_algs,
+                algorithms=["HS256", "ES256"], # Try both
                 options={"verify_aud": False}
             )
         except JWTError as e:
-            # Attempt 2: Fallback to internal SECRET_KEY
-            logger.warning(f"Supabase JWT decode failed: {e}. Trying internal secret...")
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=allowed_algs,
-                options={"verify_aud": False}
-            )
+            # If standard decode fails (like PEM framing errors), try forcing it as HS256 
+            # some Supabase setups use the secret as a symmetric key even for ES256 headers
+            try:
+                logger.warning(f"Standard decode failed ({e}), trying forced HS256...")
+                payload = jwt.decode(
+                    token,
+                    settings.SUPABASE_JWT_SECRET,
+                    algorithms=["HS256"],
+                    options={"verify_aud": False}
+                )
+            except JWTError:
+                # Attempt 2: Fallback to internal SECRET_KEY
+                logger.warning(f"Supabase JWT decode failed. Trying internal secret...")
+                payload = jwt.decode(
+                    token,
+                    settings.SECRET_KEY,
+                    algorithms=allowed_algs,
+                    options={"verify_aud": False}
+                )
             
         user_id = payload.get("sub")
         if not user_id:

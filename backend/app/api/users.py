@@ -67,11 +67,8 @@ async def create_user(
 
     new_user = User(
         id=uuid.uuid4(),
-        email=user_in.email,
-        full_name=user_in.full_name,
+        **user_in.model_dump(exclude={"password"}),
         hashed_password=hashed,
-        role=user_in.role or UserRole.analyst,
-        department=user_in.department,
         is_active=True,
     )
     db.add(new_user)

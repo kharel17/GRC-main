@@ -23,9 +23,11 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2, AlertTriangle } from "lucide-react";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function UsersPage() {
     const { data: users, loading, error, refetch } = useApiData(fetchUsers);
+    const { user: currentUser } = useAuth();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
@@ -36,6 +38,8 @@ export default function UsersPage() {
     const [password, setPassword] = useState("");
     const [role, setRole] = useState("analyst");
     const [department, setDepartment] = useState("");
+    const [managerId, setManagerId] = useState("");
+    const [isActingAdmin, setIsActingAdmin] = useState(0);
 
     const resetForm = () => {
         setEmail("");
@@ -43,6 +47,8 @@ export default function UsersPage() {
         setPassword("");
         setRole("analyst");
         setDepartment("");
+        setManagerId("");
+        setIsActingAdmin(0);
         setFormError(null);
     };
 
@@ -62,6 +68,8 @@ export default function UsersPage() {
                 password,
                 role,
                 department: department || undefined,
+                manager_id: managerId || undefined,
+                is_acting_admin: isActingAdmin,
             });
             resetForm();
             setDialogOpen(false);
@@ -71,7 +79,7 @@ export default function UsersPage() {
         } finally {
             setSubmitting(false);
         }
-    }, [email, fullName, password, role, department, refetch]);
+    }, [email, fullName, password, role, department, managerId, isActingAdmin, refetch]);
 
     if (loading) {
         return (
@@ -152,9 +160,14 @@ export default function UsersPage() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="admin">Admin</SelectItem>
-                                            <SelectItem value="analyst">Analyst</SelectItem>
-                                            <SelectItem value="manager">Manager</SelectItem>
+                                            <SelectItem value="admin">Administrator</SelectItem>
+                                            <SelectItem value="analyst">Risk Analyst</SelectItem>
+                                            <SelectItem value="control_owner">Control Owner</SelectItem>
+                                            <SelectItem value="risk_owner">Risk Owner</SelectItem>
+                                            <SelectItem value="compliance_officer">Compliance Officer</SelectItem>
+                                            <SelectItem value="department_manager">Department Manager</SelectItem>
+                                            <SelectItem value="executive">Executive (CISO/CTO)</SelectItem>
+                                            <SelectItem value="auditor">Auditor (Read-only)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -166,6 +179,37 @@ export default function UsersPage() {
                                         onChange={(e) => setDepartment(e.target.value)}
                                     />
                                 </div>
+                                
+                                {currentUser?.role === 'admin' && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-slate-700">Manager</label>
+                                            <Select value={managerId} onValueChange={setManagerId}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a manager" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none">None</SelectItem>
+                                                    {users?.filter((u: any) => u.role === 'admin' || u.role === 'manager').map((m: any) => (
+                                                        <SelectItem key={m.id} value={m.id}>{m.full_name} ({m.role})</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="flex items-center gap-2 py-2">
+                                            <input 
+                                                type="checkbox" 
+                                                id="acting-admin"
+                                                checked={isActingAdmin === 1}
+                                                onChange={(e) => setIsActingAdmin(e.target.checked ? 1 : 0)}
+                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <label htmlFor="acting-admin" className="text-sm font-medium text-slate-700">
+                                                Grant Acting Admin Privileges
+                                            </label>
+                                        </div>
+                                    </>
+                                )}
 
                                 {formError && (
                                     <div className="rounded-md bg-red-50 border border-red-200 p-3">
@@ -226,11 +270,26 @@ export default function UsersPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-2 sm:py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${user.role === 'admin' ? 'bg-red-100 text-red-700' :
-                                                user.role === 'manager' ? 'bg-amber-100 text-amber-700' :
-                                                    'bg-purple-100 text-purple-700'
-                                                }`}>
-                                                {user.role}
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${{
+                                                admin: 'bg-purple-100 text-purple-700',
+                                                analyst: 'bg-blue-100 text-blue-700',
+                                                control_owner: 'bg-teal-100 text-teal-700',
+                                                risk_owner: 'bg-orange-100 text-orange-700',
+                                                compliance_officer: 'bg-indigo-100 text-indigo-700',
+                                                department_manager: 'bg-green-100 text-green-700',
+                                                executive: 'bg-rose-100 text-rose-700',
+                                                auditor: 'bg-slate-100 text-slate-700',
+                                            }[user.role as string] || 'bg-slate-100 text-slate-700'}`}>
+                                                {{
+                                                    admin: 'Administrator',
+                                                    analyst: 'Risk Analyst',
+                                                    control_owner: 'Control Owner',
+                                                    risk_owner: 'Risk Owner',
+                                                    compliance_officer: 'Compliance Officer',
+                                                    department_manager: 'Dept. Manager',
+                                                    executive: 'Executive',
+                                                    auditor: 'Auditor',
+                                                }[user.role as string] || user.role}
                                             </span>
                                         </td>
                                         <td className="px-6 py-2 sm:py-4 text-slate-600">

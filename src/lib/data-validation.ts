@@ -24,7 +24,7 @@ export class DataValidator {
     }
 
     // Role-based validation for status changes
-    if (userRole === 'manager' && control.status !== 'not_started') { // Example restriction
+    if (userRole === 'department_manager' && control.status !== 'not_started') { // Example restriction
        // Managers can view reports but typically don't update controls?
        // Based on table: Manager cannot update status.
        return { valid: false, error: 'Managers cannot update control status' };

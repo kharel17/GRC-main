@@ -5,6 +5,9 @@ import { fetchTickets } from '@/lib/data-service';
 import { useApiData } from '@/hooks/use-api-data';
 import { TicketCard } from '@/features/tickets/TicketCard';
 import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,10 +32,13 @@ import { RoleGuard } from '@/components/auth/RoleGuard';
 import { TicketStatus, TicketPriority, TicketCategory } from '@/types/ticket';
 
 export default function TicketsPage() {
-  const { data: tickets, loading, error } = useApiData(fetchTickets);
+  const { user } = useAuth();
+  const { data: tickets, loading, error, refetch } = useApiData(fetchTickets);
+  
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [showMyTickets, setShowMyTickets] = useState(false);
 
   const allTickets = tickets ?? [];
 
@@ -40,6 +46,14 @@ export default function TicketsPage() {
     if (statusFilter !== 'all' && ticket.status !== statusFilter) return false;
     if (priorityFilter !== 'all' && ticket.priority !== priorityFilter) return false;
     if (categoryFilter !== 'all' && ticket.category !== categoryFilter) return false;
+    
+    if (showMyTickets && user) {
+      const isAssignedTo = ticket.assignedToId === user.id || ticket.assignedToName === user.email;
+      const isOwner = ticket.createdBy === user.id;
+      const isEscalatedToRole = ticket.escalatedToRole === user.role;
+      return isAssignedTo || isOwner || isEscalatedToRole;
+    }
+    
     return true;
   });
 
@@ -47,12 +61,14 @@ export default function TicketsPage() {
     setStatusFilter('all');
     setPriorityFilter('all');
     setCategoryFilter('all');
+    setShowMyTickets(false);
   };
+
 
   const hasActiveFilters = statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all';
 
   // Stats
-  const openCount = allTickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
+  const openCount = allTickets.filter(t => t.status === 'open' || t.status === 'in_review').length;
   const escalatedCount = allTickets.filter(t => t.status === 'escalated').length;
   const resolvedCount = allTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
   const criticalCount = allTickets.filter(t => t.priority === 'critical' && t.status !== 'resolved' && t.status !== 'closed').length;
@@ -121,12 +137,6 @@ export default function TicketsPage() {
             Track, escalate, and share risk findings with stakeholders
           </p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'analyst']}>
-          <Button className="gap-2 w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            New Ticket
-          </Button>
-        </RoleGuard>
       </div>
 
       {/* Stats Cards */}
@@ -158,6 +168,17 @@ export default function TicketsPage() {
             <Filter className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground hidden sm:inline">Filters:</span>
           </div>
+          
+          <div className="flex items-center gap-2 mr-2 pr-2 border-r border-border">
+            <Switch
+              id="my-tickets"
+              checked={showMyTickets}
+              onCheckedChange={setShowMyTickets}
+            />
+            <Label htmlFor="my-tickets" className="text-sm cursor-pointer py-1">
+              My Tickets
+            </Label>
+          </div>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[130px] h-9">
@@ -166,7 +187,8 @@ export default function TicketsPage() {
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="in_review">In Review</SelectItem>
+              <SelectItem value="pending_evidence">Pending Evidence</SelectItem>
               <SelectItem value="escalated">Escalated</SelectItem>
               <SelectItem value="resolved">Resolved</SelectItem>
               <SelectItem value="closed">Closed</SelectItem>

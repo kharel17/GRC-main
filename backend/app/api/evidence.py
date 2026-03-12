@@ -91,17 +91,12 @@ def _derive_file_type(filename: str) -> str:
 async def create_evidence(
     *,
     db: AsyncSession = Depends(deps.get_db),
-<<<<<<< HEAD
-    evidence_in: schemas.EvidenceCreate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
-=======
-    current_user: models.User = Depends(deps.get_current_active_user),
     file: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
     related_to: str = Form(...),  # "control" or "risk"
     related_id: str = Form(...),  # UUID as string
->>>>>>> origin/sanskar
 ) -> Any:
     """Upload evidence file to Supabase Storage and persist metadata."""
 
@@ -181,11 +176,25 @@ async def read_evidence(
     skip: int = 0,
     limit: int = 100,
 ) -> Any:
-    """Return evidence list, optionally filtered by related_id."""
+    """Return evidence list, optionally filtered by related_id. Role-scoped."""
     query = select(models.Evidence)
 
     if related_id:
         query = query.where(models.Evidence.related_id == related_id)
+    
+    # Section 6: Evidence Filtering (RBAC)
+    if current_user.role == models.UserRole.analyst:
+        # Analyst only sees evidence they uploaded (Spec rule: Filter controls to owner_id)
+        query = query.where(models.Evidence.uploaded_by == current_user.id)
+    elif current_user.role == models.UserRole.manager:
+        # Manager sees their own and team's evidence
+        sub_query = select(models.User.id).where(models.User.manager_id == current_user.id)
+        sub_res = await db.execute(sub_query)
+        sub_ids = [uid for uid in sub_res.scalars().all()]
+        query = query.where(
+            (models.Evidence.uploaded_by == current_user.id) | 
+            (models.Evidence.uploaded_by.in_(sub_ids))
+        )
 
     query = query.order_by(models.Evidence.uploaded_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)

@@ -54,3 +54,21 @@ class RiskInDBBase(RiskBase):
 
 class Risk(RiskInDBBase):
     category: Optional[RiskCategory] = None
+
+# Risk-Control Mapping
+class RiskControlMappingOut(BaseModel):
+    id: UUID
+    risk_id: UUID
+    control_id: UUID
+    control_title: Optional[str] = None
+    control_status: Optional[str] = None
+    residual_likelihood: Optional[int] = None
+    residual_impact: Optional[int] = None
+    residual_risk_score: Optional[int] = None
+    mapped_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class RiskControlMappingCreate(BaseModel):
+    control_id: UUID

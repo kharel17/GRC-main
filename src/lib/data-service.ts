@@ -149,6 +149,40 @@ export async function updateTicket(id: string, data: Partial<Ticket>): Promise<T
   return api.put<Ticket>(`/tickets/${id}/`, data);
 }
 
+export async function escalateTicket(id: string, escalatedToId: string): Promise<Ticket> {
+  return api.post<Ticket>(`/tickets/${id}/escalate?escalated_to_id=${escalatedToId}`);
+}
+
+export async function resolveTicket(id: string, resolutionNotes: string): Promise<Ticket> {
+  return api.post<Ticket>(`/tickets/${id}/resolve`, { resolution_notes: resolutionNotes });
+}
+
+export async function createTicketComment(id: string, text: string): Promise<any> {
+  return api.post<any>(`/tickets/${id}/comments`, { text });
+}
+
+export async function requestEvidence(id: string, comment: string): Promise<Ticket> {
+  return api.post<Ticket>(`/tickets/${id}/request-evidence`, { comment_text: comment });
+}
+
+// -- Notifications --────────
+export async function fetchNotifications(): Promise<any[]> {
+  return fetchOrFallback<any[]>('/notifications/', []);
+}
+
+export async function fetchUnreadCount(): Promise<number> {
+  try {
+    const res = await api.get<{ count: number }>('/notifications/unread-count');
+    return res.count;
+  } catch (err) {
+    return 0;
+  }
+}
+
+export async function markAllRead(): Promise<void> {
+  await api.post('/notifications/mark-all-read');
+}
+
 // -- Users --────────
 export async function fetchUsers(): Promise<any[]> {
   try {
@@ -165,6 +199,8 @@ export async function createUser(data: {
   password: string;
   role?: string;
   department?: string;
+  manager_id?: string;
+  is_acting_admin?: number;
 }): Promise<any> {
   return api.post<any>('/users/', data);
 }

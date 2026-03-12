@@ -162,7 +162,7 @@ function ManagerReportsWidget() {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const role = user?.role || 'manager';
+  const role = user?.role || 'analyst';
 
   const { data: risks, loading: risksLoading } = useApiData(fetchRisks);
   const { data: controls, loading: controlsLoading } = useApiData(fetchControls);
@@ -176,9 +176,16 @@ export default function DashboardPage() {
       case 'admin':
         return { title: 'System Overview', subtitle: 'Complete platform visibility and control' };
       case 'analyst':
+      case 'control_owner':
+      case 'risk_owner':
         return { title: 'Risk & Compliance Dashboard', subtitle: 'Track your tasks and assessments' };
-      case 'manager':
+      case 'compliance_officer':
+        return { title: 'Compliance Dashboard', subtitle: 'Monitor compliance posture and findings' };
+      case 'department_manager':
+      case 'executive':
         return { title: 'Executive Dashboard', subtitle: 'High-level reports and insights' };
+      case 'auditor':
+        return { title: 'Audit Dashboard', subtitle: 'Review compliance and risk data (read-only)' };
       default:
         return { title: 'Dashboard', subtitle: 'Risk and compliance overview' };
     }
@@ -215,11 +222,11 @@ export default function DashboardPage() {
       {/* Admin-specific system overview */}
       {role === 'admin' && <AdminSystemOverview controls={allControls} risks={allRisks} />}
 
-      {/* Analyst-specific task widget */}
-      {role === 'analyst' && <AnalystTaskWidget />}
+      {/* Analyst/Owner-specific task widget */}
+      {(role === 'analyst' || role === 'control_owner' || role === 'risk_owner') && <AnalystTaskWidget />}
 
-      {/* Manager-specific reports widget */}
-      {role === 'manager' && <ManagerReportsWidget />}
+      {/* Manager/Executive-specific reports widget */}
+      {(role === 'department_manager' || role === 'executive' || role === 'compliance_officer') && <ManagerReportsWidget />}
 
       {/* Common summary component - visible to all */}
       <DashboardSummary
@@ -229,7 +236,7 @@ export default function DashboardPage() {
       />
 
       {/* Risk highlights and overdue items - visibility based on role */}
-      {(role === 'admin' || role === 'analyst') && (
+      {(role === 'admin' || role === 'analyst' || role === 'risk_owner' || role === 'control_owner' || role === 'compliance_officer') && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <RiskHighlights risks={allRisks} />
@@ -240,8 +247,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Manager sees only reports-focused content */}
-      {role === 'manager' && (
+      {/* Manager/Executive sees reports-focused content */}
+      {(role === 'department_manager' || role === 'executive') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <OverdueItems complianceItems={allCompliance} />
           <Card>

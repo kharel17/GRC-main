@@ -216,7 +216,7 @@ export const isoService = {
   ): Promise<void> {
     if (!DataValidator.canManageFramework(userCtx.role)) {
       // Only admin/analyst
-      if (userCtx.role === 'manager') throw new Error('Unauthorized');
+      if (userCtx.role === 'department_manager') throw new Error('Unauthorized');
     }
 
     await storageService.deleteEvidence(id);
@@ -262,7 +262,7 @@ export const isoService = {
     riskId: string,
     userCtx: { id: string; name: string; role: UserRole }
   ): Promise<void> {
-    if (userCtx.role === 'manager') throw new Error('Unauthorized');
+    if (userCtx.role === 'department_manager') throw new Error('Unauthorized');
 
     const control = await storageService.getControlById(controlId);
     if (!control) throw new Error('Control not found');

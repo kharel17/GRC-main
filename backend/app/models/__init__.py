@@ -7,3 +7,5 @@ from .compliance import ComplianceItem, ComplianceStatus, CompliancePriority
 from .evidence import Evidence, EvidenceRelatedTo, EvidenceControlMatch
 from .audit_log import AuditLog, AuditAction, AuditEntityType
 from .ticket import Ticket, TicketComment, TicketPriority, TicketStatus, TicketCategory
+from .ticket_activity import TicketActivity, TicketActivityType
+

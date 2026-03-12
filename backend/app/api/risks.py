@@ -144,24 +144,7 @@ async def update_risk(
 
 from app.models.control import RiskControlMapping, Control
 
-class RiskControlMappingOut(schemas.BaseModel):
-    id: str
-    risk_id: str
-    control_id: str
-    control_title: str | None = None
-    control_status: str | None = None
-    residual_likelihood: int | None = None
-    residual_impact: int | None = None
-    residual_risk_score: int | None = None
-    mapped_at: str | None = None
-
-    class Config:
-        from_attributes = True
-
-class RiskControlMappingCreate(schemas.BaseModel):
-    control_id: str
-
-@router.get("/{id}/controls", response_model=list[RiskControlMappingOut])
+@router.get("/{id}/controls", response_model=list[schemas.RiskControlMappingOut])
 async def get_risk_controls(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -192,12 +175,12 @@ async def get_risk_controls(
         ))
     return out
 
-@router.post("/{id}/controls", response_model=RiskControlMappingOut)
+@router.post("/{id}/controls", response_model=schemas.RiskControlMappingOut)
 async def map_control_to_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
     id: str,
-    body: RiskControlMappingCreate,
+    body: schemas.RiskControlMappingCreate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """

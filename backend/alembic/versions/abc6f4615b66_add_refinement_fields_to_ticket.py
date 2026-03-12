@@ -73,10 +73,11 @@ def upgrade() -> None:
     op.add_column('tickets', sa.Column('risk_score', sa.Integer(), nullable=True))
     op.add_column('tickets', sa.Column('previous_ticket_id', sa.UUID(), nullable=True))
     op.add_column('tickets', sa.Column('status_updated_at', sa.DateTime(), nullable=True))
-    op.alter_column('tickets', 'is_auto_escalation_enabled',
-               existing_type=sa.INTEGER(),
-               type_=sa.Boolean(),
-               existing_nullable=True)
+    op.execute("""
+        ALTER TABLE tickets 
+        ALTER COLUMN is_auto_escalation_enabled TYPE BOOLEAN 
+        USING is_auto_escalation_enabled::boolean;
+    """)
     op.create_foreign_key(None, 'tickets', 'tickets', ['previous_ticket_id'], ['id'])
     op.drop_index(op.f('ix_users_manager_id'), table_name='users')
     # ### end Alembic commands ###
@@ -94,10 +95,11 @@ def downgrade() -> None:
     # Revert other changes
     op.create_index(op.f('ix_users_manager_id'), 'users', ['manager_id'], unique=False)
     op.drop_constraint(None, 'tickets', type_='foreignkey')
-    op.alter_column('tickets', 'is_auto_escalation_enabled',
-               existing_type=sa.Boolean(),
-               type_=sa.INTEGER(),
-               existing_nullable=True)
+    op.execute("""
+        ALTER TABLE tickets 
+        ALTER COLUMN is_auto_escalation_enabled TYPE INTEGER 
+        USING is_auto_escalation_enabled::integer;
+    """)
     op.drop_column('tickets', 'status_updated_at')
     op.drop_column('tickets', 'previous_ticket_id')
     op.drop_column('tickets', 'risk_score')

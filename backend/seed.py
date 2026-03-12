@@ -1,13 +1,18 @@
 import asyncio
+import json
+from pathlib import Path
 from app.database import engine, SessionLocal
 from app.models.base import Base
 from app.models.user import User, UserRole
+from app.models.organization import Organization, OrganizationSize
+from app.models.asset import Asset, AssetType, AssetClassification, AssetCriticality
 from app.models.risk import Risk, RiskCategory, RiskStatus
 from app.models.control import Control, ControlType, ControlEffectiveness, ControlStatus
 from app.models.compliance import ComplianceItem, ComplianceStatus, CompliancePriority
 from app.models.evidence import Evidence, EvidenceRelatedTo
 from app.models.audit_log import AuditLog, AuditAction, AuditEntityType
 from app.models.ticket import Ticket, TicketPriority, TicketStatus, TicketCategory, TicketComment
+from app.models.control_applicability import ControlApplicability, ControlImplementationStatus
 import uuid
 from datetime import datetime, timedelta
 import bcrypt
@@ -25,7 +30,7 @@ async def seed_data():
     await init_db()
     
     async with SessionLocal() as session:
-        # Users
+        # ── Users ────────────────────────────────────────
         users = [
             User(id=uuid.UUID('00000000-0000-0000-0000-000000000001'), email="alice@company.com", full_name="Alice Johnson", hashed_password=hash_password("demo"), role=UserRole.admin, department="Compliance"),
             User(id=uuid.UUID('00000000-0000-0000-0000-000000000002'), email="bob@company.com", full_name="Bob Smith", hashed_password=hash_password("demo"), role=UserRole.analyst, department="Risk Management"),
@@ -34,7 +39,33 @@ async def seed_data():
         session.add_all(users)
         await session.flush()
 
-        # Risk Categories
+        # ── Organization ─────────────────────────────────
+        org = Organization(
+            id=uuid.UUID('00000000-0000-0000-0000-000000000010'),
+            name="Acme Corporation",
+            industry="Technology",
+            size=OrganizationSize.medium,
+            description="A mid-sized technology company specializing in cloud services and SaaS products.",
+            website="https://acme-corp.example.com",
+            country="United States",
+            compliance_frameworks=["ISO 27001", "SOC2", "GDPR"],
+            primary_contact_id=users[0].id,
+        )
+        session.add(org)
+        await session.flush()
+
+        # ── Assets ───────────────────────────────────────
+        assets = [
+            Asset(name="Customer Database", description="Primary PostgreSQL database containing customer PII and account data", asset_type=AssetType.data, classification=AssetClassification.restricted, criticality=AssetCriticality.critical, location="AWS us-east-1", owner_id=users[0].id, organization_id=org.id),
+            Asset(name="Source Code Repository", description="GitHub Enterprise repositories for all product codebases", asset_type=AssetType.software, classification=AssetClassification.confidential, criticality=AssetCriticality.high, location="GitHub Cloud", owner_id=users[1].id, organization_id=org.id),
+            Asset(name="Internal Wiki", description="Confluence-based internal documentation and knowledge base", asset_type=AssetType.software, classification=AssetClassification.internal, criticality=AssetCriticality.medium, location="Atlassian Cloud", owner_id=users[2].id, organization_id=org.id),
+            Asset(name="Payment Processing Service", description="Stripe integration service handling financial transactions", asset_type=AssetType.service, classification=AssetClassification.restricted, criticality=AssetCriticality.critical, location="AWS us-east-1", owner_id=users[0].id, organization_id=org.id),
+            Asset(name="Employee Laptops", description="Company-issued MacBook Pro and Dell laptops", asset_type=AssetType.hardware, classification=AssetClassification.confidential, criticality=AssetCriticality.high, location="Global offices and remote", owner_id=users[2].id, organization_id=org.id),
+        ]
+        session.add_all(assets)
+        await session.flush()
+
+        # ── Risk Categories ──────────────────────────────
         categories = [
             RiskCategory(name="Operational", description="Day-to-day operational risks", color="#3b82f6"),
             RiskCategory(name="Financial", description="Financial stability risks", color="#10b981"),
@@ -46,18 +77,18 @@ async def seed_data():
         session.add_all(categories)
         await session.flush()
 
-        # Risks
+        # ── Risks (now with organization_id) ─────────────
         risks = [
-            Risk(title="Data Breach", description="Unauthorized access to sensitive customer data", category_id=categories[5].id, likelihood=3, impact=5, risk_score=15, status=RiskStatus.assessed, owner_id=users[1].id, created_by=users[1].id),
-            Risk(title="Regulatory Non-Compliance", description="Failure to meet GDPR requirements", category_id=categories[2].id, likelihood=2, impact=4, risk_score=8, status=RiskStatus.identified, owner_id=users[1].id, created_by=users[0].id),
-            Risk(title="System Downtime", description="Critical infrastructure failure", category_id=categories[0].id, likelihood=2, impact=4, risk_score=8, status=RiskStatus.mitigated, owner_id=users[1].id, created_by=users[1].id),
-            Risk(title="Budget Overrun", description="Project expenses exceed allocated budget", category_id=categories[1].id, likelihood=3, impact=3, risk_score=9, status=RiskStatus.identified, owner_id=users[1].id, created_by=users[0].id),
-            Risk(title="Key Person Dependency", description="Critical functions dependent on single individual", category_id=categories[3].id, likelihood=4, impact=3, risk_score=12, status=RiskStatus.assessed, owner_id=users[1].id, created_by=users[1].id),
+            Risk(title="Data Breach", description="Unauthorized access to sensitive customer data", category_id=categories[5].id, likelihood=3, impact=5, risk_score=15, status=RiskStatus.assessed, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
+            Risk(title="Regulatory Non-Compliance", description="Failure to meet GDPR requirements", category_id=categories[2].id, likelihood=2, impact=4, risk_score=8, status=RiskStatus.identified, owner_id=users[1].id, created_by=users[0].id, organization_id=org.id),
+            Risk(title="System Downtime", description="Critical infrastructure failure", category_id=categories[0].id, likelihood=2, impact=4, risk_score=8, status=RiskStatus.mitigated, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
+            Risk(title="Budget Overrun", description="Project expenses exceed allocated budget", category_id=categories[1].id, likelihood=3, impact=3, risk_score=9, status=RiskStatus.identified, owner_id=users[1].id, created_by=users[0].id, organization_id=org.id),
+            Risk(title="Key Person Dependency", description="Critical functions dependent on single individual", category_id=categories[3].id, likelihood=4, impact=3, risk_score=12, status=RiskStatus.assessed, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
         ]
         session.add_all(risks)
         await session.flush()
 
-        # Controls
+        # ── Controls ─────────────────────────────────────
         controls = [
             Control(title="Access Control Policy", description="Implement robust access controls for all system access", control_type=ControlType.preventive, effectiveness=ControlEffectiveness.high, status=ControlStatus.implemented, owner_id=users[1].id, created_by=users[1].id),
             Control(title="Security Awareness Training", description="Quarterly training for all employees", control_type=ControlType.preventive, effectiveness=ControlEffectiveness.medium, status=ControlStatus.implemented, owner_id=users[1].id, created_by=users[0].id),
@@ -68,24 +99,61 @@ async def seed_data():
         session.add_all(controls)
         await session.flush()
 
-        # Compliance Items
+        # ── Compliance Items (now with organization_id) ──
         compliance = [
-            ComplianceItem(framework="GDPR", requirement_id="GDPR-5.1", title="Data Protection Officer", description="Designate DPO", status=ComplianceStatus.compliant, priority=CompliancePriority.critical, owner_id=users[0].id, due_date=datetime.now() + timedelta(days=5)),
-            ComplianceItem(framework="SOC2", requirement_id="CC6.1", title="Logical Access Controls", description="Access control mechanisms", status=ComplianceStatus.in_progress, priority=CompliancePriority.high, owner_id=users[1].id, due_date=datetime.now() + timedelta(days=15)),
-            ComplianceItem(framework="ISO27001", requirement_id="A.12.4.1", title="Event Logging", description="Recording user activities", status=ComplianceStatus.not_started, priority=CompliancePriority.medium, owner_id=users[1].id, due_date=datetime.now() + timedelta(days=45)),
+            ComplianceItem(framework="GDPR", requirement_id="GDPR-5.1", title="Data Protection Officer", description="Designate DPO", status=ComplianceStatus.compliant, priority=CompliancePriority.critical, owner_id=users[0].id, organization_id=org.id, due_date=datetime.now() + timedelta(days=5)),
+            ComplianceItem(framework="SOC2", requirement_id="CC6.1", title="Logical Access Controls", description="Access control mechanisms", status=ComplianceStatus.in_progress, priority=CompliancePriority.high, owner_id=users[1].id, organization_id=org.id, due_date=datetime.now() + timedelta(days=15)),
+            ComplianceItem(framework="ISO27001", requirement_id="A.12.4.1", title="Event Logging", description="Recording user activities", status=ComplianceStatus.not_started, priority=CompliancePriority.medium, owner_id=users[1].id, organization_id=org.id, due_date=datetime.now() + timedelta(days=45)),
         ]
         session.add_all(compliance)
         await session.flush()
 
-        # Evidence
+        # ── Evidence (now with organization_id) ──────────
         evidence = [
-            Evidence(title="Access Control Implementation Report", description="Verification of access control", file_url="/documents/access-control-report.pdf", file_name="access-control-report.pdf", file_type="pdf", file_size=2048000, related_to=EvidenceRelatedTo.control, related_id=controls[0].id, uploaded_by=users[1].id, verified=True, verified_by=users[0].id, verified_at=datetime.utcnow()),
-            Evidence(title="GDPR DPO Notification", description="Official notification", file_url="/documents/dpo-notification.pdf", file_name="dpo-notification.pdf", file_type="pdf", file_size=512000, related_to=EvidenceRelatedTo.compliance_item, related_id=compliance[0].id, uploaded_by=users[0].id, verified=True, verified_by=users[0].id, verified_at=datetime.utcnow()),
+            Evidence(title="Access Control Implementation Report", description="Verification of access control", file_url="/documents/access-control-report.pdf", file_name="access-control-report.pdf", file_type="pdf", file_size=2048000, related_to=EvidenceRelatedTo.control, related_id=controls[0].id, uploaded_by=users[1].id, organization_id=org.id, verified=True, verified_by=users[0].id, verified_at=datetime.utcnow()),
+            Evidence(title="GDPR DPO Notification", description="Official notification", file_url="/documents/dpo-notification.pdf", file_name="dpo-notification.pdf", file_type="pdf", file_size=512000, related_to=EvidenceRelatedTo.compliance_item, related_id=compliance[0].id, uploaded_by=users[0].id, organization_id=org.id, verified=True, verified_by=users[0].id, verified_at=datetime.utcnow()),
         ]
         session.add_all(evidence)
         await session.flush()
 
-        # Audit Logs
+        # ── Control Applicability (SoA) ──────────────────
+        # Load controls from JSON and create applicability records
+        controls_json_path = Path(__file__).parent / "data" / "iso27001-controls.json"
+        with open(controls_json_path, "r", encoding="utf-8") as f:
+            iso_data = json.load(f)
+        
+        # Sample: mark some controls as implemented, some in-progress, most as not_started
+        implemented_controls = {"5.1", "5.2", "5.15", "5.17", "6.3", "8.5", "8.24"}
+        in_progress_controls = {"5.9", "5.12", "5.34", "8.7", "8.13", "8.15"}
+        not_applicable_controls = {"7.1", "7.2", "7.3", "7.4", "7.5", "7.6"}  # physical security N/A for cloud-first company
+        
+        control_applicabilities = []
+        for ctrl in iso_data.get("controls", []):
+            annex = ctrl["id"]
+            
+            if annex in implemented_controls:
+                status = ControlImplementationStatus.implemented
+            elif annex in in_progress_controls:
+                status = ControlImplementationStatus.in_progress
+            elif annex in not_applicable_controls:
+                status = ControlImplementationStatus.not_applicable
+            else:
+                status = ControlImplementationStatus.not_started
+            
+            ca = ControlApplicability(
+                organization_id=org.id,
+                control_annex=annex,
+                is_applicable=(annex not in not_applicable_controls),
+                status=status,
+                justification="Physical security controls not applicable — fully cloud-hosted infrastructure" if annex in not_applicable_controls else None,
+                responsible_id=users[0].id if status == ControlImplementationStatus.implemented else (users[1].id if status != ControlImplementationStatus.not_applicable else None),
+            )
+            control_applicabilities.append(ca)
+        
+        session.add_all(control_applicabilities)
+        await session.flush()
+
+        # ── Audit Logs ───────────────────────────────────
         audit_logs = [
             AuditLog(id=uuid.UUID('00000000-0000-0000-0000-000000000101'), user_id=users[1].id, action=AuditAction.created, entity_type=AuditEntityType.risk, entity_id=risks[0].id, entity_name=risks[0].title, description="New risk identified", timestamp=datetime.utcnow() - timedelta(days=10)),
             AuditLog(id=uuid.UUID('00000000-0000-0000-0000-000000000102'), user_id=users[0].id, action=AuditAction.updated, entity_type=AuditEntityType.risk, entity_id=risks[0].id, entity_name=risks[0].title, old_values={"status": "identified"}, new_values={"status": "assessed"}, description="Risk status updated", timestamp=datetime.utcnow() - timedelta(days=9)),
@@ -94,7 +162,7 @@ async def seed_data():
         session.add_all(audit_logs)
         await session.flush()
 
-        # Tickets
+        # ── Tickets (now with organization_id) ───────────
         tickets = [
             Ticket(
                 id=uuid.UUID('00000000-0000-0000-0000-000000000201'),
@@ -106,12 +174,13 @@ async def seed_data():
                 source_audit_log_id=audit_logs[0].id,
                 assigned_to_id=users[0].id,
                 assigned_to_role="ISO Officer",
-                escalated_to_id=None, # Simplified
+                escalated_to_id=None,
                 escalated_to_role="CTO",
                 escalation_level=3,
                 related_risk_id=risks[0].id,
                 related_entity_type="risk",
                 related_entity_id=risks[0].id,
+                organization_id=org.id,
                 created_by=users[1].id,
                 created_at=datetime.utcnow() - timedelta(days=5),
                 escalated_at=datetime.utcnow() - timedelta(days=4)
@@ -121,7 +190,7 @@ async def seed_data():
                 title="Regulatory Non-Compliance Gap - GDPR Requirements",
                 description="GDPR compliance gap identified.",
                 priority=TicketPriority.high,
-                status=TicketStatus.in_progress,
+                status=TicketStatus.in_review,
                 category=TicketCategory.compliance_gap,
                 source_audit_log_id=audit_logs[1].id,
                 assigned_to_id=users[0].id,
@@ -130,6 +199,7 @@ async def seed_data():
                 related_risk_id=risks[1].id,
                 related_entity_type="risk",
                 related_entity_id=risks[1].id,
+                organization_id=org.id,
                 created_by=users[0].id,
                 created_at=datetime.utcnow() - timedelta(days=3),
             )
@@ -137,7 +207,7 @@ async def seed_data():
         session.add_all(tickets)
         await session.flush()
         
-        # Comments
+        # ── Comments ─────────────────────────────────────
         comments = [
             TicketComment(ticket_id=tickets[0].id, author_id=users[1].id, text="Escalating for review due to risk score."),
             TicketComment(ticket_id=tickets[0].id, author_id=users[0].id, text="Reviewed, approved escalation."),
@@ -146,7 +216,22 @@ async def seed_data():
         
         await session.commit()
     
+    # Print summary
+    print("=" * 60)
     print("Database seeded successfully!")
+    print("=" * 60)
+    print(f"  Users:                  3")
+    print(f"  Organization:           1 (Acme Corporation)")
+    print(f"  Assets:                 {len(assets)}")
+    print(f"  Risk Categories:        {len(categories)}")
+    print(f"  Risks:                  {len(risks)}")
+    print(f"  Controls:               {len(controls)}")
+    print(f"  Compliance Items:       {len(compliance)}")
+    print(f"  Evidence:               {len(evidence)}")
+    print(f"  Control Applicability:  {len(control_applicabilities)} (all 93 ISO 27001 controls)")
+    print(f"  Audit Logs:             {len(audit_logs)}")
+    print(f"  Tickets:                {len(tickets)}")
+    print("=" * 60)
 
 if __name__ == "__main__":
     asyncio.run(seed_data())

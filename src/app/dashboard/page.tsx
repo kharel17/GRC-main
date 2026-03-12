@@ -53,8 +53,10 @@ function AdminSystemOverview({ controls, risks }: { controls: Control[]; risks: 
               <TrendingUp className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-900 dark:text-green-100">87%</p>
-              <p className="text-sm text-green-700 dark:text-green-300">Compliance Rate</p>
+              <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                {Math.round((risks.filter(r => r.status === 'mitigated').length / (risks.length || 1)) * 100)}%
+              </p>
+              <p className="text-sm text-green-700 dark:text-green-300">Compliance Score</p>
             </div>
           </div>
         </CardContent>

@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { api } from '@/lib/api-client';
 import { Upload, CheckCircle2, AlertCircle, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { handleApiError } from '@/lib/handle-api-error';
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -84,10 +85,10 @@ export function EvidenceDropzone({ relatedTo, relatedId, onUploadSuccess }: Evid
                 setSelectedFile(null);
                 setUploadState({ status: 'idle', progress: 0 });
             }, 2000);
-        } catch (err: any) {
-            const msg = err?.message || 'Upload failed. Please try again.';
-            setUploadState({ status: 'error', progress: 0, errorMessage: msg });
-            toast.error(msg);
+        } catch (error: unknown) {
+            const errorMessage = handleApiError(error);
+            setUploadState({ status: 'error', progress: 0, errorMessage: errorMessage });
+            toast.error(errorMessage);
         }
     };
 

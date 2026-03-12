@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createRisk, getRiskCategories } from '@/lib/data-service';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { handleApiError } from '@/lib/handle-api-error';
 import {
     Dialog,
     DialogContent,
@@ -41,6 +42,8 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
     const [impact, setImpact] = useState('3');
     const [status, setStatus] = useState('identified');
     const [submitting, setSubmitting] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [attempted, setAttempted] = useState(false);
 
     const riskScore = parseInt(likelihood) * parseInt(impact);
 
@@ -51,13 +54,34 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
         setLikelihood('3');
         setImpact('3');
         setStatus('identified');
+        setErrors({});
+        setAttempted(false);
+    };
+
+    const validateForm = () => {
+        const newErrors: Record<string, string> = {};
+        
+        if (!title.trim()) {
+            newErrors.title = 'Title is required.';
+        }
+        
+        if (!description.trim()) {
+            newErrors.description = 'Description is required.';
+        } else if (description.trim().length < 10) {
+            newErrors.description = 'Description must be at least 10 characters.';
+        }
+        
+        if (!categoryId) {
+            newErrors.category = 'Please select a category.';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = async () => {
-        if (!title.trim() || !description.trim() || !categoryId) {
-            toast.error('Please fill in all required fields.');
-            return;
-        }
+        setAttempted(true);
+        if (!validateForm()) return;
 
         setSubmitting(true);
         try {
@@ -76,8 +100,8 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
             resetForm();
             onSuccess();
             onOpenChange(false);
-        } catch (err: any) {
-            toast.error(err?.message || 'Failed to create risk.');
+        } catch (err: unknown) {
+            toast.error(handleApiError(err));
         } finally {
             setSubmitting(false);
         }
@@ -95,30 +119,50 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
 
                 <div className="grid gap-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="risk-title">Title *</Label>
+                        <Label htmlFor="risk-title" className={errors.title && attempted ? "text-red-500" : ""}>Title *</Label>
                         <Input
                             id="risk-title"
                             placeholder="e.g. Data Breach via Phishing"
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                if (attempted) validateForm();
+                            }}
+                            className={errors.title && attempted ? "border-red-500 focus-visible:ring-red-500" : ""}
                         />
+                        {attempted && errors.title && <p className="text-xs text-red-500">{errors.title}</p>}
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="risk-desc">Description *</Label>
+                        <Label htmlFor="risk-desc" className={errors.description && attempted ? "text-red-500" : ""}>Description *</Label>
                         <Textarea
                             id="risk-desc"
                             placeholder="Describe the risk and its potential consequences..."
                             value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                            onChange={(e) => {
+                                setDescription(e.target.value);
+                                if (attempted) validateForm();
+                            }}
                             rows={3}
+                            className={errors.description && attempted ? "border-red-500 focus-visible:ring-red-500" : ""}
                         />
+                        <div className="flex justify-between mt-1">
+                            {attempted && errors.description ? (
+                                <p className="text-xs text-red-500">{errors.description}</p>
+                            ) : (
+                                <span />
+                            )}
+                            <p className="text-xs text-muted-foreground">{description.length} chars</p>
+                        </div>
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Category *</Label>
-                        <Select value={categoryId} onValueChange={setCategoryId}>
-                            <SelectTrigger>
+                        <Label className={errors.category && attempted ? "text-red-500" : ""}>Category *</Label>
+                        <Select value={categoryId} onValueChange={(val) => {
+                            setCategoryId(val);
+                            if (attempted) validateForm();
+                        }}>
+                            <SelectTrigger className={errors.category && attempted ? "border-red-500 focus:ring-red-500" : ""}>
                                 <SelectValue placeholder="Select category..." />
                             </SelectTrigger>
                             <SelectContent>
@@ -135,6 +179,7 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                                 ))}
                             </SelectContent>
                         </Select>
+                        {attempted && errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

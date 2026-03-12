@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { updateControl } from '@/lib/data-service';
 import { toast } from 'sonner';
+import { handleApiError } from '@/lib/handle-api-error';
 import type { Control } from '@/types/control';
 import {
     Dialog,
@@ -34,10 +35,12 @@ interface EditControlDialogProps {
 export function EditControlDialog({ open, onOpenChange, control, onSuccess }: EditControlDialogProps) {
     const [title, setTitle] = useState(control.title);
     const [description, setDescription] = useState(control.description);
-    const [controlType, setControlType] = useState(control.controlType);
-    const [effectiveness, setEffectiveness] = useState(control.effectiveness);
+    const [controlType, setControlType] = useState<'preventive' | 'detective' | 'corrective'>(control.controlType as any);
+    const [effectiveness, setEffectiveness] = useState<'high' | 'medium' | 'low'>(control.effectiveness as any);
     const [status, setStatus] = useState<string>(control.status);
     const [submitting, setSubmitting] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [attempted, setAttempted] = useState(false);
 
     useEffect(() => {
         if (open && control) {
@@ -46,14 +49,31 @@ export function EditControlDialog({ open, onOpenChange, control, onSuccess }: Ed
             setControlType(control.controlType);
             setEffectiveness(control.effectiveness);
             setStatus(control.status);
+            setErrors({});
+            setAttempted(false);
         }
     }, [open, control]);
 
-    const handleSubmit = async () => {
-        if (!title.trim() || !description.trim()) {
-            toast.error('Title and description are required.');
-            return;
+    const validateForm = () => {
+        const newErrors: Record<string, string> = {};
+        
+        if (!title.trim()) {
+            newErrors.title = 'Title is required.';
         }
+        
+        if (!description.trim()) {
+            newErrors.description = 'Description is required.';
+        } else if (description.trim().length < 10) {
+            newErrors.description = 'Description must be at least 10 characters.';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handleSubmit = async () => {
+        setAttempted(true);
+        if (!validateForm()) return;
 
         setSubmitting(true);
         try {
@@ -68,8 +88,8 @@ export function EditControlDialog({ open, onOpenChange, control, onSuccess }: Ed
             toast.success('Control updated successfully!');
             onSuccess();
             onOpenChange(false);
-        } catch (err: any) {
-            toast.error(err?.message || 'Failed to update control.');
+        } catch (err: unknown) {
+            toast.error(handleApiError(err));
         } finally {
             setSubmitting(false);
         }
@@ -87,27 +107,44 @@ export function EditControlDialog({ open, onOpenChange, control, onSuccess }: Ed
 
                 <div className="grid gap-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="edit-ctrl-title">Title *</Label>
+                        <Label htmlFor="edit-ctrl-title" className={errors.title && attempted ? "text-red-500" : ""}>Title *</Label>
                         <Input
                             id="edit-ctrl-title"
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                if (attempted) validateForm();
+                            }}
+                            className={errors.title && attempted ? "border-red-500 focus-visible:ring-red-500" : ""}
                         />
+                        {attempted && errors.title && <p className="text-xs text-red-500">{errors.title}</p>}
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="edit-ctrl-desc">Description *</Label>
+                        <Label htmlFor="edit-ctrl-desc" className={errors.description && attempted ? "text-red-500" : ""}>Description *</Label>
                         <Textarea
                             id="edit-ctrl-desc"
                             value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                            onChange={(e) => {
+                                setDescription(e.target.value);
+                                if (attempted) validateForm();
+                            }}
                             rows={3}
+                            className={errors.description && attempted ? "border-red-500 focus-visible:ring-red-500" : ""}
                         />
+                        <div className="flex justify-between mt-1">
+                            {attempted && errors.description ? (
+                                <p className="text-xs text-red-500">{errors.description}</p>
+                            ) : (
+                                <span />
+                            )}
+                            <p className="text-xs text-muted-foreground">{description.length} chars</p>
+                        </div>
                     </div>
 
                     <div className="space-y-2">
                         <Label>Control Type</Label>
-                        <Select value={controlType} onValueChange={setControlType}>
+                        <Select value={controlType} onValueChange={(val: 'preventive' | 'detective' | 'corrective') => setControlType(val)}>
                             <SelectTrigger>
                                 <SelectValue />
                             </SelectTrigger>
@@ -122,7 +159,7 @@ export function EditControlDialog({ open, onOpenChange, control, onSuccess }: Ed
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Effectiveness</Label>
-                            <Select value={effectiveness} onValueChange={setEffectiveness}>
+                            <Select value={effectiveness} onValueChange={(val: 'high' | 'medium' | 'low') => setEffectiveness(val)}>
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>

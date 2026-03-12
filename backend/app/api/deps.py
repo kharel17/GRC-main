@@ -35,7 +35,7 @@ async def get_current_user(
         payload = jwt.decode(
             token, 
             settings.SUPABASE_JWT_SECRET, 
-            algorithms=["HS256"],
+            algorithms=["HS256", "RS256"],
             options={"verify_aud": False} # Accept the default Supabase 'authenticated' audience
         )
         

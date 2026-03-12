@@ -23,12 +23,12 @@ class RiskCategory(RiskCategoryBase):
 class RiskBase(BaseModel):
     title: str
     description: str
-    category_id: UUID
+    category_id: str
     likelihood: int
     impact: int
     risk_score: int
     status: RiskStatus = RiskStatus.identified
-    owner_id: UUID
+    owner_id: str
 
 class RiskCreate(RiskBase):
     pass
@@ -36,12 +36,12 @@ class RiskCreate(RiskBase):
 class RiskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    category_id: Optional[UUID] = None
+    category_id: Optional[str] = None
     likelihood: Optional[int] = None
     impact: Optional[int] = None
     risk_score: Optional[int] = None
     status: Optional[RiskStatus] = None
-    owner_id: Optional[UUID] = None
+    owner_id: Optional[str] = None
 
 class RiskInDBBase(RiskBase):
     id: UUID

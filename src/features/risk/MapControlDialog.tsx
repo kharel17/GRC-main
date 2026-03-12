@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { handleApiError } from '@/lib/handle-api-error';
 import { Loader2, ShieldCheck, Check } from 'lucide-react';
 
 interface MapControlDialogProps {
@@ -61,11 +62,11 @@ export function MapControlDialog({
         setSubmitting(true);
         try {
             await mapControlToRisk(riskId, selectedId);
-            toast.success('Control mapped successfully!');
-            onSuccess();
+            toast.success('Controls mapped successfully!');
             onOpenChange(false);
-        } catch (err: any) {
-            toast.error(err?.message || 'Failed to map control.');
+            onSuccess();
+        } catch (err: unknown) {
+            toast.error(handleApiError(err));
         } finally {
             setSubmitting(false);
         }

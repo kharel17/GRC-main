@@ -11,6 +11,8 @@ class UserBase(BaseModel):
     role: Optional[UserRole] = UserRole.analyst
     department: Optional[str] = None
     is_active: Optional[bool] = True
+    manager_id: Optional[UUID] = None
+    is_acting_admin: Optional[int] = 0
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):

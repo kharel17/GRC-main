@@ -1,6 +1,7 @@
+from pydantic import BaseModel
 from .token import Token, TokenPayload, Message
 from .user import User, UserCreate, UserUpdate
-from .risk import Risk, RiskCreate, RiskUpdate, RiskCategory, RiskCategoryCreate
+from .risk import Risk, RiskCreate, RiskUpdate, RiskCategory, RiskCategoryCreate, RiskControlMappingOut, RiskControlMappingCreate
 from .control import Control, ControlCreate, ControlUpdate
 from .compliance import ComplianceItem, ComplianceItemCreate, ComplianceItemUpdate
 from .evidence import Evidence, EvidenceCreate, EvidenceUpdate, EvidenceStatusUpdate

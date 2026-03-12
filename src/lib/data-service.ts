@@ -189,6 +189,10 @@ export async function markAllRead(): Promise<void> {
 }
 
 // -- Users --────────
+export async function fetchCurrentUserProfile(): Promise<any> {
+  return api.get<any>('/auth/me');
+}
+
 export async function fetchUsers(): Promise<any[]> {
   try {
     return await api.get<any[]>('/users/');

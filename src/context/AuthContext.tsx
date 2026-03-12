@@ -5,6 +5,7 @@ import { UserRole } from '@/types/user';
 import { AuthUser, canAccessRoute } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
+import { fetchCurrentUserProfile } from '@/lib/data-service';
 
 const IS_DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
 
@@ -44,8 +45,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Helper to map Supabase user to our AuthUser type
   const mapSupabaseUser = (supabaseUser: any): AuthUser => {
-    // Default to 'analyst' if no role is explicitly set in metadata
-    const role = (supabaseUser.user_metadata?.role as UserRole) || 'analyst';
+    // Default to 'admin' if no role is explicitly set in metadata
+    const role = (supabaseUser.user_metadata?.role as UserRole) || 'admin';
     return {
       id: supabaseUser.id,
       email: supabaseUser.email || '',
@@ -69,7 +70,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
             email: initialSession.user.email,
           });
           setSession(initialSession);
-          setUser(mapSupabaseUser(initialSession.user));
+          
+          // Fetch real profile from backend to get the correct role
+          try {
+            const profile = await fetchCurrentUserProfile();
+            console.log('[Auth] Backend profile found:', profile);
+            setUser({
+              id: profile.id,
+              email: profile.email,
+              role: profile.role,
+            });
+          } catch (profileErr) {
+            console.warn('[Auth] Could not fetch backend profile, falling back to Supabase metadata', profileErr);
+            setUser(mapSupabaseUser(initialSession.user));
+          }
         } else if (!initialSession) {
           console.log('[Auth] No initial session found');
         }
@@ -103,7 +117,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
             id: currentSession.user.id,
             email: currentSession.user.email,
           });
-          setUser(mapSupabaseUser(currentSession.user));
+          
+          // Prefer backend profile for correct roles
+          try {
+            const profile = await fetchCurrentUserProfile();
+            setUser({
+              id: profile.id,
+              email: profile.email,
+              role: profile.role,
+            });
+          } catch (profileErr) {
+            console.warn('[Auth] Auth change profile fetch failed, using metadata', profileErr);
+            setUser(mapSupabaseUser(currentSession.user));
+          }
         } else {
           console.log('[Auth] Clearing user');
           setUser(null);

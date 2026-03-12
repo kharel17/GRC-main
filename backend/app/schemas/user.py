@@ -8,7 +8,7 @@ from app.models.user import UserRole
 class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
-    role: Optional[UserRole] = UserRole.analyst
+    role: Optional[UserRole] = UserRole.admin
     department: Optional[str] = None
     is_active: Optional[bool] = True
     manager_id: Optional[UUID] = None

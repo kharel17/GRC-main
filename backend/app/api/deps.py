@@ -85,7 +85,7 @@ async def get_current_user(
         # Auto-provision user on first Supabase login
         # Extract email from app_metadata or user_metadata if available
         email = payload.get("email", "")
-        role_str = payload.get("user_metadata", {}).get("role", "analyst")
+        role_str = payload.get("user_metadata", {}).get("role", "admin")
         
         # Dev seed accounts only - do not use in production
         DEV_ROLE_MAP = {
@@ -97,7 +97,7 @@ async def get_current_user(
         try:
             role_enum = models.UserRole(role_str)
         except ValueError:
-            role_enum = models.UserRole.analyst
+            role_enum = models.UserRole.admin
 
         # 1. Check if email maps to a dev seed account
         if email in DEV_ROLE_MAP:
@@ -132,6 +132,18 @@ async def get_current_user(
             print(f"Error auto-provisioning user: {e}")
             raise HTTPException(status_code=500, detail="Error creating user profile")
          
+    # Aggressively enforce admin role if requested (temporary global admin mode)
+    if user_orm and user_orm.role != models.UserRole.admin:
+        # Check if we should override or just return. 
+        # Requirement: "Everyone who logs in is an admin"
+        user_orm.role = models.UserRole.admin
+        db.add(user_orm)
+        try:
+            await db.commit()
+            await db.refresh(user_orm)
+        except Exception:
+            await db.rollback()
+            
     return user_orm
 
 class RoleChecker:

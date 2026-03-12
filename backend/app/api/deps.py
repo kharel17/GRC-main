@@ -43,36 +43,65 @@ async def get_current_user(
         # Broaden algorithms to ensure ES256 (Supabase default) is always allowed
         allowed_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256"]
         
+        # Try decoding with Supabase secret first (most flexible way)
+        payload = None
+        
+        # 1. Step: Try Supabase Secret with explicitly forced HS256 (Supabase default symmetric)
+        # This avoids PEM framing errors triggered by cryptography backend for ES256
         try:
-            # Attempt 1: Decode with Supabase JWT Secret
-            # Note: For Supabase, even if 'alg' is ES256, it's often verifiable with the secret as HS256
-            # We try decoding it normally first.
             payload = jwt.decode(
-                token, 
-                settings.SUPABASE_JWT_SECRET, 
-                algorithms=["HS256", "ES256"], # Try both
+                token,
+                settings.SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
                 options={"verify_aud": False}
             )
-        except JWTError as e:
-            # If standard decode fails (like PEM framing errors), try forcing it as HS256 
-            # some Supabase setups use the secret as a symmetric key even for ES256 headers
+        except JWTError:
+            # 2. Step: Try with the provided algorithm in the header if it wasn't HS256
+            if alg != "HS256":
+                try:
+                    # If it's ES256, we try parsing with potential PEM wrapping
+                    # but only if standard decode fails
+                    key = settings.SUPABASE_JWT_SECRET
+                    if alg == "ES256" and not key.startswith("-----BEGIN"):
+                        formatted_key = f"-----BEGIN PUBLIC KEY-----\n{key}\n-----END PUBLIC KEY-----"
+                        try:
+                            payload = jwt.decode(
+                                token,
+                                formatted_key,
+                                algorithms=["ES256"],
+                                options={"verify_aud": False}
+                            )
+                        except JWTError:
+                            # If PEM wrapping failed, try the raw key as ES256 (unlikely but possible)
+                            payload = jwt.decode(
+                                token,
+                                key,
+                                algorithms=["ES256"],
+                                options={"verify_aud": False}
+                            )
+                    else:
+                        payload = jwt.decode(
+                            token,
+                            key,
+                            algorithms=[alg],
+                            options={"verify_aud": False}
+                        )
+                except JWTError as e:
+                    logger.warning(f"Supabase specific alg {alg} decode failed: {e}")
+        
+        # 3. Step: Final fallback to internal SECRET_KEY
+        if not payload:
+            logger.warning("Supabase decode failed all stages. Trying internal secret...")
             try:
-                logger.warning(f"Standard decode failed ({e}), trying forced HS256...")
-                payload = jwt.decode(
-                    token,
-                    settings.SUPABASE_JWT_SECRET,
-                    algorithms=["HS256"],
-                    options={"verify_aud": False}
-                )
-            except JWTError:
-                # Attempt 2: Fallback to internal SECRET_KEY
-                logger.warning(f"Supabase JWT decode failed. Trying internal secret...")
                 payload = jwt.decode(
                     token,
                     settings.SECRET_KEY,
                     algorithms=allowed_algs,
                     options={"verify_aud": False}
                 )
+            except JWTError as e:
+                logger.error(f"Internal secret decode failed: {e}")
+                raise
             
         user_id = payload.get("sub")
         if not user_id:

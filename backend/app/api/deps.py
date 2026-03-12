@@ -1,6 +1,6 @@
-from typing import Generator, Optional
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from typing import Generator, Optional, List
+from fastapi import Depends, HTTPException, status, Request
+from fastapi.security import OAuth2PasswordBearer, APIKeyCookie
 from jose import jwt, JWTError
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,14 +8,12 @@ from app import models, schemas
 from app.config import settings
 from app.database import get_db
 import logging
-logger = logging.getLogger("grc.deps")
 
-from fastapi.security import APIKeyCookie, OAuth2PasswordBearer
-from fastapi import Request
+logger = logging.getLogger("grc.deps")
 
 # Support both cookie and Bearer header auth
 reusable_oauth2_cookie = APIKeyCookie(name="access_token", auto_error=False)
-reusable_oauth2_header = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login", auto_error=False)
+reusable_oauth2_header = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 
 async def get_current_user(
     request: Request,
@@ -23,30 +21,30 @@ async def get_current_user(
     cookie_token: str = Depends(reusable_oauth2_cookie),
     header_token: str = Depends(reusable_oauth2_header),
 ) -> models.User:
-    # Try Bearer header first, then fall back to cookie
+    """
+    Validates the JWT token from header or cookie and returns the user.
+    Auto-provisions users from Supabase if they don't exist locally.
+    """
     token = header_token or cookie_token
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
-    # Debug: strip Bearer if improperly passed (unlikely but safe)
+
     if token.startswith("Bearer "):
         token = token[7:].strip()
         
     try:
-        # Debug: extract header to see what's in there
+        # Extract header for debugging
+        header = jwt.get_unverified_header(token)
+        alg = header.get("alg", "HS256")
+        
+        # Broaden algorithms to ensure ES256 (Supabase default) is always allowed
+        allowed_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256"]
+        
         try:
-            from jose import jwt as jose_jwt
-            header = jose_jwt.get_unverified_header(token)
-            logger.info(f"JWT Header: {header}")
-        except Exception as e:
-            logger.warning(f"Could not extract token header: {e}")
-            
-        # Try decoding with Supabase secret first
-        try:
-            # Broaden algorithms to avoid "alg not allowed" errors
-            allowed_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256"]
+            # Attempt 1: Decode with Supabase JWT Secret
             payload = jwt.decode(
                 token, 
                 settings.SUPABASE_JWT_SECRET, 
@@ -54,25 +52,21 @@ async def get_current_user(
                 options={"verify_aud": False}
             )
         except JWTError as e:
-            # Fallback: Try with app's internal SECRET_KEY
-            logger.info(f"Supabase decode failed ({e}), trying internal secret...")
+            # Attempt 2: Fallback to internal SECRET_KEY
+            logger.warning(f"Supabase JWT decode failed: {e}. Trying internal secret...")
             payload = jwt.decode(
                 token,
                 settings.SECRET_KEY,
-                algorithms=["HS256"],
+                algorithms=allowed_algs,
                 options={"verify_aud": False}
             )
-        
+            
         user_id = payload.get("sub")
         if not user_id:
-            logger.error("Token structure invalid: no 'sub' claim")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token structure",
-            )
+            raise ValueError("Token missing 'sub' claim")
             
-    except (JWTError, ValidationError) as e:
-        logger.error(f"Token validation error: {e}")
+    except Exception as e:
+        logger.error(f"JWT Validation Error: {type(e).__name__}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Could not validate credentials: {str(e)}",

@@ -121,6 +121,9 @@ class TicketUpdate(BaseModel):
 class TicketResolution(BaseModel):
     resolution_notes: str
 
+class EvidenceRequest(BaseModel):
+    comment_text: str
+
 class TicketInDBBase(TicketBase):
     id: UUID
     created_at: datetime

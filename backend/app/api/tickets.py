@@ -178,6 +178,24 @@ async def resolve_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
     return ticket
 
+@router.post("/{id}/request-evidence", response_model=schemas.Ticket)
+async def request_evidence(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: UUID,
+    evidence_in: schemas.EvidenceRequest,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Request evidence for a ticket (Sets status to PENDING_EVIDENCE).
+    """
+    return await TicketService.set_pending_evidence(
+        db=db,
+        ticket_id=id,
+        current_user=current_user,
+        comment_text=evidence_in.comment_text
+    )
+
 @router.post("/{id}/comments", response_model=schemas.TicketComment)
 async def create_ticket_comment(
     *,

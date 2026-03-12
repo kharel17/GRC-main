@@ -112,12 +112,12 @@ class TicketService:
             title=f"AI Finding: {iso_clause} - {'REPEAT' if is_repeat else 'NEW'}",
             description=finding_text,
             priority=priority,
-            status=TicketStatus.open,
             category=models.ticket.TicketCategory.security_incident,
-            source_audit_log_id=source_audit_log_id or uuid.uuid4(), # Should be mandatory really
+            source_audit_log_id=source_audit_log_id or uuid.uuid4(),
             assigned_to_id=assigned_to.id if assigned_to else current_user_id,
             assigned_to_role=assigned_to.role.value if assigned_to else "analyst",
             due_date=datetime.utcnow() + timedelta(hours=sla_hours),
+            status_updated_at=datetime.utcnow(),
             is_repeat_finding=is_repeat,
             iso_clause=iso_clause,
             risk_score=risk_score,
@@ -340,6 +340,7 @@ class TicketService:
                 activity_type = TicketActivityType.other
                 if field == "status":
                     activity_type = TicketActivityType.status_change
+                    ticket.status_updated_at = datetime.utcnow()
                 elif field == "priority":
                     activity_type = TicketActivityType.priority_change
                 elif field == "assigned_to_id":
@@ -385,12 +386,13 @@ class TicketService:
         if not await TicketService.validate_action_permissions(db, ticket, user, "escalate"):
             raise PermissionError("You do not have permission to escalate this ticket")
 
-        # Manual Escalation Guards (Spec Section 4)
-        if ticket.is_auto_escalation_enabled:
-             raise ValueError("Disable auto-escalation toggle first")
-        
-        if not reason or len(reason) < 10:
-             raise ValueError("Reason must be at least 10 characters")
+        # Manual Escalation Guards (Spec Section 4) - Bypass for System Auto-Escalation
+        if current_user_id is not None:
+             if ticket.is_auto_escalation_enabled:
+                  raise ValueError("Disable auto-escalation toggle first")
+             
+             if not reason or len(reason) < 10:
+                  raise ValueError("Reason must be at least 10 characters")
              
         # Check if assignee is already L1
         assignee_role = ticket.assigned_to_role
@@ -399,6 +401,7 @@ class TicketService:
 
         old_id = ticket.assigned_to_id
         ticket.status = TicketStatus.escalated
+        ticket.status_updated_at = datetime.utcnow()
         ticket.escalated_to_id = escalated_to_id
         ticket.escalation_level += 1
         ticket.escalated_at = datetime.utcnow()
@@ -453,6 +456,7 @@ class TicketService:
             raise PermissionError("You do not have permission to resolve this ticket")
 
         ticket.status = TicketStatus.resolved
+        ticket.status_updated_at = datetime.utcnow()
         ticket.resolved_at = datetime.utcnow()
         
         # Log activity
@@ -511,86 +515,94 @@ class TicketService:
                 TicketStatus.in_review, 
                 TicketStatus.escalated, 
                 TicketStatus.pending_evidence,
-                TicketStatus.pending_l2_review
+                TicketStatus.pending_l2_review,
+                TicketStatus.pending_l1_signoff,
+                TicketStatus.rejected
             ]))
             .where(models.Ticket.is_auto_escalation_enabled == True)
         )
         all_potential_overdue = result.scalars().all()
         
         for ticket in all_potential_overdue:
-            is_overdue = False
-            
-            # Special logic for PENDING_EVIDENCE: 72h from status_updated_at
-            if ticket.status == TicketStatus.pending_evidence:
-                if ticket.status_updated_at and (now - ticket.status_updated_at) > timedelta(hours=72):
-                    is_overdue = True
-            else:
-                # Standard SLA logic
-                if ticket.due_date and ticket.due_date < now:
-                    is_overdue = True
-            
-            if not is_overdue:
-                continue
-
-            assignee_result = await db.execute(
-                select(models.User).where(models.User.id == ticket.assigned_to_id)
-            )
-            assignee = assignee_result.scalars().first()
-            
-            if not assignee:
-                continue
-
-            # Section 4 Logic: L1 Hard Stop (Including Acting Admin)
-            if assignee.role == models.UserRole.admin or assignee.is_acting_admin == 1:
-                # Mark OVERDUE (Audit: OVERDUE_AT_ADMIN), notify Admin. Do not reassign.
-                sla_activity = models.TicketActivity(
-                    ticket_id=ticket.id,
-                    user_id=None,
-                    activity_type=TicketActivityType.sla_missed,
-                    description=f"OVERDUE_AT_L1: SLA missed at {ticket.due_date if ticket.status != TicketStatus.pending_evidence else '72h timeout'}. Assignee is L1/Acting Admin (Final Authority)."
-                )
-                db.add(sla_activity)
+            try:
+                is_overdue = False
                 
-                # Notify Admin for Hard Stop
-                await NotificationService.create_notification(
-                    db=db,
-                    user_id=assignee.id,
-                    message=f"Critical: Ticket {ticket.id} is OVERDUE at L1 level.",
-                    type="OVERDUE_CRITICAL",
-                    ticket_id=ticket.id
-                )
-                continue
-
-            # Supervisor Fallback
-            supervisor_id = await TicketService.get_supervisor(db, assignee)
-            
-            if supervisor_id:
-                # Reassign: Set status ESCALATED, write AUTO_ESCALATED to audit
-                await TicketService.escalate_ticket(
-                    db=db,
-                    ticket_id=ticket.id,
-                    escalated_to_id=supervisor_id,
-                    current_user_id=None, # System action
-                    reason="AUTO_ESCALATED due to SLA miss"
-                )
+                # Special logic for PENDING_EVIDENCE: 72h from status_updated_at
+                if ticket.status == TicketStatus.pending_evidence:
+                    if ticket.status_updated_at and (now - ticket.status_updated_at) > timedelta(hours=72):
+                        is_overdue = True
+                else:
+                    # Standard SLA logic
+                    if ticket.due_date and ticket.due_date < now:
+                        is_overdue = True
                 
-                # Also log SLA miss specifically
-                sla_activity = models.TicketActivity(
-                    ticket_id=ticket.id,
-                    user_id=None,
-                    activity_type=TicketActivityType.sla_missed,
-                    description=f"SLA missed at {ticket.due_date}. Auto-escalated to supervisor {supervisor_id}."
+                if not is_overdue:
+                    continue
+
+                assignee_result = await db.execute(
+                    select(models.User).where(models.User.id == ticket.assigned_to_id)
                 )
-                db.add(sla_activity)
-            else:
-                # Fallback if no supervisor found at all
-                sla_activity = models.TicketActivity(
-                    ticket_id=ticket.id,
-                    user_id=None,
-                    activity_type=TicketActivityType.sla_missed,
-                    description=f"SLA missed at {ticket.due_date} but no supervisor target found."
-                )
-                db.add(sla_activity)
+                assignee = assignee_result.scalars().first()
+                
+                if not assignee:
+                    continue
+
+                # Section 4 Logic: L1 Hard Stop (Including Acting Admin)
+                if assignee.role == models.UserRole.admin or assignee.is_acting_admin == 1:
+                    # Mark OVERDUE (Audit: OVERDUE_AT_ADMIN), notify Admin. Do not reassign.
+                    sla_activity = models.TicketActivity(
+                        ticket_id=ticket.id,
+                        user_id=None,
+                        activity_type=TicketActivityType.sla_missed,
+                        description=f"OVERDUE_AT_L1: SLA missed at {ticket.due_date if ticket.status != TicketStatus.pending_evidence else '72h timeout'}. Assignee is L1/Acting Admin (Final Authority)."
+                    )
+                    db.add(sla_activity)
+                    
+                    # Notify Admin for Hard Stop
+                    await NotificationService.create_notification(
+                        db=db,
+                        user_id=assignee.id,
+                        message=f"Critical: Ticket {ticket.id} is OVERDUE at L1 level.",
+                        type="OVERDUE_CRITICAL",
+                        ticket_id=ticket.id
+                    )
+                    continue
+
+                # Supervisor Fallback
+                supervisor_id = await TicketService.get_supervisor(db, assignee)
+                
+                if supervisor_id:
+                    # Reassign: Set status ESCALATED, write AUTO_ESCALATED to audit
+                    await TicketService.escalate_ticket(
+                        db=db,
+                        ticket_id=ticket.id,
+                        escalated_to_id=supervisor_id,
+                        current_user_id=None, # System action
+                        reason="AUTO_ESCALATED due to SLA miss"
+                    )
+                    
+                    # Also log SLA miss specifically
+                    sla_activity = models.TicketActivity(
+                        ticket_id=ticket.id,
+                        user_id=None,
+                        activity_type=TicketActivityType.sla_missed,
+                        description=f"SLA missed at {ticket.due_date}. Auto-escalated to supervisor {supervisor_id}."
+                    )
+                    db.add(sla_activity)
+                else:
+                    # Fallback if no supervisor found at all
+                    sla_activity = models.TicketActivity(
+                        ticket_id=ticket.id,
+                        user_id=None,
+                        activity_type=TicketActivityType.sla_missed,
+                        description=f"SLA missed at {ticket.due_date} but no supervisor target found."
+                    )
+                    db.add(sla_activity)
+            except Exception as e:
+                # Log error for this specific ticket and continue to next
+                from app.worker import logger
+                logger.error(f"Failed to process SLA for ticket {ticket.id}: {e}")
+                continue
         
         if all_potential_overdue:
             await db.commit()

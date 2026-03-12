@@ -46,7 +46,7 @@ async def get_current_user(
         # Try decoding with Supabase secret first
         try:
             # Broaden algorithms to avoid "alg not allowed" errors
-            allowed_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"]
+            allowed_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256"]
             payload = jwt.decode(
                 token, 
                 settings.SUPABASE_JWT_SECRET, 

@@ -5,3 +5,6 @@ export * from './audit';
 export * from './evidence';
 export * from './compliance';
 export * from './ticket';
+export * from './organization';
+export * from './asset';
+export * from './document-analysis';

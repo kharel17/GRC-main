@@ -18,6 +18,9 @@ import {
   mockEvidence,
   mockAuditLogs,
   mockTickets,
+  mockOrganization,
+  mockAssets,
+  mockDocumentAnalyses,
 } from './mock-data';
 import type { Risk, RiskCategory } from '@/types/risk';
 import type { Control } from '@/types/control';
@@ -25,6 +28,7 @@ import type { ComplianceItem } from '@/types/compliance';
 import type { Evidence } from '@/types/evidence';
 import type { AuditLog } from '@/types/audit';
 import type { Ticket } from '@/types/ticket';
+import { Organization, Asset, DocumentAnalysis } from '@/types';
 
 // -- Helper --────────
 async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
@@ -203,4 +207,23 @@ export async function createUser(data: {
   is_acting_admin?: number;
 }): Promise<any> {
   return api.post<any>('/users/', data);
+}
+
+// -- Organization --────────
+export async function fetchOrganization(): Promise<Organization | undefined> {
+  return fetchOrFallback<Organization | undefined>('/organizations/', mockOrganization);
+}
+
+// -- Assets --────────
+export async function fetchAssets(): Promise<Asset[]> {
+  return fetchOrFallback<Asset[]>('/assets/', mockAssets);
+}
+
+// -- Document Analysis --────────
+export async function fetchDocumentAnalyses(): Promise<DocumentAnalysis[]> {
+  return fetchOrFallback<DocumentAnalysis[]>('/document-analysis/', mockDocumentAnalyses);
+}
+
+export async function submitDocumentForAnalysis(file: File): Promise<DocumentAnalysis> {
+  return api.upload<DocumentAnalysis>('/document-analysis/upload', file);
 }

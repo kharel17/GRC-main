@@ -11,6 +11,7 @@ export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
   risk_owner: 'Risk Owner',
   compliance_officer: 'Compliance Officer',
   department_manager: 'Department Manager',
+  manager: 'Manager',
   executive: 'Executive (CISO/CTO)',
   auditor: 'Auditor',
 };
@@ -86,6 +87,15 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'approve_actions',
   ],
   department_manager: [
+    'view_all_data',
+    'approve_actions',
+    'view_audit_logs',
+    'export_reports',
+    'create_ticket',
+    'escalate_ticket',
+    'resolve_ticket',
+  ],
+  manager: [
     'view_all_data',
     'approve_actions',
     'view_audit_logs',

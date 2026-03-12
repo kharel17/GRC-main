@@ -34,6 +34,8 @@ class Risk(Base):
     risk_score = Column(Integer, nullable=False)
     status = Column(SAEnum(RiskStatus), default=RiskStatus.identified)
     
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     
@@ -41,6 +43,7 @@ class Risk(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    organization = relationship("Organization", foreign_keys=[organization_id])
     category = relationship("RiskCategory", back_populates="risks")
     owner = relationship("User", foreign_keys=[owner_id], back_populates="risks_owned")
     creator = relationship("User", foreign_keys=[created_by], back_populates="risks_created")

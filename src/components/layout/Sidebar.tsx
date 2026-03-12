@@ -16,6 +16,11 @@ import {
   Users,
   ShieldCheck,
   Ticket,
+  Building2,
+  Boxes,
+  Microscope,
+  PieChart,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -42,6 +47,18 @@ const NAV_ITEMS: NavItem[] = [
     roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
   },
   { 
+    href: '/dashboard/organization', 
+    label: 'Organization', 
+    icon: Building2, 
+    roles: ['admin', 'compliance_officer', 'department_manager', 'executive'] 
+  },
+  { 
+    href: '/dashboard/assets', 
+    label: 'Assets', 
+    icon: Boxes, 
+    roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'auditor'] 
+  },
+  { 
     href: '/dashboard/risks', 
     label: 'Risks', 
     icon: AlertTriangle, 
@@ -54,16 +71,34 @@ const NAV_ITEMS: NavItem[] = [
     roles: ['admin', 'analyst', 'control_owner', 'compliance_officer', 'auditor'] 
   },
   { 
+    href: '/dashboard/iso27001', 
+    label: 'ISO 27001', 
+    icon: ShieldCheck, 
+    roles: ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
+  },
+  { 
     href: '/dashboard/evidence', 
     label: 'Evidence', 
     icon: FileText, 
     roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'auditor'] 
   },
   { 
-    href: '/dashboard/audits', 
-    label: 'Audit Log', 
-    icon: Clock, 
-    roles: ['admin', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
+    href: '/dashboard/document-analysis', 
+    label: 'Doc Analysis', 
+    icon: Microscope, 
+    roles: ['admin', 'analyst', 'compliance_officer'] 
+  },
+  { 
+    href: '/dashboard/gap-analysis', 
+    label: 'Gap Analysis', 
+    icon: PieChart, 
+    roles: ['admin', 'analyst', 'compliance_officer', 'executive'] 
+  },
+  { 
+    href: '/dashboard/audit-preparation', 
+    label: 'Audit Prep', 
+    icon: ClipboardCheck, 
+    roles: ['admin', 'compliance_officer', 'auditor'] 
   },
   { 
     href: '/dashboard/tickets', 
@@ -72,15 +107,15 @@ const NAV_ITEMS: NavItem[] = [
     roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
   },
   { 
+    href: '/dashboard/audits', 
+    label: 'Audit Log', 
+    icon: Clock, 
+    roles: ['admin', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
+  },
+  { 
     href: '/dashboard/reports', 
     label: 'Reports', 
     icon: CheckCircle2, 
-    roles: ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
-  },
-  { 
-    href: '/dashboard/iso27001', 
-    label: 'ISO 27001', 
-    icon: ShieldCheck, 
     roles: ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
   },
 ];

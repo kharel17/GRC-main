@@ -14,11 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app import models
-from app.api import deps
-from app.services.gap_analysis_service import generate_gap_report
-
-import json
-from pathlib import Path
+from app.services import audit_service
+from fastapi.responses import Response
 
 router = APIRouter()
 
@@ -290,4 +287,43 @@ async def get_compliance_report(
         not_applicable=counters["not_applicable"],
         gap_summary=gap_summary,
         by_clause=clause_list,
+    )
+
+
+@router.get("/readiness")
+async def get_readiness(
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Get weighted readiness score using audit service."""
+    # Find organization singleton
+    result = await db.execute(select(models.Organization).limit(1))
+    org = result.scalars().first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    return await audit_service.get_readiness_score(db, org.id)
+
+
+@router.get("/export")
+async def export_report(
+    format: str = Query("pdf", description="Export format (pdf or csv)"),
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Export ISO 27001 readiness report as PDF or CSV."""
+    result = await db.execute(select(models.Organization).limit(1))
+    org = result.scalars().first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    report_bytes = await audit_service.export_audit_report(db, org.id, format=format)
+    
+    media_type = "application/pdf" if format == "pdf" else "text/csv"
+    filename = f"ISO27001_Readiness_{org.name.replace(' ', '_')}.{format}"
+    
+    return Response(
+        content=report_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )

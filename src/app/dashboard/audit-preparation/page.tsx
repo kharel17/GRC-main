@@ -1,18 +1,44 @@
 "use client";
 
+import { useState } from "react";
 import { useApiData } from "@/hooks/use-api-data";
-import { fetchComplianceItems, fetchEvidence } from "@/lib/data-service";
+import { fetchComplianceItems, fetchEvidence, fetchOrganization, exportAuditReport } from "@/lib/data-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardCheck, ShieldCheck, FileText, CheckCircle2, Circle, AlertCircle, Loader2 } from "lucide-react";
+import { ClipboardCheck, ShieldCheck, FileText, CheckCircle2, Circle, AlertCircle, Loader2, Download } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export default function AuditPreparationPage() {
   const { data: compliance, loading: compLoading } = useApiData(fetchComplianceItems);
   const { data: evidence, loading: evLoading } = useApiData(fetchEvidence);
+  const { data: org, loading: orgLoading } = useApiData(fetchOrganization);
+  
+  const [downloading, setDownloading] = useState(false);
 
-  const loading = compLoading || evLoading;
+  const loading = compLoading || evLoading || orgLoading;
+
+  const handleDownloadReport = async () => {
+    if (!org?.id) return;
+    setDownloading(true);
+    try {
+      const blob = await exportAuditReport(org.id, 'pdf');
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Audit_Report_${org.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("Audit report downloaded successfully");
+    } catch (error) {
+      toast.error("Failed to download audit report");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -25,8 +51,8 @@ export default function AuditPreparationPage() {
 
   // Calculate readiness
   const totalItems = compliance?.length || 0;
-  const verifiedEvidenceCount = evidence?.filter(e => e.verified).length || 0;
-  const itemsWithEvidence = compliance?.filter(c => c.evidenceCount && c.evidenceCount > 0).length || 0;
+  const verifiedEvidenceCount = evidence?.filter((e: any) => e.verified).length || 0;
+  const itemsWithEvidence = compliance?.filter((c: any) => c.evidenceCount && c.evidenceCount > 0).length || 0;
   const readiness = totalItems > 0 ? Math.round((itemsWithEvidence / totalItems) * 100) : 0;
 
   return (
@@ -36,11 +62,21 @@ export default function AuditPreparationPage() {
           <h1 className="text-2xl font-bold tracking-tight">Audit Preparation</h1>
           <p className="text-muted-foreground text-sm">Inventory of evidence and control status for external audit readiness.</p>
         </div>
-        <div className="text-right hidden md:block">
-          <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Audit Readiness</p>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-primary">{readiness}%</span>
-            <Progress value={readiness} className="w-40 h-2" />
+        <div className="flex flex-col items-end gap-3">
+          <Button 
+            onClick={handleDownloadReport} 
+            disabled={downloading || !org}
+            className="gap-2"
+          >
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Download Audit Report (PDF)
+          </Button>
+          <div className="text-right hidden md:block">
+            <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Audit Readiness</p>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold text-primary">{readiness}%</span>
+              <Progress value={readiness} className="w-40 h-2" />
+            </div>
           </div>
         </div>
       </div>
@@ -65,7 +101,7 @@ export default function AuditPreparationPage() {
             <p className="text-xs text-muted-foreground mt-1">Ready for auditor inspection</p>
           </CardContent>
         </Card>
-
+ 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold uppercase text-muted-foreground">Missing Evidence</CardTitle>
@@ -97,7 +133,7 @@ export default function AuditPreparationPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {compliance?.map((item) => (
+              {compliance?.map((item: any) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-mono text-xs">{item.requirementId}</TableCell>
                   <TableCell>

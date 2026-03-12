@@ -14,6 +14,9 @@ class AssetType(str, enum.Enum):
     service = "service"
     personnel = "personnel"
     physical = "physical"
+    server = "server"
+    db = "db"
+    app = "app"
 
 
 class AssetClassification(str, enum.Enum):
@@ -62,3 +65,10 @@ class Asset(Base):
     # Relationships
     organization = relationship("Organization", back_populates="assets")
     owner = relationship("User", foreign_keys=[owner_id])
+    
+    # Many-to-many with risks
+    related_risks = relationship(
+        "Risk",
+        secondary="asset_risk_mapping",
+        lazy="selectin"
+    )

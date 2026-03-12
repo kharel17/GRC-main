@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, field_validator
+from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime
 
@@ -7,7 +7,7 @@ from datetime import datetime
 class AssetCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    asset_type: str  # data, software, hardware, service, personnel, physical
+    asset_type: str  # data, software, hardware, service, personnel, physical, server, db, app
     classification: str = "internal"  # public, internal, confidential, restricted
     criticality: str = "medium"  # low, medium, high, critical
     location: Optional[str] = None
@@ -26,6 +26,10 @@ class AssetUpdate(BaseModel):
     owner_id: Optional[UUID] = None
 
 
+class AssetRiskLinkRequest(BaseModel):
+    risk_ids: List[UUID]
+
+
 class AssetResponse(BaseModel):
     id: UUID
     organization_id: UUID
@@ -37,7 +41,15 @@ class AssetResponse(BaseModel):
     location: Optional[str] = None
     status: str
     owner_id: UUID
+    related_risks: List[UUID] = []
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("related_risks", mode="before")
+    @classmethod
+    def extract_risk_ids(cls, v: Any) -> List[UUID]:
+        if isinstance(v, list) and v and not isinstance(v[0], UUID):
+            return [getattr(r, "id", r) for r in v]
+        return v
 
     model_config = {"from_attributes": True}

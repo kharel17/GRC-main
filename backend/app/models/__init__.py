@@ -3,6 +3,7 @@ from .user import User, UserRole
 from .auth import RefreshToken
 from .organization import Organization, OrganizationSize
 from .asset import Asset, AssetType, AssetClassification, AssetCriticality, AssetStatus
+from .asset_risk import AssetRiskMapping
 from .risk import Risk, RiskCategory, RiskStatus
 from .control import Control, ControlType, ControlEffectiveness, ControlStatus, RiskControlMapping
 from .compliance import ComplianceItem, ComplianceStatus, CompliancePriority

@@ -1,11 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useApiData } from "@/hooks/use-api-data";
-import { fetchAssets } from "@/lib/data-service";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { fetchAssets, fetchRisks, linkRiskToAsset, unlinkRiskFromAsset } from "@/lib/data-service";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Boxes, ShieldAlert, Database, Laptop, Server, HardDrive, Loader2 } from "lucide-react";
+import { Boxes, ShieldAlert, Database, Laptop, Server, HardDrive, Loader2, Link, Plus, X, Globe, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 import type { Asset, AssetType, AssetCriticality, AssetClassification } from "@/types";
 
 const AssetTypeIcon = ({ type }: { type: AssetType }) => {
@@ -13,7 +18,7 @@ const AssetTypeIcon = ({ type }: { type: AssetType }) => {
     case 'data': return <Database className="h-4 w-4" />;
     case 'software': return <Server className="h-4 w-4" />;
     case 'hardware': return <Laptop className="h-4 w-4" />;
-    case 'service': return <Globe className="h-4 w-4" />; // re-importing globe if needed or using fallback
+    case 'service': return <Globe className="h-4 w-4" />;
     default: return <HardDrive className="h-4 w-4" />;
   }
 };
@@ -29,7 +34,38 @@ const getCriticalityColor = (crit: AssetCriticality) => {
 };
 
 export default function AssetsPage() {
-  const { data: assets, loading } = useApiData(fetchAssets);
+  const { data: assets, loading, refetch: refetchAssets } = useApiData(fetchAssets);
+  const { data: risks } = useApiData(fetchRisks);
+  
+  const [isLinking, setIsLinking] = useState(false);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [selectedRiskId, setSelectedRiskId] = useState<string>("");
+  const [linking, setLinking] = useState(false);
+
+  const handleLinkRisk = async () => {
+    if (!selectedAssetId || !selectedRiskId) return;
+    setLinking(true);
+    try {
+      await linkRiskToAsset(selectedAssetId, selectedRiskId);
+      toast.success("Risk linked to asset successfully");
+      setIsLinking(false);
+      refetchAssets();
+    } catch (error) {
+      toast.error("Failed to link risk");
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const handleUnlinkRisk = async (assetId: string, riskId: string) => {
+    try {
+      await unlinkRiskFromAsset(assetId, riskId);
+      toast.success("Risk unlinked");
+      refetchAssets();
+    } catch (error) {
+      toast.error("Failed to unlink risk");
+    }
+  };
 
   if (loading) {
     return (
@@ -99,6 +135,8 @@ export default function AssetsPage() {
                 <TableHead>Criticality</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Linked Risks</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -132,11 +170,43 @@ export default function AssetsPage() {
                       {asset.status}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {asset.related_risks && asset.related_risks.length > 0 ? (
+                        asset.related_risks.map((riskId) => {
+                          const risk = risks?.find(r => r.id === riskId);
+                          return (
+                            <Badge key={riskId} variant="outline" className="text-[9px] gap-1 bg-amber-50 text-amber-700 border-amber-200 pr-1">
+                              {risk?.title || 'Unknown Risk'}
+                              <button onClick={() => handleUnlinkRisk(asset.id, riskId)} className="hover:text-red-600">
+                                <X className="h-2 w-2" />
+                              </button>
+                            </Badge>
+                          );
+                        })
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground italic">None</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0"
+                      onClick={() => {
+                        setSelectedAssetId(asset.id);
+                        setIsLinking(true);
+                      }}
+                    >
+                      <Link className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
               {(!assets || assets.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
                     No assets found in the register.
                   </TableCell>
                 </TableRow>
@@ -145,9 +215,48 @@ export default function AssetsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isLinking} onOpenChange={setIsLinking}>
+        <DialogContent className="sm:max-width-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Link Risk to Asset
+            </DialogTitle>
+            <DialogDescription>
+              Associate a known risk with this asset to inform compliance scoring.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Risk</label>
+              <Select value={selectedRiskId} onValueChange={setSelectedRiskId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a risk from the register..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {risks?.map((risk) => (
+                    <SelectItem key={risk.id} value={risk.id}>
+                      <span className="flex items-center gap-2 text-xs">
+                        <Badge variant="outline" className="text-[8px] uppercase">Score: {risk.riskScore}</Badge>
+                        {risk.title}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsLinking(false)}>Cancel</Button>
+            <Button onClick={handleLinkRisk} disabled={!selectedRiskId || linking}>
+              {linking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Link Risk
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-// Simple Globe mock if not imported from lucide-react above
-const Globe = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>;

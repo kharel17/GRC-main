@@ -8,6 +8,9 @@ export interface Organization {
   country?: string;
   complianceFrameworks: string[];
   primaryContactId?: string;
+  employee_count?: number;
+  risk_appetite?: Record<string, any>;
+  compliance_target_date?: string;
   createdAt: string;
   updatedAt: string;
 }

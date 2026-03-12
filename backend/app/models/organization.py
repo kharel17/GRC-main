@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum as SAEnum, Text
+from sqlalchemy import Column, String, DateTime, ForeignKey, Enum as SAEnum, Text, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
@@ -24,6 +24,13 @@ class Organization(Base):
     description = Column(Text, nullable=True)
     website = Column(String, nullable=True)
     country = Column(String, nullable=True)
+    employee_count = Column(Integer, nullable=True)
+    
+    # Detailed risk levels per risk type
+    risk_appetite = Column(JSONB, nullable=True)
+    
+    # Milestone for compliance
+    compliance_target_date = Column(DateTime, nullable=True)
 
     # Compliance frameworks the org is targeting (e.g. ["ISO 27001", "SOC2", "GDPR"])
     compliance_frameworks = Column(JSONB, default=list, nullable=False)

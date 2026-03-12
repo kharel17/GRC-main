@@ -59,6 +59,20 @@ async def update_organization(
     for field, value in update_data.items():
         setattr(org, field, value)
     
+    # Log the action
+    from app.services import audit_service
+    from app.models.audit_log import AuditAction, AuditEntityType
+    await audit_service.log_action(
+        db=db,
+        user=current_user,
+        action=AuditAction.updated,
+        entity_type=AuditEntityType.user, # Organization doesn't have its own type in AuditEntityType enum yet, using user or compliance
+        entity_id=org.id,
+        entity_name=org.name,
+        description="Updated organization profile and ISO context",
+        auto_commit=False
+    )
+
     db.add(org)
     await db.commit()
     await db.refresh(org)

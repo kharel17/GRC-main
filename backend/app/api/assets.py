@@ -115,3 +115,62 @@ async def decommission_asset(
     db.add(asset)
     await db.commit()
     return {"message": f"Asset '{asset.name}' has been decommissioned"}
+
+
+@router.post("/{asset_id}/risks", response_model=schemas.AssetResponse)
+async def link_risks_to_asset(
+    asset_id: str,
+    link_in: schemas.AssetRiskLinkRequest,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+) -> Any:
+    """Link one or more risks to an asset."""
+    from app.models.asset_risk import AssetRiskMapping
+    
+    result = await db.execute(select(models.Asset).where(models.Asset.id == asset_id))
+    asset = result.scalars().first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    # Simple implementation: insert into mapping table
+    for risk_id in link_in.risk_ids:
+        # Check if already exists
+        mapping_result = await db.execute(
+            select(AssetRiskMapping).where(
+                AssetRiskMapping.asset_id == asset.id,
+                AssetRiskMapping.risk_id == risk_id
+            )
+        )
+        if not mapping_result.scalars().first():
+            db.add(AssetRiskMapping(asset_id=asset.id, risk_id=risk_id))
+    
+    await db.commit()
+    await db.refresh(asset)
+    return asset
+
+
+@router.delete("/{asset_id}/risks/{risk_id}", response_model=schemas.AssetResponse)
+async def unlink_risk_from_asset(
+    asset_id: str,
+    risk_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+) -> Any:
+    """Unlink a risk from an asset."""
+    from app.models.asset_risk import AssetRiskMapping
+    from sqlalchemy import delete
+    
+    result = await db.execute(select(models.Asset).where(models.Asset.id == asset_id))
+    asset = result.scalars().first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    await db.execute(
+        delete(AssetRiskMapping).where(
+            AssetRiskMapping.asset_id == asset.id,
+            AssetRiskMapping.risk_id == risk_id
+        )
+    )
+    await db.commit()
+    await db.refresh(asset)
+    return asset

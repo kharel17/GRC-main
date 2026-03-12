@@ -13,7 +13,7 @@ from app.models import (
     User, Risk, RiskCategory, Control, RiskControlMapping, 
     ComplianceItem, Evidence, EvidenceControlMatch, 
     AuditLog, Ticket, TicketComment, RefreshToken,
-    Notification, TicketActivity
+    Notification, TicketActivity, Organization, Asset, AssetRiskMapping
 )
 
 config = context.config

@@ -89,17 +89,27 @@ class GapReport:
         }
 
 
-def _classify_severity(status: str, has_evidence: bool) -> str:
-    """Classify gap severity based on implementation status and evidence coverage."""
+def _classify_severity(status: str, has_evidence: bool, criticality_multiplier: float = 1.0) -> str:
+    """Classify gap severity based on implementation status, evidence, and asset criticality."""
+    # Base severity mapping
+    severity_order = ["low", "medium", "high", "critical"]
+    base_idx = 0
+
     if status == "not_started" and not has_evidence:
-        return "critical"
+        base_idx = 3 # critical
     elif status == "not_started" and has_evidence:
-        return "high"
+        base_idx = 2 # high
     elif status == "in_progress" and not has_evidence:
-        return "high"
+        base_idx = 2 # high
     elif status == "in_progress" and has_evidence:
-        return "medium"
-    return "low"
+        base_idx = 1 # medium
+    else:
+        base_idx = 0 # low
+
+    # Adjust based on criticality multiplier
+    # e.g. medium (1) * 1.5 -> high (2)
+    new_idx = min(int(base_idx * criticality_multiplier), 3)
+    return severity_order[new_idx]
 
 
 async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapReport:
@@ -157,7 +167,43 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
                 if annex:
                     implemented_by_docs.add(annex)
 
-    # 5. Build gap report
+    # 5. Get Assets and their risk mappings for criticality weighting
+    assets_result = await db.execute(
+        select(models.Asset)
+        .where(models.Asset.organization_id == organization_id)
+    )
+    assets_list = assets_result.scalars().all()
+    
+    # Criticality mapping
+    CRITICALITY_MAP = {
+        models.AssetCriticality.low: 1.0,
+        models.AssetCriticality.medium: 1.2,
+        models.AssetCriticality.high: 1.5,
+        models.AssetCriticality.critical: 2.0
+    }
+
+    # Map controls to their highest asset criticality
+    # For now, we look at risks associated with the control, then assets associated with the risk
+    control_criticality = {} # annex -> multiplier
+    
+    # Get all risk-control mappings to link annex IDs to assets
+    rc_result = await db.execute(
+        select(models.RiskControlMapping, models.Control.control_annex)
+        .join(models.Control, models.RiskControlMapping.control_id == models.Control.id)
+        .where(models.Control.organization_id == organization_id)
+    )
+    risk_controls = rc_result.all()
+    
+    for asset in assets_list:
+        multiplier = CRITICALITY_MAP.get(asset.criticality, 1.2)
+        # Find risks associated with this asset via related_risks relationship (loaded via selectin)
+        for risk in asset.related_risks:
+            # Find controls associated with this risk
+            for rc, annex in risk_controls:
+                if rc.risk_id == risk.id and annex:
+                    control_criticality[annex] = max(control_criticality.get(annex, 1.0), multiplier)
+
+    # 6. Build gap report
     gaps = []
     implemented_count = 0
     applicable_count = 0
@@ -182,7 +228,11 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
         in_doc_analysis = annex in implemented_by_docs
         best_score = ai_gaps.get(annex, 100.0 if has_evidence else 0.0)
         
-        severity = _classify_severity(status, has_evidence or in_doc_analysis)
+        severity = _classify_severity(
+            status, 
+            has_evidence or in_doc_analysis,
+            control_criticality.get(annex, 1.0)
+        )
         
         if status == "not_started":
             reason = "Control has not been started"

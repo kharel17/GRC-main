@@ -13,6 +13,9 @@ class OrganizationCreate(BaseModel):
     country: Optional[str] = None
     compliance_frameworks: List[str] = Field(default_factory=list)
     primary_contact_id: Optional[UUID] = None
+    employee_count: Optional[int] = None
+    risk_appetite: Optional[dict] = None
+    compliance_target_date: Optional[datetime] = None
 
 
 class OrganizationUpdate(BaseModel):
@@ -24,6 +27,9 @@ class OrganizationUpdate(BaseModel):
     country: Optional[str] = None
     compliance_frameworks: Optional[List[str]] = None
     primary_contact_id: Optional[UUID] = None
+    employee_count: Optional[int] = None
+    risk_appetite: Optional[dict] = None
+    compliance_target_date: Optional[datetime] = None
 
 
 class OrganizationResponse(BaseModel):
@@ -36,6 +42,9 @@ class OrganizationResponse(BaseModel):
     country: Optional[str] = None
     compliance_frameworks: List[str] = Field(default_factory=list)
     primary_contact_id: Optional[UUID] = None
+    employee_count: Optional[int] = None
+    risk_appetite: Optional[dict] = None
+    compliance_target_date: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

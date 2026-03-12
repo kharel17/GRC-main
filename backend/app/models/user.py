@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SAEnum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SAEnum, ForeignKey
 from sqlalchemy.orm import relationship
 from .base import Base
 import enum
@@ -25,6 +25,8 @@ class User(Base):
     token_version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_acting_admin = Column(Integer, server_default='0', default=0)
+    manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     # Relationships
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
@@ -32,3 +34,5 @@ class User(Base):
     risks_created = relationship("Risk", foreign_keys="Risk.created_by", back_populates="creator")
     tickets_assigned = relationship("Ticket", foreign_keys="Ticket.assigned_to_id", back_populates="assignee")
     audit_logs = relationship("AuditLog", back_populates="user")
+    
+    manager = relationship("User", remote_side=[id], backref="subordinates")

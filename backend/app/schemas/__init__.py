@@ -6,3 +6,4 @@ from .compliance import ComplianceItem, ComplianceItemCreate, ComplianceItemUpda
 from .evidence import Evidence, EvidenceCreate, EvidenceUpdate, EvidenceStatusUpdate
 from .audit_log import AuditLog, AuditLogCreate
 from .ticket import Ticket, TicketCreate, TicketUpdate, TicketComment, TicketCommentCreate
+from .notification import Notification, NotificationCreate

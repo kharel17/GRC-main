@@ -29,9 +29,54 @@ export const mockUsers: UserProfile[] = [
     id: 'user-3',
     email: 'carol@company.com',
     fullName: 'Carol Williams',
-    role: 'manager',
+    role: 'department_manager',
     department: 'Operations',
     createdAt: '2024-01-10',
+    updatedAt: '2024-01-28',
+  },
+  {
+    id: 'user-4',
+    email: 'david@company.com',
+    fullName: 'David Chen',
+    role: 'control_owner',
+    department: 'IT Security',
+    createdAt: '2024-01-12',
+    updatedAt: '2024-01-28',
+  },
+  {
+    id: 'user-5',
+    email: 'emma@company.com',
+    fullName: 'Emma Davis',
+    role: 'risk_owner',
+    department: 'Risk Management',
+    createdAt: '2024-01-14',
+    updatedAt: '2024-01-28',
+  },
+  {
+    id: 'user-6',
+    email: 'frank@company.com',
+    fullName: 'Frank Miller',
+    role: 'compliance_officer',
+    department: 'Compliance',
+    createdAt: '2024-01-15',
+    updatedAt: '2024-01-28',
+  },
+  {
+    id: 'user-7',
+    email: 'grace@company.com',
+    fullName: 'Grace Lee',
+    role: 'executive',
+    department: 'Executive',
+    createdAt: '2024-01-16',
+    updatedAt: '2024-01-28',
+  },
+  {
+    id: 'user-8',
+    email: 'henry@company.com',
+    fullName: 'Henry Wilson',
+    role: 'auditor',
+    department: 'Internal Audit',
+    createdAt: '2024-01-18',
     updatedAt: '2024-01-28',
   },
 ];
@@ -361,6 +406,36 @@ export const mockTickets: Ticket[] = [
     createdAt: '2024-01-28T11:00:00Z',
     updatedAt: '2024-01-29T09:00:00Z',
     escalatedAt: '2024-01-28T16:00:00Z',
+    dueDate: '2024-01-29T11:00:00Z',
+    ownerUserId: 'user-1',
+    escalationHistory: [
+      {
+        escalatedBy: 'user-2',
+        escalatedByRole: 'analyst',
+        escalatedTo: 'Alice Johnson',
+        escalatedToRole: 'compliance_officer',
+        level: 2,
+        timestamp: '2024-01-28T16:00:00Z',
+        note: 'Risk score is 15. Need compliance review.',
+      },
+      {
+        escalatedBy: 'user-1',
+        escalatedByRole: 'compliance_officer',
+        escalatedTo: 'Executive Team',
+        escalatedToRole: 'executive',
+        level: 3,
+        timestamp: '2024-01-29T09:00:00Z',
+        note: 'Requires CTO budget approval.',
+      }
+    ],
+    activityLog: [
+      {
+        action: 'created',
+        performedBy: 'user-2',
+        performedByRole: 'analyst',
+        timestamp: '2024-01-28T11:00:00Z',
+      }
+    ],
     comments: [
       {
         id: 'comment-1',
@@ -399,6 +474,16 @@ export const mockTickets: Ticket[] = [
     createdByName: 'Alice Johnson',
     createdAt: '2024-01-28T15:00:00Z',
     updatedAt: '2024-01-29T10:00:00Z',
+    dueDate: '2024-02-04T15:00:00Z',
+    ownerUserId: 'user-1',
+    activityLog: [
+      {
+        action: 'created',
+        performedBy: 'user-1',
+        performedByRole: 'compliance_officer',
+        timestamp: '2024-01-28T15:00:00Z',
+      }
+    ],
     comments: [
       {
         id: 'comment-3',
@@ -430,6 +515,24 @@ export const mockTickets: Ticket[] = [
     createdAt: '2024-01-22T09:00:00Z',
     updatedAt: '2024-01-25T16:00:00Z',
     resolvedAt: '2024-01-25T16:00:00Z',
+    dueDate: '2024-02-05T09:00:00Z',
+    ownerUserId: 'user-2',
+    resolutionNotes: 'Mitigation controls verified and redundancy active.',
+    activityLog: [
+      {
+        action: 'created',
+        performedBy: 'user-2',
+        performedByRole: 'analyst',
+        timestamp: '2024-01-22T09:00:00Z',
+      },
+      {
+        action: 'resolved',
+        performedBy: 'user-3',
+        performedByRole: 'department_manager',
+        timestamp: '2024-01-25T16:00:00Z',
+        details: 'Mitigation controls verified and redundancy active.',
+      }
+    ],
     comments: [
       {
         id: 'comment-4',
@@ -466,6 +569,8 @@ export const mockTickets: Ticket[] = [
     createdByName: 'Bob Smith',
     createdAt: '2024-01-28T09:30:00Z',
     updatedAt: '2024-01-28T09:30:00Z',
+    dueDate: '2024-02-04T09:30:00Z',
+    ownerUserId: 'user-3',
     comments: [
       {
         id: 'comment-6',
@@ -499,6 +604,19 @@ export const mockTickets: Ticket[] = [
     createdAt: '2024-01-29T08:00:00Z',
     updatedAt: '2024-01-29T11:00:00Z',
     escalatedAt: '2024-01-29T09:30:00Z',
+    dueDate: '2024-01-30T08:00:00Z',
+    ownerUserId: 'user-7',
+    escalationHistory: [
+      {
+        escalatedBy: 'user-2',
+        escalatedByRole: 'analyst',
+        escalatedTo: 'CEO',
+        escalatedToRole: 'executive',
+        level: 4,
+        timestamp: '2024-01-29T09:30:00Z',
+        note: 'Breach detected. Automatical escalation to executive team.',
+      }
+    ],
     comments: [
       {
         id: 'comment-7',
@@ -537,6 +655,8 @@ export const mockTickets: Ticket[] = [
     createdByName: 'Alice Johnson',
     createdAt: '2024-01-26T14:00:00Z',
     updatedAt: '2024-01-28T10:00:00Z',
+    dueDate: '2024-02-02T14:00:00Z',
+    ownerUserId: 'user-3',
     comments: [
       {
         id: 'comment-9',
@@ -565,6 +685,16 @@ export const mockTickets: Ticket[] = [
     createdByName: 'Alice Johnson',
     createdAt: '2024-01-29T07:00:00Z',
     updatedAt: '2024-01-29T07:00:00Z',
+    dueDate: '2024-02-01T07:00:00Z',
+    ownerUserId: 'user-2',
+    activityLog: [
+      {
+        action: 'created',
+        performedBy: 'user-1',
+        performedByRole: 'compliance_officer',
+        timestamp: '2024-01-29T07:00:00Z',
+      }
+    ],
     comments: [],
   },
   {
@@ -590,6 +720,24 @@ export const mockTickets: Ticket[] = [
     updatedAt: '2024-01-28T17:00:00Z',
     resolvedAt: '2024-01-27T14:00:00Z',
     escalatedAt: '2024-01-22T11:00:00Z',
+    dueDate: '2024-01-27T10:00:00Z',
+    ownerUserId: 'user-3',
+    resolutionNotes: 'Cross-training program established and documented.',
+    activityLog: [
+      {
+        action: 'created',
+        performedBy: 'user-2',
+        performedByRole: 'analyst',
+        timestamp: '2024-01-20T10:00:00Z',
+      },
+      {
+        action: 'resolved',
+        performedBy: 'user-3',
+        performedByRole: 'department_manager',
+        timestamp: '2024-01-27T14:00:00Z',
+        details: 'Cross-training program established and documented.',
+      }
+    ],
     isAutoEscalationEnabled: true,
     comments: [
       {

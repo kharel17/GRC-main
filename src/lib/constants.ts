@@ -36,4 +36,4 @@ export const COMPLIANCE_STATUS = ['not_started', 'in_progress', 'compliant', 'no
 
 export const COMPLIANCE_PRIORITY = ['low', 'medium', 'high', 'critical'] as const;
 
-export const USER_ROLES = ['admin', 'analyst', 'manager'] as const;
+export const USER_ROLES = ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'] as const;

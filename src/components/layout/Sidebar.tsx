@@ -39,49 +39,49 @@ const NAV_ITEMS: NavItem[] = [
     href: '/dashboard', 
     label: 'Dashboard', 
     icon: BarChart3, 
-    roles: ['admin', 'analyst', 'manager'] 
+    roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
   },
   { 
     href: '/dashboard/risks', 
     label: 'Risks', 
     icon: AlertTriangle, 
-    roles: ['admin', 'analyst'] 
+    roles: ['admin', 'analyst', 'risk_owner', 'compliance_officer', 'executive', 'auditor'] 
   },
   { 
     href: '/dashboard/controls', 
     label: 'Controls', 
     icon: Shield, 
-    roles: ['admin', 'analyst'] 
+    roles: ['admin', 'analyst', 'control_owner', 'compliance_officer', 'auditor'] 
   },
   { 
     href: '/dashboard/evidence', 
     label: 'Evidence', 
     icon: FileText, 
-    roles: ['admin', 'analyst'] 
+    roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'auditor'] 
   },
   { 
     href: '/dashboard/audits', 
     label: 'Audit Log', 
     icon: Clock, 
-    roles: ['admin', 'manager'] 
+    roles: ['admin', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
   },
   { 
     href: '/dashboard/tickets', 
     label: 'Tickets', 
     icon: Ticket, 
-    roles: ['admin', 'analyst', 'manager'] 
+    roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
   },
   { 
     href: '/dashboard/reports', 
     label: 'Reports', 
     icon: CheckCircle2, 
-    roles: ['admin', 'analyst', 'manager'] 
+    roles: ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
   },
   { 
     href: '/dashboard/iso27001', 
     label: 'ISO 27001', 
     icon: ShieldCheck, 
-    roles: ['admin', 'analyst', 'manager'] 
+    roles: ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
   },
 ];
 
@@ -127,7 +127,7 @@ export function Sidebar() {
   }, [isOpen]);
 
   // Filter nav items based on user role
-  const userRole = user?.role || 'manager';
+  const userRole = user?.role || 'analyst';
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
   const visibleAdminItems = ADMIN_NAV_ITEMS.filter((item) => item.roles.includes(userRole));
 
@@ -145,6 +145,36 @@ export function Sidebar() {
   };
 
   const closeSidebar = () => setIsOpen(false);
+
+  // Role badge color mapping
+  const getRoleBadgeStyle = (role: UserRole): string => {
+    const styles: Record<string, string> = {
+      admin: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+      analyst: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      control_owner: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+      risk_owner: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+      compliance_officer: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+      department_manager: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+      executive: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+      auditor: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300',
+    };
+    return styles[role] || styles.analyst;
+  };
+
+  // Human-readable role label
+  const getRoleLabel = (role: UserRole): string => {
+    const labels: Record<string, string> = {
+      admin: 'Administrator',
+      analyst: 'Risk Analyst',
+      control_owner: 'Control Owner',
+      risk_owner: 'Risk Owner',
+      compliance_officer: 'Compliance Officer',
+      department_manager: 'Dept. Manager',
+      executive: 'Executive',
+      auditor: 'Auditor',
+    };
+    return labels[role] || role;
+  };
 
   return (
     <>
@@ -186,14 +216,8 @@ export function Sidebar() {
           </div>
           {/* Role indicator */}
           <div className="p-6 border-b border-border">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-              userRole === 'admin' 
-                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' 
-                : userRole === 'analyst' 
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
-                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-            }`}>
-              {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeStyle(userRole)}`}>
+              {getRoleLabel(userRole)}
             </span>
           </div>
           

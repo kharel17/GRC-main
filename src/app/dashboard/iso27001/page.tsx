@@ -26,7 +26,7 @@ const ISOControlsStatusWidget = dynamic(
 
 export default function ISODashboardPage() {
   const { user } = useAuth();
-  const role = user?.role || 'manager';
+  const role = user?.role || 'analyst';
 
   return (
     <div className="space-y-6">

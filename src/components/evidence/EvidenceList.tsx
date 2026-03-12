@@ -96,7 +96,7 @@ export function EvidenceList({ relatedTo, relatedId, refreshKey }: EvidenceListP
     const [reviewNotes, setReviewNotes] = useState('');
     const [reviewing, setReviewing] = useState(false);
 
-    const canReview = hasRole(['admin', 'manager']);
+    const canReview = hasRole(['admin', 'department_manager', 'compliance_officer']);
 
     const fetchEvidence = useCallback(async () => {
         try {

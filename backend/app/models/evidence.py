@@ -31,6 +31,8 @@ class Evidence(Base):
     status = Column(SAEnum(EvidenceStatus), default=EvidenceStatus.active, nullable=False)
     valid_until = Column(DateTime, nullable=True)
     
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+
     related_to = Column(SAEnum(EvidenceRelatedTo), nullable=False)
     related_id = Column(UUID(as_uuid=True), nullable=False)
     

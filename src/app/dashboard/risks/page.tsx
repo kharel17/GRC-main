@@ -17,6 +17,7 @@ import {
 import { Plus, LayoutGrid, List, AlertTriangle, Filter, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { NewRiskDialog } from "@/features/risk/NewRiskDialog";
 
 type ViewMode = 'table' | 'cards';
 
@@ -54,7 +55,8 @@ function getStatusStyles(status: string) {
 }
 
 export default function RisksPage() {
-  const { data: risks, loading, error } = useApiData(fetchRisks);
+  const { data: risks, loading, error, refetch } = useApiData(fetchRisks);
+  const [newRiskOpen, setNewRiskOpen] = useState(false);
   const riskCategories = getRiskCategories();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -105,7 +107,7 @@ export default function RisksPage() {
           </p>
         </div>
         <RoleGuard allowedRoles={['admin', 'analyst']}>
-          <Button className="gap-2 w-full sm:w-auto">
+          <Button className="gap-2 w-full sm:w-auto" onClick={() => setNewRiskOpen(true)}>
             <Plus className="h-4 w-4" />
             New Risk
           </Button>
@@ -119,7 +121,7 @@ export default function RisksPage() {
             <Filter className="h-4 w-4 text-slate-500 dark:text-slate-400" />
             <span className="text-sm text-slate-500 dark:text-slate-400 hidden sm:inline">Filters:</span>
           </div>
-          
+
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[130px] h-9">
               <SelectValue placeholder="Status" />
@@ -215,11 +217,11 @@ export default function RisksPage() {
                       {risk.riskScore}
                     </Badge>
                   </div>
-                  
+
                   <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
                     {risk.description}
                   </p>
-                  
+
                   <div className="flex flex-wrap gap-2">
                     {risk.category && (
                       <span
@@ -236,7 +238,7 @@ export default function RisksPage() {
                       {risk.status}
                     </Badge>
                   </div>
-                  
+
                   <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t">
                     <span>L:{risk.likelihood} × I:{risk.impact}</span>
                     <span>{risk.ownerName || 'Unassigned'}</span>
@@ -247,6 +249,12 @@ export default function RisksPage() {
           ))}
         </div>
       )}
+
+      <NewRiskDialog
+        open={newRiskOpen}
+        onOpenChange={setNewRiskOpen}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

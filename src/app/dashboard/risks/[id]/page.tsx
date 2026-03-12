@@ -1,22 +1,37 @@
 'use client';
 
-import { fetchRisk } from '@/lib/data-service';
+import { fetchRisk, fetchRiskControls } from '@/lib/data-service';
 import { useApiData } from '@/hooks/use-api-data';
 import { RiskScoreExplanation } from '@/features/risk/RiskScoreExplanation';
+import { EditRiskDialog } from '@/features/risk/EditRiskDialog';
+import { MapControlDialog } from '@/features/risk/MapControlDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Loader2 } from 'lucide-react';
+import { ArrowLeft, Edit, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { getStatusColor, getScoreBadgeColor } from '@/features/risk/risk.logic';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { EvidenceDropzone } from '@/components/evidence/EvidenceDropzone';
 import { EvidenceList } from '@/components/evidence/EvidenceList';
 
 export default function RiskDetailPage({ params }: { params: { id: string } }) {
   const fetcher = useCallback(() => fetchRisk(params.id), [params.id]);
-  const { data: risk, loading, error } = useApiData(fetcher, [params.id]);
+  const { data: risk, loading, error, refetch } = useApiData(fetcher, [params.id]);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
+  const [editOpen, setEditOpen] = useState(false);
+  const [mapControlOpen, setMapControlOpen] = useState(false);
+  const [mappedControls, setMappedControls] = useState<any[]>([]);
+
+  // Fetch mapped controls
+  const loadControls = useCallback(async () => {
+    const data = await fetchRiskControls(params.id);
+    setMappedControls(data);
+  }, [params.id]);
+
+  useEffect(() => {
+    loadControls();
+  }, [loadControls]);
 
   if (loading) {
     return (
@@ -46,7 +61,7 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
           <ArrowLeft className="h-4 w-4" />
           <span className="text-sm">Back to risks</span>
         </Link>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2" onClick={() => setEditOpen(true)}>
           <Edit className="h-4 w-4" />
           Edit
         </Button>
@@ -114,10 +129,35 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
               <CardTitle className="text-base">Related Controls</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-slate-600">
-                No controls mapped yet. Create or map controls to mitigate this risk.
-              </p>
-              <Button variant="outline" className="w-full mt-4">
+              {mappedControls.length === 0 ? (
+                <p className="text-sm text-slate-600">
+                  No controls mapped yet. Create or map controls to mitigate this risk.
+                </p>
+              ) : (
+                <div className="space-y-2 mb-4">
+                  {mappedControls.map((mc: any) => (
+                    <div
+                      key={mc.id}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800"
+                    >
+                      <ShieldCheck className="h-4 w-4 text-blue-500 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                          {mc.control_title || mc.controlTitle || 'Control'}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {mc.control_status || mc.controlStatus || 'Unknown'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                className="w-full mt-2"
+                onClick={() => setMapControlOpen(true)}
+              >
                 Map Control
               </Button>
             </CardContent>
@@ -143,6 +183,22 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
           />
         </CardContent>
       </Card>
+
+      {/* ── Dialogs ─────────────────────────────────────── */}
+      <EditRiskDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        risk={risk}
+        onSuccess={() => refetch()}
+      />
+      <MapControlDialog
+        open={mapControlOpen}
+        onOpenChange={setMapControlOpen}
+        riskId={params.id}
+        riskTitle={risk.title}
+        existingControlIds={mappedControls.map((mc: any) => mc.control_id || mc.controlId)}
+        onSuccess={() => loadControls()}
+      />
     </div>
   );
 }

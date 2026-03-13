@@ -294,6 +294,54 @@ async def get_compliance_report(
     )
 
 
+@router.get("/soa/export")
+async def export_soa(
+    format: str = Query("pdf", description="Export format (pdf or csv)"),
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Export ISO 27001 Statement of Applicability (SoA) as PDF or CSV."""
+    result = await db.execute(select(models.Organization).limit(1))
+    org = result.scalars().first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    report_bytes = await audit_service.export_soa_report(db, org.id, format=format)
+    
+    media_type = "application/pdf" if format == "pdf" else "text/csv"
+    filename = f"ISO27001_SoA_{org.name.replace(' ', '_')}.{format}"
+    
+    return Response(
+        content=report_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/risk-register/export")
+async def export_risks(
+    format: str = Query("pdf", description="Export format (pdf or csv)"),
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Export the corporate Risk Register as PDF or CSV."""
+    result = await db.execute(select(models.Organization).limit(1))
+    org = result.scalars().first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    report_bytes = await audit_service.export_risk_register(db, org.id, format=format)
+    
+    media_type = "application/pdf" if format == "pdf" else "text/csv"
+    filename = f"Risk_Register_{org.name.replace(' ', '_')}.{format}"
+    
+    return Response(
+        content=report_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
 @router.get("/readiness")
 async def get_readiness(
     db: AsyncSession = Depends(deps.get_db),

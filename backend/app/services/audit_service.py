@@ -133,6 +133,103 @@ async def get_readiness_score(db: AsyncSession, organization_id: UUID) -> Dict[s
     }
 
 
+async def export_soa_report(db: AsyncSession, organization_id: UUID, format: str = "pdf") -> bytes:
+    """Export a professional Statement of Applicability (SoA) artifact."""
+    ca_result = await db.execute(
+        select(models.ControlApplicability)
+        .where(models.ControlApplicability.organization_id == organization_id)
+    )
+    ca_records = {ca.control_annex: ca for ca in ca_result.scalars().all()}
+    
+    # Get organization info
+    org_res = await db.execute(select(models.Organization).where(models.Organization.id == organization_id))
+    organization = org_res.scalar()
+    org_name = organization.name if organization else "Unknown Organization"
+
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Statement of Applicability (SoA)", org_name, datetime.utcnow().strftime('%Y-%m-%d')])
+        writer.writerow([])
+        writer.writerow(["Annex", "Applicable", "Status", "Justification"])
+        for annex, ca in sorted(ca_records.items()):
+            writer.writerow([annex, ca.applicable, ca.status.value, ca.justification])
+        return output.getvalue().encode('utf-8')
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", "B", 18)
+    pdf.cell(0, 15, "Statement of Applicability (SoA)", ln=True, align="C")
+    pdf.set_font("helvetica", "", 12)
+    pdf.cell(0, 10, f"Organization: {org_name}", ln=True, align="C")
+    pdf.cell(0, 10, f"Scope: ISO 27001:2022", ln=True, align="C")
+    pdf.ln(10)
+
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(30, 8, "Annex", border=1)
+    pdf.cell(30, 8, "Applicable", border=1)
+    pdf.cell(40, 8, "Status", border=1)
+    pdf.cell(90, 8, "Justification", border=1, ln=True)
+
+    pdf.set_font("helvetica", "", 8)
+    for annex, ca in sorted(ca_records.items()):
+        pdf.cell(30, 8, annex, border=1)
+        pdf.cell(30, 8, "Yes" if ca.applicable else "No", border=1)
+        pdf.cell(40, 8, ca.status.value.upper(), border=1)
+        pdf.cell(90, 8, (str(ca.justification) or "N/A")[:60], border=1, ln=True)
+
+    return pdf.output()
+
+
+async def export_risk_register(db: AsyncSession, organization_id: UUID, format: str = "pdf") -> bytes:
+    """Export the professional Risk Register."""
+    risk_result = await db.execute(
+        select(models.Risk).where(models.Risk.organization_id == organization_id)
+    )
+    risks = risk_result.scalars().all()
+    
+    org_res = await db.execute(select(models.Organization).where(models.Organization.id == organization_id))
+    organization = org_res.scalar()
+    org_name = organization.name if organization else "Unknown Organization"
+
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Risk Register", org_name, datetime.utcnow().strftime('%Y-%m-%d')])
+        writer.writerow([])
+        writer.writerow(["ID", "Title", "Likelihood", "Impact", "Score", "Status"])
+        for r in risks:
+            writer.writerow([str(r.id)[:8], r.title, r.likelihood, r.impact, r.risk_score, r.status.value])
+        return output.getvalue().encode('utf-8')
+
+    pdf = FPDF()
+    pdf.add_page("L") # Landscape for risk register
+    pdf.set_font("helvetica", "B", 18)
+    pdf.cell(0, 15, "Organizational Risk Register", ln=True, align="C")
+    pdf.set_font("helvetica", "", 12)
+    pdf.cell(0, 10, f"Organization: {org_name}", ln=True, align="C")
+    pdf.ln(10)
+
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(20, 10, "ID", border=1)
+    pdf.cell(100, 10, "Risk Title", border=1)
+    pdf.cell(30, 10, "Likelihood", border=1)
+    pdf.cell(30, 10, "Impact", border=1)
+    pdf.cell(30, 10, "Score", border=1)
+    pdf.cell(50, 10, "Status", border=1, ln=True)
+
+    pdf.set_font("helvetica", "", 9)
+    for r in risks:
+        pdf.cell(20, 10, str(r.id)[:8], border=1)
+        pdf.cell(100, 10, (str(r.title) or "")[:60], border=1)
+        pdf.cell(30, 10, str(r.likelihood), border=1, align="C")
+        pdf.cell(30, 10, str(r.impact), border=1, align="C")
+        pdf.cell(30, 10, str(r.risk_score), border=1, align="C")
+        pdf.cell(50, 10, r.status.value.upper() if hasattr(r.status, "value") else str(r.status).upper(), border=1, ln=True)
+
+    return pdf.output()
+
+
 async def export_audit_report(db: AsyncSession, organization_id: UUID, format: str = "pdf") -> bytes:
     """
     Export a comprehensive ISO 27001 readiness report.

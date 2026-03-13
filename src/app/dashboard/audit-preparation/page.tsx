@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useApiData } from "@/hooks/use-api-data";
-import { fetchComplianceItems, fetchEvidence, fetchOrganization, exportAuditReport } from "@/lib/data-service";
+import { fetchComplianceItems, fetchEvidence, fetchOrganization, exportAuditReport, exportSoAReport, exportRiskRegister } from "@/lib/data-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardCheck, ShieldCheck, FileText, CheckCircle2, Circle, AlertCircle, Loader2, Download } from "lucide-react";
+import { ClipboardCheck, ShieldCheck, FileText, CheckCircle2, Circle, AlertCircle, Loader2, Download, FileJson, FileBarChart } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -16,27 +16,43 @@ export default function AuditPreparationPage() {
   const { data: evidence, loading: evLoading } = useApiData(fetchEvidence);
   const { data: org, loading: orgLoading } = useApiData(fetchOrganization);
   
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const loading = compLoading || evLoading || orgLoading;
 
-  const handleDownloadReport = async () => {
+  const handleDownload = async (type: 'audit' | 'soa' | 'risks') => {
     if (!org?.id) return;
-    setDownloading(true);
+    setDownloading(type);
     try {
-      const blob = await exportAuditReport(org.id, 'pdf');
+      let blob: Blob;
+      let filename: string;
+      
+      const dateStr = new Date().toISOString().split('T')[0];
+      const orgStr = org.name.replace(/\s+/g, '_');
+
+      if (type === 'soa') {
+        blob = await exportSoAReport(org.id, 'pdf');
+        filename = `ISO27001_SoA_${orgStr}_${dateStr}.pdf`;
+      } else if (type === 'risks') {
+        blob = await exportRiskRegister(org.id, 'pdf');
+        filename = `Risk_Register_${orgStr}_${dateStr}.pdf`;
+      } else {
+        blob = await exportAuditReport(org.id, 'pdf');
+        filename = `Audit_Report_${orgStr}_${dateStr}.pdf`;
+      }
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Audit_Report_${org.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success("Audit report downloaded successfully");
+      toast.success(`${type.toUpperCase()} report downloaded successfully`);
     } catch (error) {
-      toast.error("Failed to download audit report");
+      toast.error(`Failed to download ${type} report`);
     } finally {
-      setDownloading(false);
+      setDownloading(null);
     }
   };
 
@@ -63,14 +79,34 @@ export default function AuditPreparationPage() {
           <p className="text-muted-foreground text-sm">Inventory of evidence and control status for external audit readiness.</p>
         </div>
         <div className="flex flex-col items-end gap-3">
-          <Button 
-            onClick={handleDownloadReport} 
-            disabled={downloading || !org}
-            className="gap-2"
-          >
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download Audit Report (PDF)
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+                onClick={() => handleDownload('soa')} 
+                variant="outline"
+                disabled={!!downloading || !org}
+                className="gap-2"
+              >
+                {downloading === 'soa' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />}
+                Download SoA
+              </Button>
+              <Button 
+                onClick={() => handleDownload('risks')} 
+                variant="outline"
+                disabled={!!downloading || !org}
+                className="gap-2"
+              >
+                {downloading === 'risks' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart className="h-4 w-4" />}
+                Risk Register
+              </Button>
+            <Button 
+              onClick={() => handleDownload('audit')} 
+              disabled={!!downloading || !org}
+              className="gap-2"
+            >
+              {downloading === 'audit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Full Readiness Report
+            </Button>
+          </div>
           <div className="text-right hidden md:block">
             <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Audit Readiness</p>
             <div className="flex items-center gap-3">

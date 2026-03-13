@@ -260,8 +260,8 @@ export async function fetchReadinessScore(orgId: string): Promise<any> {
   });
 }
 
-export async function exportAuditReport(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
-  const url = `${api.baseUrl}/audit-preparation/export?organization_id=${orgId}&format=${format}`;
+async function downloadExport(endpoint: string, fallbackFilename: string): Promise<Blob> {
+  const url = `${api.baseUrl}${endpoint}`;
   
   // Custom fetch needed for Blob handling
   const { data: { session } } = await supabase.auth.getSession();
@@ -273,6 +273,18 @@ export async function exportAuditReport(orgId: string, format: 'pdf' | 'csv' = '
   const response = await fetch(url, { headers });
   if (!response.ok) throw new Error('Export failed');
   return response.blob();
+}
+
+export async function exportAuditReport(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
+  return downloadExport(`/audit-preparation/export?organization_id=${orgId}&format=${format}`, 'Audit_Report');
+}
+
+export async function exportSoAReport(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
+  return downloadExport(`/audit-preparation/soa/export?organization_id=${orgId}&format=${format}`, 'ISO27001_SoA');
+}
+
+export async function exportRiskRegister(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
+  return downloadExport(`/audit-preparation/risk-register/export?organization_id=${orgId}&format=${format}`, 'Risk_Register');
 }
 
 // -- Document Analysis --────────

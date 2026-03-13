@@ -15,7 +15,7 @@ from .ticket import (
 )
 from .notification import Notification, NotificationCreate
 from .organization import OrganizationCreate, OrganizationUpdate, OrganizationResponse
-from .asset import AssetCreate, AssetUpdate, AssetResponse
+from .asset import AssetCreate, AssetUpdate, AssetResponse, AssetRiskLinkRequest
 from .control_applicability import (
     ControlApplicabilityCreate,
     ControlApplicabilityUpdate,

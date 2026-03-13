@@ -19,7 +19,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role = Column(SAEnum(UserRole), default=UserRole.analyst)
+    role = Column(SAEnum(UserRole), default=UserRole.admin)
     department = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     token_version = Column(Integer, default=1, nullable=False)

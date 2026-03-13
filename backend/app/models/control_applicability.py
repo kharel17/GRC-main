@@ -4,7 +4,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import enum
-from .base import Base
+from app.models.base import Base
 
 
 class ControlImplementationStatus(str, enum.Enum):
@@ -23,9 +23,13 @@ class ControlApplicability(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    framework_id = Column(UUID(as_uuid=True), ForeignKey("frameworks.id"), nullable=True)
 
     # References the control annex ID from iso27001-controls.json (e.g. "5.1", "8.12")
     control_annex = Column(String, nullable=False)
+
+    # Link to the standard library control
+    framework_control_id = Column(UUID(as_uuid=True), ForeignKey("framework_controls.id"), nullable=True)
 
     is_applicable = Column(Boolean, default=True, nullable=False)
 
@@ -49,4 +53,6 @@ class ControlApplicability(Base):
 
     # Relationships
     organization = relationship("Organization", back_populates="control_applicabilities")
+    framework = relationship("Framework", back_populates="applicabilities")
+    framework_control = relationship("FrameworkControl", back_populates="applicabilities")
     responsible = relationship("User", foreign_keys=[responsible_id])

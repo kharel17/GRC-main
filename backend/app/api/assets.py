@@ -12,10 +12,7 @@ router = APIRouter()
 
 @router.get("/", response_model=List[schemas.AssetResponse])
 async def list_assets(
-    db: AsyncSession = Depends(deps.get_db),
-    skip: int = 0,
-    limit: int = 100,
-    asset_type: Optional[str] = Query(None, description="Filter by asset type"),
+    type: Optional[str] = Query(None, description="Filter by asset type"),
     classification: Optional[str] = Query(None, description="Filter by classification"),
     criticality: Optional[str] = Query(None, description="Filter by criticality"),
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -23,8 +20,8 @@ async def list_assets(
     """List all assets with optional filtering."""
     query = select(models.Asset).where(models.Asset.status != models.AssetStatus.decommissioned)
     
-    if asset_type:
-        query = query.where(models.Asset.asset_type == asset_type)
+    if type:
+        query = query.where(models.Asset.type == type)
     if classification:
         query = query.where(models.Asset.classification == classification)
     if criticality:
@@ -55,7 +52,7 @@ async def create_asset(
         entity_type=AuditEntityType.control,  # Using 'control' as closest fit; can extend enum later
         entity_id=asset.id,
         entity_name=asset.name,
-        description=f"Asset created: {asset.name} ({asset.asset_type.value})"
+        description=f"Asset created: {asset.name} ({asset.type.value})"
     )
     await db.commit()
     return asset

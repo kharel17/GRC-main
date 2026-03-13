@@ -32,6 +32,10 @@ class Organization(Base):
     # Milestone for compliance
     compliance_target_date = Column(DateTime, nullable=True)
 
+    # Framework linkage
+    framework_id = Column(UUID(as_uuid=True), ForeignKey("frameworks.id"), nullable=True)
+    isms_scope = Column(Text, nullable=True)
+
     # Compliance frameworks the org is targeting (e.g. ["ISO 27001", "SOC2", "GDPR"])
     compliance_frameworks = Column(JSONB, default=list, nullable=False)
 
@@ -42,5 +46,6 @@ class Organization(Base):
 
     # Relationships
     primary_contact = relationship("User", foreign_keys=[primary_contact_id])
+    framework = relationship("Framework", back_populates="organizations")
     assets = relationship("Asset", back_populates="organization", cascade="all, delete-orphan")
     control_applicabilities = relationship("ControlApplicability", back_populates="organization", cascade="all, delete-orphan")

@@ -48,7 +48,8 @@ class RiskControlMapping(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     risk_id = Column(UUID(as_uuid=True), ForeignKey("risks.id"), nullable=False)
-    control_id = Column(UUID(as_uuid=True), ForeignKey("controls.id"), nullable=False)
+    control_id = Column(UUID(as_uuid=True), ForeignKey("controls.id"), nullable=True)
+    framework_control_id = Column(UUID(as_uuid=True), ForeignKey("framework_controls.id"), nullable=True)
     
     residual_likelihood = Column(Integer, nullable=True)
     residual_impact = Column(Integer, nullable=True)

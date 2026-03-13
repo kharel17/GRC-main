@@ -12,5 +12,7 @@ from .audit_log import AuditLog, AuditAction, AuditEntityType
 from .ticket import Ticket, TicketComment, TicketPriority, TicketStatus, TicketCategory
 from .ticket_activity import TicketActivity, TicketActivityType
 from .notification import Notification
+from .framework import Framework
+from .framework_control import FrameworkControl
 from .control_applicability import ControlApplicability, ControlImplementationStatus
 from .document_analysis import DocumentAnalysis, DocumentAnalysisStatus

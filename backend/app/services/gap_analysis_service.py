@@ -39,13 +39,15 @@ _CONTROLS_BY_ID = {c["id"]: c for c in _ISO_CONTROLS}
 class GapItem:
     """Represents a single compliance gap."""
     def __init__(self, control_annex: str, control_title: str, clause_id: str,
-                 severity: str, reason: str, best_evidence_score: float = 0.0,
+                 severity: str, reason: str, framework_control_id: Optional[UUID] = None,
+                 best_evidence_score: float = 0.0,
                  current_status: str = "not_started"):
         self.control_annex = control_annex
         self.control_title = control_title
         self.clause_id = clause_id
         self.severity = severity  # critical, high, medium, low
         self.reason = reason
+        self.framework_control_id = framework_control_id
         self.best_evidence_score = best_evidence_score
         self.current_status = current_status
 
@@ -56,6 +58,7 @@ class GapItem:
             "clause_id": self.clause_id,
             "severity": self.severity,
             "reason": self.reason,
+            "framework_control_id": str(self.framework_control_id) if self.framework_control_id else None,
             "best_evidence_score": self.best_evidence_score,
             "current_status": self.current_status,
         }
@@ -64,11 +67,13 @@ class GapItem:
 class GapReport:
     """Full gap analysis report."""
     def __init__(self, total_controls: int, applicable_controls: int,
-                 implemented: int, gaps: list[GapItem], 
-                 compliance_percentage: float):
+                 implemented: int, partially_implemented: int, missing: int,
+                 gaps: list[GapItem], compliance_percentage: float):
         self.total_controls = total_controls
         self.applicable_controls = applicable_controls
         self.implemented = implemented
+        self.partially_implemented = partially_implemented
+        self.missing = missing
         self.gaps = gaps
         self.compliance_percentage = compliance_percentage
 
@@ -77,6 +82,8 @@ class GapReport:
             "total_controls": self.total_controls,
             "applicable_controls": self.applicable_controls,
             "implemented": self.implemented,
+            "partially_implemented": self.partially_implemented,
+            "missing": self.missing,
             "total_gaps": len(self.gaps),
             "compliance_percentage": self.compliance_percentage,
             "gaps": [g.to_dict() for g in self.gaps],
@@ -186,11 +193,12 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     # For now, we look at risks associated with the control, then assets associated with the risk
     control_criticality = {} # annex -> multiplier
     
-    # Get all risk-control mappings to link annex IDs to assets
+    # Get all risk-control mappings to link annex codes (from FrameworkControl) to assets
     rc_result = await db.execute(
-        select(models.RiskControlMapping, models.Control.control_annex)
-        .join(models.Control, models.RiskControlMapping.control_id == models.Control.id)
-        .where(models.Control.organization_id == organization_id)
+        select(models.RiskControlMapping, models.FrameworkControl.code)
+        .join(models.FrameworkControl, models.RiskControlMapping.framework_control_id == models.FrameworkControl.id)
+        .join(models.Risk, models.RiskControlMapping.risk_id == models.Risk.id)
+        .where(models.Risk.organization_id == organization_id)
     )
     risk_controls = rc_result.all()
     
@@ -203,9 +211,17 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
                 if rc.risk_id == risk.id and annex:
                     control_criticality[annex] = max(control_criticality.get(annex, 1.0), multiplier)
 
-    # 6. Build gap report
+    # 6. Fetch FrameworkControl IDs to link them properly
+    from app.models.framework_control import FrameworkControl
+    fw_controls_res = await db.execute(select(FrameworkControl))
+    all_fw_controls = fw_controls_res.scalars().all()
+    fw_id_map = {c.code: c.id for c in all_fw_controls}
+
+    # 7. Build gap report
     gaps = []
     implemented_count = 0
+    partial_count = 0
+    missing_count = 0
     applicable_count = 0
 
     for ctrl in _ISO_CONTROLS:
@@ -216,12 +232,16 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
         if ca and not ca.is_applicable:
             continue
         
-        applicable_count += 1
+        applicable_count = applicable_count + 1
         status = ca.status.value if ca else "not_started"
         
         if status == "implemented":
-            implemented_count += 1
+            implemented_count = implemented_count + 1
             continue
+        elif status == "in_progress":
+            partial_count = partial_count + 1
+        else: # not_started or not_applicable (but we skipped NA)
+            missing_count = missing_count + 1
 
         # This control is a gap
         has_evidence = annex not in ai_gaps
@@ -251,6 +271,7 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
             clause_id=ctrl["clauseId"],
             severity=severity,
             reason=reason,
+            framework_control_id=fw_id_map.get(annex),
             best_evidence_score=best_score,
             current_status=status,
         ))
@@ -259,12 +280,16 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     gaps.sort(key=lambda g: severity_order.get(g.severity, 99))
 
-    compliance_pct = round((implemented_count / applicable_count * 100), 1) if applicable_count > 0 else 0
+    compliance_pct = 0.0
+    if applicable_count > 0:
+        compliance_pct = int((implemented_count / applicable_count * 1000)) / 10.0
 
     return GapReport(
         total_controls=len(_ISO_CONTROLS),
         applicable_controls=applicable_count,
         implemented=implemented_count,
+        partially_implemented=partial_count,
+        missing=missing_count,
         gaps=gaps,
         compliance_percentage=compliance_pct,
     )
@@ -329,7 +354,7 @@ async def create_tickets_from_gaps(
             db=db,
             user=created_by,
             action=AuditAction.created,
-            entity_type=AuditEntityType.compliance,
+            entity_type=AuditEntityType.compliance_item,
             entity_id=organization_id,
             entity_name=f"Gap: {gap.control_annex}",
             description=f"Gap analysis ticket created for control {gap.control_annex}: {gap.control_title}",
@@ -354,6 +379,7 @@ async def create_tickets_from_gaps(
             assigned_to_role="Analyst",
             organization_id=organization_id,
             created_by=created_by.id,
+            framework_control_id=gap.framework_control_id,
         )
         db.add(ticket)
         await db.flush()

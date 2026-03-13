@@ -1,18 +1,27 @@
 import asyncio
+import sys
+import os
 import json
 from pathlib import Path
+
+# Add the current directory to sys.path to resolve 'app' imports correctly
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from app.database import engine, SessionLocal
 from app.models.base import Base
 from app.models.user import User, UserRole
 from app.models.organization import Organization, OrganizationSize
-from app.models.asset import Asset, AssetType, AssetClassification, AssetCriticality
+from app.models.asset import Asset, AssetType, AssetClassification, AssetCriticality, CIAValue
 from app.models.risk import Risk, RiskCategory, RiskStatus
-from app.models.control import Control, ControlType, ControlEffectiveness, ControlStatus
+from app.models.control import Control, ControlType, ControlEffectiveness, ControlStatus, RiskControlMapping
 from app.models.compliance import ComplianceItem, ComplianceStatus, CompliancePriority
 from app.models.evidence import Evidence, EvidenceRelatedTo
 from app.models.audit_log import AuditLog, AuditAction, AuditEntityType
 from app.models.ticket import Ticket, TicketPriority, TicketStatus, TicketCategory, TicketComment
+from app.models.framework import Framework
+from app.models.framework_control import FrameworkControl
 from app.models.control_applicability import ControlApplicability, ControlImplementationStatus
+from app.models.notification import Notification
 import uuid
 from datetime import datetime, timedelta
 import bcrypt
@@ -56,11 +65,11 @@ async def seed_data():
 
         # ── Assets ───────────────────────────────────────
         assets = [
-            Asset(name="Customer Database", description="Primary PostgreSQL database containing customer PII and account data", asset_type=AssetType.data, classification=AssetClassification.restricted, criticality=AssetCriticality.critical, location="AWS us-east-1", owner_id=users[0].id, organization_id=org.id),
-            Asset(name="Source Code Repository", description="GitHub Enterprise repositories for all product codebases", asset_type=AssetType.software, classification=AssetClassification.confidential, criticality=AssetCriticality.high, location="GitHub Cloud", owner_id=users[1].id, organization_id=org.id),
-            Asset(name="Internal Wiki", description="Confluence-based internal documentation and knowledge base", asset_type=AssetType.software, classification=AssetClassification.internal, criticality=AssetCriticality.medium, location="Atlassian Cloud", owner_id=users[2].id, organization_id=org.id),
-            Asset(name="Payment Processing Service", description="Stripe integration service handling financial transactions", asset_type=AssetType.service, classification=AssetClassification.restricted, criticality=AssetCriticality.critical, location="AWS us-east-1", owner_id=users[0].id, organization_id=org.id),
-            Asset(name="Employee Laptops", description="Company-issued MacBook Pro and Dell laptops", asset_type=AssetType.hardware, classification=AssetClassification.confidential, criticality=AssetCriticality.high, location="Global offices and remote", owner_id=users[2].id, organization_id=org.id),
+            Asset(name="Customer Database", description="Primary PostgreSQL database containing customer PII and account data", type=AssetType.data, classification=AssetClassification.restricted, criticality=AssetCriticality.critical, location="AWS us-east-1", owner_id=users[0].id, organization_id=org.id, confidentiality=CIAValue.high, integrity=CIAValue.high, availability=CIAValue.high),
+            Asset(name="Source Code Repository", description="GitHub Enterprise repositories for all product codebases", type=AssetType.software, classification=AssetClassification.confidential, criticality=AssetCriticality.high, location="GitHub Cloud", owner_id=users[1].id, organization_id=org.id, confidentiality=CIAValue.high, integrity=CIAValue.high, availability=CIAValue.medium),
+            Asset(name="Internal Wiki", description="Confluence-based internal documentation and knowledge base", type=AssetType.software, classification=AssetClassification.internal, criticality=AssetCriticality.medium, location="Atlassian Cloud", owner_id=users[2].id, organization_id=org.id, confidentiality=CIAValue.medium, integrity=CIAValue.medium, availability=CIAValue.medium),
+            Asset(name="Payment Processing Service", description="Stripe integration service handling financial transactions", type=AssetType.service, classification=AssetClassification.restricted, criticality=AssetCriticality.critical, location="AWS us-east-1", owner_id=users[0].id, organization_id=org.id, confidentiality=CIAValue.high, integrity=CIAValue.high, availability=CIAValue.high),
+            Asset(name="Employee Laptops", description="Company-issued MacBook Pro and Dell laptops", type=AssetType.hardware, classification=AssetClassification.confidential, criticality=AssetCriticality.high, location="Global offices and remote", owner_id=users[2].id, organization_id=org.id, confidentiality=CIAValue.medium, integrity=CIAValue.high, availability=CIAValue.medium),
         ]
         session.add_all(assets)
         await session.flush()
@@ -79,11 +88,10 @@ async def seed_data():
 
         # ── Risks (now with organization_id) ─────────────
         risks = [
-            Risk(title="Data Breach", description="Unauthorized access to sensitive customer data", category_id=categories[5].id, likelihood=3, impact=5, risk_score=15, status=RiskStatus.assessed, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
-            Risk(title="Regulatory Non-Compliance", description="Failure to meet GDPR requirements", category_id=categories[2].id, likelihood=2, impact=4, risk_score=8, status=RiskStatus.identified, owner_id=users[1].id, created_by=users[0].id, organization_id=org.id),
-            Risk(title="System Downtime", description="Critical infrastructure failure", category_id=categories[0].id, likelihood=2, impact=4, risk_score=8, status=RiskStatus.mitigated, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
-            Risk(title="Budget Overrun", description="Project expenses exceed allocated budget", category_id=categories[1].id, likelihood=3, impact=3, risk_score=9, status=RiskStatus.identified, owner_id=users[1].id, created_by=users[0].id, organization_id=org.id),
-            Risk(title="Key Person Dependency", description="Critical functions dependent on single individual", category_id=categories[3].id, likelihood=4, impact=3, risk_score=12, status=RiskStatus.assessed, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
+            Risk(title="Data Breach", description="Unauthorized access to sensitive customer data", category_id=categories[5].id, asset_id=assets[0].id, threat="Cyber Attack / SQL Injection", vulnerability="Unpatched software vulnerabilities", likelihood=3, impact=5, risk_score=15, status=RiskStatus.assessed, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
+            Risk(title="Regulatory Non-Compliance", description="Failure to meet GDPR requirements", category_id=categories[2].id, asset_id=assets[0].id, threat="Oversight / Legal change", vulnerability="Lack of formal DPO role", likelihood=2, impact=4, risk_score=8, status=RiskStatus.identified, owner_id=users[1].id, created_by=users[0].id, organization_id=org.id),
+            Risk(title="Source Code Leak", description="Proprietary code exposed publicly", category_id=categories[5].id, asset_id=assets[1].id, threat="Insider threat / Accidental push", vulnerability="Misconfigured repository permissions", likelihood=2, impact=4, risk_score=8, status=RiskStatus.mitigated, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
+            Risk(title="Service Outage", description="Payment Gateway becomes unavailable", category_id=categories[0].id, asset_id=assets[3].id, threat="Cloud provider failure", vulnerability="Single region deployment", likelihood=3, impact=4, risk_score=12, status=RiskStatus.assessed, owner_id=users[1].id, created_by=users[1].id, organization_id=org.id),
         ]
         session.add_all(risks)
         await session.flush()
@@ -98,6 +106,7 @@ async def seed_data():
         ]
         session.add_all(controls)
         await session.flush()
+
 
         # ── Compliance Items (now with organization_id) ──
         compliance = [
@@ -116,12 +125,43 @@ async def seed_data():
         session.add_all(evidence)
         await session.flush()
 
-        # ── Control Applicability (SoA) ──────────────────
-        # Load controls from JSON and create applicability records
+        # ── Frameworks ───────────────────────────────────
+        iso_framework = Framework(
+            id=uuid.UUID('00000000-0000-0000-0000-000000001000'),
+            name="ISO 27001",
+            version="2022",
+            description="Information security management systems — Requirements",
+        )
+        session.add(iso_framework)
+        await session.flush()
+
+        # ── Framework Controls (Library) ──────────────────
         controls_json_path = Path(__file__).parent / "data" / "iso27001-controls.json"
         with open(controls_json_path, "r", encoding="utf-8") as f:
             iso_data = json.load(f)
         
+        framework_controls = []
+        control_map = {} # map code/annex to ID
+        for ctrl_data in iso_data.get("controls", []):
+            fc = FrameworkControl(
+                framework_id=iso_framework.id,
+                code=ctrl_data["annex"],
+                title=ctrl_data["title"],
+                description=ctrl_data["description"],
+                category=None # Could map from clauseId if needed
+            )
+            framework_controls.append(fc)
+            control_map[ctrl_data["annex"]] = fc
+
+        session.add_all(framework_controls)
+        await session.flush()
+
+        # ── Organization Linkage ─────────────────────────
+        org.framework_id = iso_framework.id
+        org.isms_scope = "All internal cloud services, SaaS products, and supporting corporate infrastructure."
+        session.add(org)
+
+        # ── Control Applicability (SoA) ──────────────────
         # Sample: mark some controls as implemented, some in-progress, most as not_started
         implemented_controls = {"5.1", "5.2", "5.15", "5.17", "6.3", "8.5", "8.24"}
         in_progress_controls = {"5.9", "5.12", "5.34", "8.7", "8.13", "8.15"}
@@ -130,6 +170,7 @@ async def seed_data():
         control_applicabilities = []
         for ctrl in iso_data.get("controls", []):
             annex = ctrl["id"]
+            fc = control_map.get(annex)
             
             if annex in implemented_controls:
                 status = ControlImplementationStatus.implemented
@@ -143,6 +184,7 @@ async def seed_data():
             ca = ControlApplicability(
                 organization_id=org.id,
                 control_annex=annex,
+                framework_control_id=getattr(fc, 'id', None),
                 is_applicable=(annex not in not_applicable_controls),
                 status=status,
                 justification="Physical security controls not applicable — fully cloud-hosted infrastructure" if annex in not_applicable_controls else None,
@@ -151,6 +193,21 @@ async def seed_data():
             control_applicabilities.append(ca)
         
         session.add_all(control_applicabilities)
+        await session.flush()
+
+        # ── Risk-Control Mapping ─────────────────────────
+        # Map Data Breach risk to Access Control Policy (A.9.2.1/A.9.4.2 in 2013, 5.15 in 2022)
+        # Note: using the ISO 2022 framework control
+        fc_access = control_map.get("5.15")
+        mapping = RiskControlMapping(
+            risk_id=risks[0].id,
+            framework_control_id=getattr(fc_access, 'id', None),
+            residual_likelihood=2,
+            residual_impact=4,
+            residual_risk_score=8,
+            mapped_by=users[0].id
+        )
+        session.add(mapping)
         await session.flush()
 
         # ── Audit Logs ───────────────────────────────────
@@ -228,7 +285,9 @@ async def seed_data():
     print(f"  Controls:               {len(controls)}")
     print(f"  Compliance Items:       {len(compliance)}")
     print(f"  Evidence:               {len(evidence)}")
-    print(f"  Control Applicability:  {len(control_applicabilities)} (all 93 ISO 27001 controls)")
+    print(f"  Frameworks:             1 (ISO 27001)")
+    print(f"  Framework Controls:     {len(framework_controls)}")
+    print(f"  Control Applicability:  {len(control_applicabilities)} (all ISO 27001 controls)")
     print(f"  Audit Logs:             {len(audit_logs)}")
     print(f"  Tickets:                {len(tickets)}")
     print("=" * 60)

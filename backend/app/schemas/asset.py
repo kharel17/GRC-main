@@ -7,10 +7,13 @@ from datetime import datetime
 class AssetCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    asset_type: str  # data, software, hardware, service, personnel, physical, server, db, app
+    type: str  # data, software, hardware, service, personnel, physical, server, db, app
     classification: str = "internal"  # public, internal, confidential, restricted
     criticality: str = "medium"  # low, medium, high, critical
     location: Optional[str] = None
+    confidentiality: str = "medium"  # low, medium, high
+    integrity: str = "medium"
+    availability: str = "medium"
     owner_id: UUID
     organization_id: UUID
 
@@ -18,11 +21,14 @@ class AssetCreate(BaseModel):
 class AssetUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    asset_type: Optional[str] = None
+    type: Optional[str] = None
     classification: Optional[str] = None
     criticality: Optional[str] = None
     location: Optional[str] = None
     status: Optional[str] = None  # active, decommissioned, under_review
+    confidentiality: Optional[str] = None
+    integrity: Optional[str] = None
+    availability: Optional[str] = None
     owner_id: Optional[UUID] = None
 
 
@@ -35,11 +41,14 @@ class AssetResponse(BaseModel):
     organization_id: UUID
     name: str
     description: Optional[str] = None
-    asset_type: str
+    type: str
     classification: str
     criticality: str
     location: Optional[str] = None
     status: str
+    confidentiality: str
+    integrity: str
+    availability: str
     owner_id: UUID
     related_risks: List[UUID] = []
     created_at: datetime

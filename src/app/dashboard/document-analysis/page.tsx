@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useApiData } from "@/hooks/use-api-data";
-import { fetchDocumentAnalyses } from "@/lib/data-service";
+import { fetchDocumentAnalyses, submitDocumentForAnalysis } from "@/lib/data-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,26 @@ import { FileUp, Search, CheckCircle2, AlertCircle, FileText, Loader2, Microscop
 import { Progress } from "@/components/ui/progress";
 
 export default function DocumentAnalysisPage() {
-  const { data: analyses, loading } = useApiData(fetchDocumentAnalyses);
+  const { data: analyses, loading, refetch } = useApiData(fetchDocumentAnalyses);
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleUpload = () => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
     setIsUploading(true);
-    setTimeout(() => setIsUploading(false), 2000); // Mock upload
+    try {
+      await submitDocumentForAnalysis(file);
+      await refetch();
+    } catch (error) {
+      console.error("Upload failed:", error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const triggerUpload = () => {
+    document.getElementById("doc-upload-input")?.click();
   };
 
   if (loading) {
@@ -35,7 +49,14 @@ export default function DocumentAnalysisPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1 border-dashed border-2 hover:border-primary transition-colors cursor-pointer group" onClick={handleUpload}>
+        <input 
+          type="file" 
+          id="doc-upload-input" 
+          className="hidden" 
+          accept=".pdf,.docx"
+          onChange={handleFileChange}
+        />
+        <Card className="md:col-span-1 border-dashed border-2 hover:border-primary transition-colors cursor-pointer group" onClick={triggerUpload}>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             {isUploading ? (
               <div className="space-y-4 w-full px-8">
@@ -50,7 +71,7 @@ export default function DocumentAnalysisPage() {
                 </div>
                 <h3 className="font-semibold text-lg">Upload Document</h3>
                 <p className="text-sm text-muted-foreground mt-1 px-4">Drag and drop your PDF or Word document here to start analysis</p>
-                <Button variant="outline" className="mt-6">Select File</Button>
+                <Button variant="outline" className="mt-6" onClick={(e) => { e.stopPropagation(); triggerUpload(); }}>Select File</Button>
               </>
             )}
           </CardContent>

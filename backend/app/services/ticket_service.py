@@ -11,6 +11,17 @@ import uuid
 
 class TicketService:
     @staticmethod
+    def calculate_priority(risk_score: int) -> TicketPriority:
+        """Maps a 0-100 risk score to a TicketPriority."""
+        if risk_score >= 85:
+            return TicketPriority.critical
+        elif risk_score >= 65:
+            return TicketPriority.high
+        elif risk_score >= 40:
+            return TicketPriority.medium
+        return TicketPriority.low
+
+    @staticmethod
     async def process_ai_finding(
         db: AsyncSession,
         finding_text: str,
@@ -42,14 +53,7 @@ class TicketService:
             risk_score = 30
         
         # 2. Criticality Mapping
-        if risk_score >= 85:
-            base_priority = TicketPriority.critical
-        elif risk_score >= 65:
-            base_priority = TicketPriority.high
-        elif risk_score >= 40:
-            base_priority = TicketPriority.medium
-        else:
-            base_priority = TicketPriority.low
+        base_priority = TicketService.calculate_priority(risk_score)
 
         # 3. Repeat Check (Last 90 days) - State Agnostic
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)

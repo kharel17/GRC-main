@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 from app.api import (
-    auth, risks, audit_logs, controls, compliance, evidence,
-    tickets, reports, users, notifications, ai,
-    organization, assets, control_applicability,
-    document_analysis, gap_analysis, audit_preparation,
+    auth, users, organization, assets, risks, audit_logs, controls, 
+    control_applicability, compliance, evidence, document_analysis, 
+    gap_analysis, audit_preparation, reports, notifications, ai, 
+    dashboard, tickets,
 )
 
 api_router = APIRouter()
@@ -11,6 +11,9 @@ api_router = APIRouter()
 # Auth & Users
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+
+# Step 0 — Dashboard & Monitoring
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 
 # Step 1 — Organization Setup
 api_router.include_router(organization.router, prefix="/organization", tags=["organization"])

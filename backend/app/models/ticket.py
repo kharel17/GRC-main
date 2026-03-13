@@ -58,6 +58,7 @@ class Ticket(Base):
     related_risk_id = Column(UUID(as_uuid=True), ForeignKey("risks.id"), nullable=True)
     related_entity_type = Column(String, nullable=True)
     related_entity_id = Column(UUID(as_uuid=True), nullable=True)
+    framework_control_id = Column(UUID(as_uuid=True), ForeignKey("framework_controls.id"), nullable=True)
     
     # ISO mapping metadata (optional but helpful for audit)
     iso_clause = Column(String, nullable=True)

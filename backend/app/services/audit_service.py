@@ -19,7 +19,7 @@ import logging
 import io
 import csv
 from fpdf import FPDF
-from app.services.gap_analysis_service import generate_gap_report
+
 
 logger = logging.getLogger("grc.audit")
 
@@ -105,6 +105,7 @@ async def get_readiness_score(db: AsyncSession, organization_id: UUID) -> Dict[s
     Calculate weighted readiness score based on implemented controls, 
     risk levels, and asset criticality.
     """
+    from app.services.gap_analysis_service import generate_gap_report
     report = await generate_gap_report(db, organization_id)
     
     # Simple percentage
@@ -120,7 +121,7 @@ async def get_readiness_score(db: AsyncSession, organization_id: UUID) -> Dict[s
     # Readiness = 1 - (debt / total_possible_debt)
     # This is a bit subjective, but provides a better "risk-adjusted" score
     max_possible_debt = report.applicable_controls * 4
-    weighted_readiness = max(0, round((1 - (current_debt / max_possible_debt)) * 100, 1)) if report.applicable_controls > 0 else 0
+    weighted_readiness = max(0, round(float((1 - (current_debt / max_possible_debt)) * 100), 1)) if report.applicable_controls > 0 else 0
     
     return {
         "compliance_percentage": raw_pct,
@@ -137,6 +138,7 @@ async def export_audit_report(db: AsyncSession, organization_id: UUID, format: s
     Export a comprehensive ISO 27001 readiness report.
     Generates SoA, Risk Register, and Gap Analysis in one document.
     """
+    from app.services.gap_analysis_service import generate_gap_report
     report = await generate_gap_report(db, organization_id)
     readiness = await get_readiness_score(db, organization_id)
     

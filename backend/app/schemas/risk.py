@@ -23,12 +23,15 @@ class RiskCategory(RiskCategoryBase):
 class RiskBase(BaseModel):
     title: str
     description: str
-    category_id: str
+    category_id: UUID
+    asset_id: Optional[UUID] = None
+    threat: Optional[str] = None
+    vulnerability: Optional[str] = None
     likelihood: int
     impact: int
     risk_score: int
     status: RiskStatus = RiskStatus.identified
-    owner_id: str
+    owner_id: UUID
 
 class RiskCreate(RiskBase):
     pass
@@ -36,12 +39,15 @@ class RiskCreate(RiskBase):
 class RiskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    category_id: Optional[str] = None
+    category_id: Optional[UUID] = None
+    asset_id: Optional[UUID] = None
+    threat: Optional[str] = None
+    vulnerability: Optional[str] = None
     likelihood: Optional[int] = None
     impact: Optional[int] = None
     risk_score: Optional[int] = None
     status: Optional[RiskStatus] = None
-    owner_id: Optional[str] = None
+    owner_id: Optional[UUID] = None
 
 class RiskInDBBase(RiskBase):
     id: UUID
@@ -59,7 +65,8 @@ class Risk(RiskInDBBase):
 class RiskControlMappingOut(BaseModel):
     id: UUID
     risk_id: UUID
-    control_id: UUID
+    control_id: Optional[UUID] = None
+    framework_control_id: Optional[UUID] = None
     control_title: Optional[str] = None
     control_status: Optional[str] = None
     residual_likelihood: Optional[int] = None

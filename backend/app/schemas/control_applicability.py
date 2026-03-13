@@ -6,6 +6,7 @@ from datetime import datetime
 
 class ControlApplicabilityCreate(BaseModel):
     organization_id: UUID
+    framework_id: Optional[UUID] = None
     control_annex: str  # e.g. "5.1", "8.12"
     is_applicable: bool = True
     status: str = "not_started"  # not_started, in_progress, implemented, not_applicable
@@ -25,6 +26,7 @@ class ControlApplicabilityUpdate(BaseModel):
 class ControlApplicabilityResponse(BaseModel):
     id: UUID
     organization_id: UUID
+    framework_id: Optional[UUID] = None
     control_annex: str
     is_applicable: bool
     status: str

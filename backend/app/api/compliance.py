@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app import schemas, models
 from app.api import deps
-from app.services import audit_service
+from app.services import audit_service, compliance_service
 from app.models.audit_log import AuditAction, AuditEntityType
 
 router = APIRouter()
@@ -33,20 +33,21 @@ class ComplianceStats(BaseModel):
     notApplicableControls: int
     complianceScore: int
 
-@router.get("/stats", response_model=ComplianceStats)
+@router.get("/stats")
 async def get_compliance_stats(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    # Basic mock stats for now, real implementation would count actual controls
-    return ComplianceStats(
-        totalControls=114,
-        implementedControls=45,
-        inProgressControls=20,
-        notStartedControls=40,
-        notApplicableControls=9,
-        complianceScore=42
-    )
+    # Use real compliance scoring logic
+    stats = await compliance_service.get_compliance_score(db, current_user.organization_id)
+    return {
+        "totalControls": stats["total_controls"],
+        "implementedControls": stats["implemented"],
+        "inProgressControls": stats["in_progress"],
+        "notStartedControls": stats["not_started"],
+        "notApplicableControls": stats["not_applicable"],
+        "complianceScore": int(stats["score"])
+    }
 
 @router.post("/", response_model=schemas.ComplianceItem)
 async def create_compliance_item(

@@ -34,96 +34,87 @@ async def get_current_user(
 
     if token.startswith("Bearer "):
         token = token[7:].strip()
-        
+
+    payload = None
+    last_error = None
+
     try:
-        # Extract header for debugging
         header = jwt.get_unverified_header(token)
         alg = header.get("alg", "HS256")
-        
-        # Broaden algorithms to ensure ES256 (Supabase default) is always allowed
-        allowed_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256"]
-        
-        # Try decoding with Supabase secret first (most flexible way)
-        payload = None
-        
-        # 1. Step: Try Supabase Secret with explicitly forced HS256 (Supabase default symmetric)
-        # This avoids PEM framing errors triggered by cryptography backend for ES256
+        logger.debug(f"JWT header alg: {alg}")
+    except Exception as e:
+        logger.error(f"Could not read JWT header: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token format",
+        )
+
+    # --- Attempt 1: Supabase secret, HS256 ---
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+        logger.debug("JWT decoded via Supabase HS256")
+    except JWTError as e:
+        last_error = e
+        logger.debug(f"HS256 decode failed: {e}")
+
+    # --- Attempt 2: ES256 with PEM wrapping ---
+    if payload is None and alg == "ES256":
+        key = settings.SUPABASE_JWT_SECRET
+        keys_to_try = [key]
+        if not key.startswith("-----BEGIN"):
+            keys_to_try.insert(0, f"-----BEGIN PUBLIC KEY-----\n{key}\n-----END PUBLIC KEY-----")
+        for k in keys_to_try:
+            try:
+                payload = jwt.decode(
+                    token, k, algorithms=["ES256"], options={"verify_aud": False}
+                )
+                logger.debug("JWT decoded via ES256")
+                break
+            except JWTError as e:
+                last_error = e
+                logger.debug(f"ES256 decode attempt failed: {e}")
+
+    # --- Attempt 3: Internal SECRET_KEY fallback ---
+    if payload is None:
+        logger.warning("Supabase decode failed. Trying internal SECRET_KEY...")
         try:
             payload = jwt.decode(
                 token,
-                settings.SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
+                settings.SECRET_KEY,
+                algorithms=["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256"],
                 options={"verify_aud": False}
             )
-        except JWTError:
-            # 2. Step: Try with the provided algorithm in the header if it wasn't HS256
-            if alg != "HS256":
-                try:
-                    # If it's ES256, we try parsing with potential PEM wrapping
-                    # but only if standard decode fails
-                    key = settings.SUPABASE_JWT_SECRET
-                    if alg == "ES256" and not key.startswith("-----BEGIN"):
-                        formatted_key = f"-----BEGIN PUBLIC KEY-----\n{key}\n-----END PUBLIC KEY-----"
-                        try:
-                            payload = jwt.decode(
-                                token,
-                                formatted_key,
-                                algorithms=["ES256"],
-                                options={"verify_aud": False}
-                            )
-                        except JWTError:
-                            # If PEM wrapping failed, try the raw key as ES256 (unlikely but possible)
-                            payload = jwt.decode(
-                                token,
-                                key,
-                                algorithms=["ES256"],
-                                options={"verify_aud": False}
-                            )
-                    else:
-                        payload = jwt.decode(
-                            token,
-                            key,
-                            algorithms=[alg],
-                            options={"verify_aud": False}
-                        )
-                except JWTError as e:
-                    logger.warning(f"Supabase specific alg {alg} decode failed: {e}")
-        
-        # 3. Step: Final fallback to internal SECRET_KEY
-        if not payload:
-            logger.warning("Supabase decode failed all stages. Trying internal secret...")
-            try:
-                payload = jwt.decode(
-                    token,
-                    settings.SECRET_KEY,
-                    algorithms=allowed_algs,
-                    options={"verify_aud": False}
-                )
-            except JWTError as e:
-                logger.error(f"Internal secret decode failed: {e}")
-                raise
-            
-        user_id = payload.get("sub")
-        if not user_id:
-            raise ValueError("Token missing 'sub' claim")
-            
-    except Exception as e:
-        logger.error(f"JWT Validation Error: {type(e).__name__}: {str(e)}")
+            logger.debug("JWT decoded via internal SECRET_KEY")
+        except JWTError as e:
+            last_error = e
+            logger.error(f"All JWT decode attempts failed. Last error: {e}")
+
+    if payload is None:
+        # Return 401 (not 403) — the token is unreadable, not a permissions issue
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Could not validate credentials: {str(e)}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Could not validate credentials. Token decode failed: {last_error}",
         )
-    
-    # Check if user exists in our local database
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token is missing required 'sub' claim",
+        )
+
+    # --- Load or auto-provision user ---
     user_orm = await db.get(models.User, user_id)
-    
+
     if not user_orm:
-        # Auto-provision user on first Supabase login
-        # Extract email from app_metadata or user_metadata if available
         email = payload.get("email", "")
         role_str = payload.get("user_metadata", {}).get("role", "admin")
-        
-        # Dev seed accounts only - do not use in production
+
         DEV_ROLE_MAP = {
             "alice@company.com": models.UserRole.admin,
             "carol@company.com": models.UserRole.manager,
@@ -135,26 +126,23 @@ async def get_current_user(
         except ValueError:
             role_enum = models.UserRole.admin
 
-        # 1. Check if email maps to a dev seed account
         if email in DEV_ROLE_MAP:
             role_enum = DEV_ROLE_MAP[email]
         else:
-            # 2. If not a dev seed account, check if database is empty to make the first user an admin
             from sqlalchemy import select, func
             try:
                 user_count_query = await db.execute(select(func.count()).select_from(models.User))
                 user_count = user_count_query.scalar_one()
-
                 if user_count == 0:
                     role_enum = models.UserRole.admin
             except Exception as e:
-                print(f"Error checking user count: {e}")
+                logger.error(f"Error checking user count: {e}")
 
         new_user = models.User(
             id=user_id,
             email=email,
             full_name=payload.get("user_metadata", {}).get("full_name", email.split('@')[0] if email else "Unknown"),
-            hashed_password="SUPABASE_AUTH", # Password managed by Supabase
+            hashed_password="SUPABASE_AUTH",
             role=role_enum,
             is_active=True
         )
@@ -163,36 +151,37 @@ async def get_current_user(
             await db.commit()
             await db.refresh(new_user)
             user_orm = new_user
+            logger.info(f"Auto-provisioned new user: {email} with role: {role_enum}")
         except Exception as e:
             await db.rollback()
-            print(f"Error auto-provisioning user: {e}")
+            logger.error(f"Error auto-provisioning user: {e}")
             raise HTTPException(status_code=500, detail="Error creating user profile")
-         
-    # Aggressively enforce admin role if requested (temporary global admin mode)
-    if user_orm and user_orm.role != models.UserRole.admin:
-        # Check if we should override or just return. 
-        # Requirement: "Everyone who logs in is an admin"
+
+    # --- Temporary global admin override (remove when roles are stable) ---
+    if user_orm.role != models.UserRole.admin:
+        logger.info(f"Applying temporary admin override for: {user_orm.email}")
         user_orm.role = models.UserRole.admin
-        db.add(user_orm)
-        try:
-            await db.commit()
-            await db.refresh(user_orm)
-        except Exception:
-            await db.rollback()
-            
+
     return user_orm
+
 
 class RoleChecker:
     def __init__(self, allowed_roles: list[models.UserRole]):
-        self.allowed_roles = allowed_roles
+        self.allowed_roles = [str(role.value) if hasattr(role, 'value') else str(role) for role in allowed_roles]
 
     def __call__(self, user: models.User = Depends(get_current_user)):
-        if user.role not in self.allowed_roles:
+        user_role_str = str(user.role.value) if hasattr(user.role, 'value') else str(user.role)
+
+        logger.debug(f"Checking access: User role '{user_role_str}' vs Allowed roles {self.allowed_roles}")
+
+        if user_role_str not in self.allowed_roles:
+            logger.warning(f"Access Denied: {user.email} (role: {user_role_str}) requires one of {self.allowed_roles}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role {user.role} does not have access to this resource",
+                detail=f"Role '{user_role_str}' does not have access to this resource",
             )
         return user
+
 
 def get_current_active_user(
     current_user: models.User = Depends(get_current_user),

@@ -65,26 +65,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (error) {
           console.error('[Auth] Error getting session:', error.message);
         } else if (initialSession && mounted) {
-          console.log('[Auth] Initial session found:', {
-            user_id: initialSession.user.id,
-            email: initialSession.user.email,
-          });
+          console.log('[Auth] Initial session found, fetching profile...');
           setSession(initialSession);
           
           // Fetch real profile from backend to get the correct role
           try {
+            console.log('[Auth] Calling backend /auth/me...');
             const profile = await fetchCurrentUserProfile();
-            console.log('[Auth] Backend profile found:', profile);
+            console.log('[Auth] Backend profile received:', profile);
             setUser({
               id: profile.id,
               email: profile.email,
               role: profile.role,
             });
           } catch (profileErr) {
-            console.warn('[Auth] Could not fetch backend profile, falling back to Supabase metadata', profileErr);
+            console.warn('[Auth] Backend profile fetch failed:', profileErr);
             setUser(mapSupabaseUser(initialSession.user));
           }
-        } else if (!initialSession) {
+        } else {
           console.log('[Auth] No initial session found');
         }
       } catch (e) {

@@ -42,6 +42,8 @@ class Ticket(Base):
     status = Column(SAEnum(TicketStatus), default=TicketStatus.open)
     category = Column(SAEnum(TicketCategory), nullable=False)
     
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+
     source_audit_log_id = Column(UUID(as_uuid=True), ForeignKey("audit_logs.id"), nullable=False)
     
     assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -56,6 +58,7 @@ class Ticket(Base):
     related_risk_id = Column(UUID(as_uuid=True), ForeignKey("risks.id"), nullable=True)
     related_entity_type = Column(String, nullable=True)
     related_entity_id = Column(UUID(as_uuid=True), nullable=True)
+    framework_control_id = Column(UUID(as_uuid=True), ForeignKey("framework_controls.id"), nullable=True)
     
     # ISO mapping metadata (optional but helpful for audit)
     iso_clause = Column(String, nullable=True)

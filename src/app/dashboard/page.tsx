@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { fetchRisks, fetchControls, fetchComplianceItems } from "@/lib/data-service";
+import { fetchRisks, fetchControls, fetchComplianceItems, fetchOrganization, fetchReadinessScore } from "@/lib/data-service";
 import { useApiData } from "@/hooks/use-api-data";
 import { DashboardSummary } from "@/features/dashboard/DashboardSummary";
 import { RiskHighlights } from "@/features/dashboard/RiskHighlights";
@@ -15,7 +15,7 @@ import type { Control } from "@/types/control";
 // Role-Specific Widget Components
 // =============================================================================
 
-function AdminSystemOverview({ controls, risks }: { controls: Control[]; risks: Risk[] }) {
+function AdminSystemOverview({ controls, risks, readiness }: { controls: Control[]; risks: Risk[]; readiness?: any }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/40 dark:to-blue-900/40 dark:border-blue-800">
@@ -53,8 +53,10 @@ function AdminSystemOverview({ controls, risks }: { controls: Control[]; risks: 
               <TrendingUp className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-900 dark:text-green-100">87%</p>
-              <p className="text-sm text-green-700 dark:text-green-300">Compliance Rate</p>
+              <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                {readiness?.compliance_percentage || 0}%
+              </p>
+              <p className="text-sm text-green-700 dark:text-green-300">Compliance Implementation</p>
             </div>
           </div>
         </CardContent>
@@ -63,11 +65,13 @@ function AdminSystemOverview({ controls, risks }: { controls: Control[]; risks: 
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-600 rounded-lg">
-              <Clock className="h-5 w-5 text-white" />
+              <BarChart3 className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">12</p>
-              <p className="text-sm text-purple-700 dark:text-purple-300">Pending Reviews</p>
+              <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                {readiness?.weighted_readiness || 0}%
+              </p>
+              <p className="text-sm text-purple-700 dark:text-purple-300">Weighted Readiness</p>
             </div>
           </div>
         </CardContent>
@@ -167,8 +171,15 @@ export default function DashboardPage() {
   const { data: risks, loading: risksLoading } = useApiData(fetchRisks);
   const { data: controls, loading: controlsLoading } = useApiData(fetchControls);
   const { data: complianceItems, loading: complianceLoading } = useApiData(fetchComplianceItems);
+  const { data: org, loading: orgLoading } = useApiData(fetchOrganization);
+  
+  const orgId = org?.id || "";
+  const { data: readiness, loading: readinessLoading } = useApiData(
+    () => orgId ? fetchReadinessScore(orgId) : Promise.resolve(null),
+    [orgId]
+  );
 
-  const loading = risksLoading || controlsLoading || complianceLoading;
+  const loading = risksLoading || controlsLoading || complianceLoading || orgLoading || (orgId && readinessLoading);
 
   // Role-specific greeting
   const getGreeting = () => {
@@ -220,7 +231,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Admin-specific system overview */}
-      {role === 'admin' && <AdminSystemOverview controls={allControls} risks={allRisks} />}
+      {role === 'admin' && <AdminSystemOverview controls={allControls} risks={allRisks} readiness={readiness} />}
 
       {/* Analyst/Owner-specific task widget */}
       {(role === 'analyst' || role === 'control_owner' || role === 'risk_owner') && <AnalystTaskWidget />}

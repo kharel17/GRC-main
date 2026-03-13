@@ -19,20 +19,12 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
 )
 
-# ── CORS Middleware ────────────────────────────────────────
+# ── CORS Origins ───────────────────────────────────────────
 allowed_origins = [
     "https://grc-main.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
 ]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ── Security Headers Middleware ────────────────────────────
 @app.middleware("http")
@@ -71,6 +63,15 @@ async def request_logging_middleware(request: Request, call_next):
     )
     response.headers["X-Request-ID"] = request_id
     return response
+
+# ── CORS Middleware (registered last = runs first) ─────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ── AI Service Initialization ─────────────────────────────
 from app.services.ai_service import ai_service

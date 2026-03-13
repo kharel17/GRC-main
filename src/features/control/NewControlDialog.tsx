@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createControl } from '@/lib/data-service';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { handleApiError } from '@/lib/handle-api-error';
 import {
     Dialog,
     DialogContent,
@@ -39,6 +40,8 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
     const [effectiveness, setEffectiveness] = useState('medium');
     const [status, setStatus] = useState('planned');
     const [submitting, setSubmitting] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [attempted, setAttempted] = useState(false);
 
     const resetForm = () => {
         setTitle('');
@@ -46,13 +49,30 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
         setControlType('preventive');
         setEffectiveness('medium');
         setStatus('planned');
+        setErrors({});
+        setAttempted(false);
+    };
+
+    const validateForm = () => {
+        const newErrors: Record<string, string> = {};
+        
+        if (!title.trim()) {
+            newErrors.title = 'Title is required.';
+        }
+        
+        if (!description.trim()) {
+            newErrors.description = 'Description is required.';
+        } else if (description.trim().length < 10) {
+            newErrors.description = 'Description must be at least 10 characters.';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = async () => {
-        if (!title.trim() || !description.trim()) {
-            toast.error('Please fill in title and description.');
-            return;
-        }
+        setAttempted(true);
+        if (!validateForm()) return;
 
         setSubmitting(true);
         try {
@@ -69,8 +89,8 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
             resetForm();
             onSuccess();
             onOpenChange(false);
-        } catch (err: any) {
-            toast.error(err?.message || 'Failed to create control.');
+        } catch (err: unknown) {
+            toast.error(handleApiError(err));
         } finally {
             setSubmitting(false);
         }
@@ -88,24 +108,41 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
 
                 <div className="grid gap-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="ctrl-title">Title *</Label>
+                        <Label htmlFor="ctrl-title" className={errors.title && attempted ? "text-red-500" : ""}>Title *</Label>
                         <Input
                             id="ctrl-title"
                             placeholder="e.g. Multi-Factor Authentication"
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                if (attempted) validateForm();
+                            }}
+                            className={errors.title && attempted ? "border-red-500 focus-visible:ring-red-500" : ""}
                         />
+                        {attempted && errors.title && <p className="text-xs text-red-500">{errors.title}</p>}
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="ctrl-desc">Description *</Label>
+                        <Label htmlFor="ctrl-desc" className={errors.description && attempted ? "text-red-500" : ""}>Description *</Label>
                         <Textarea
                             id="ctrl-desc"
                             placeholder="Describe the control and how it mitigates risk..."
                             value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                            onChange={(e) => {
+                                setDescription(e.target.value);
+                                if (attempted) validateForm();
+                            }}
                             rows={3}
+                            className={errors.description && attempted ? "border-red-500 focus-visible:ring-red-500" : ""}
                         />
+                        <div className="flex justify-between mt-1">
+                            {attempted && errors.description ? (
+                                <p className="text-xs text-red-500">{errors.description}</p>
+                            ) : (
+                                <span />
+                            )}
+                            <p className="text-xs text-muted-foreground">{description.length} chars</p>
+                        </div>
                     </div>
 
                     <div className="space-y-2">

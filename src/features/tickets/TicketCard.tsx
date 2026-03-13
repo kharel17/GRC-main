@@ -48,13 +48,21 @@ export function getStatusStyles(status: TicketStatus) {
   switch (status) {
     case 'open':
       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
-    case 'in_progress':
+    case 'in_review':
+    case 'pending_evidence':
+    case 'pending_l2_review':
+    case 'pending_l1_signoff':
       return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
     case 'escalated':
+    case 'overdue':
       return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
     case 'resolved':
       return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
     case 'closed':
+    case 'archived':
+    case 'rejected':
+      return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+    default:
       return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
   }
 }
@@ -131,7 +139,7 @@ export function TicketCard({ ticket }: TicketCardProps) {
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
             <div className="flex items-center gap-1.5">
               <User className="h-3.5 w-3.5" />
-              <span className="truncate max-w-[120px]">{ticket.assignedTo}</span>
+              <span className="truncate max-w-[120px]">{ticket.assignedToName}</span>
             </div>
             <div className="flex items-center gap-3">
               {ticket.comments.length > 0 && (
@@ -148,10 +156,10 @@ export function TicketCard({ ticket }: TicketCardProps) {
           </div>
 
           {/* Escalation info */}
-          {ticket.escalatedTo && (
+          {ticket.escalatedToName && (
             <div className="flex items-center gap-1.5 text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-2.5 py-1.5 rounded-md">
               <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>Escalated to <strong>{ticket.escalatedTo}</strong> ({ticket.escalatedToRole})</span>
+              <span>Escalated to <strong>{ticket.escalatedToName}</strong> ({ticket.escalatedToRole})</span>
             </div>
           )}
         </CardContent>

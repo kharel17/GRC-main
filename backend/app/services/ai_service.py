@@ -62,6 +62,28 @@ class EvidenceAnalysisResult:
         }
 
 
+class DocumentAnalysisAIResult:
+    """Full AI analysis of a security document for Step 3."""
+    def __init__(self, summary: str, category: str, 
+                 implemented_controls: list[dict], 
+                 missing_controls: list[dict], 
+                 security_practices: list[dict]):
+        self.summary = summary
+        self.category = category
+        self.implemented_controls = implemented_controls
+        self.missing_controls = missing_controls
+        self.security_practices = security_practices
+
+    def to_dict(self) -> dict:
+        return {
+            "summary": self.summary,
+            "category": self.category,
+            "implemented_controls": self.implemented_controls,
+            "missing_controls": self.missing_controls,
+            "security_practices": self.security_practices
+        }
+
+
 class RiskSuggestion:
     """AI-suggested risk scoring."""
     def __init__(self, likelihood: int, impact: int, risk_score: int,
@@ -411,6 +433,106 @@ class AIService:
             raise ValueError("Could not extract any text from the uploaded PDF.")
         return self.analyze_evidence(text, top_n=top_n, threshold=threshold)
 
+    # ------------------------------------------------------------------
+    # Full Document Analysis (Step 3 Engine)
+    # ------------------------------------------------------------------
+
+    def analyze_document(self, text: str) -> DocumentAnalysisAIResult:
+        """
+        Comprehensive document analysis for Step 3.
+        Detects practices, maps controls, and identifies domain-specific gaps.
+        """
+        if not self._is_ready:
+            raise RuntimeError("AI Service not initialized.")
+
+        # Try Gemini, fallback to local
+        if self._gemini_available and self._gemini_client:
+            try:
+                return self._analyze_document_gemini(text)
+            except Exception as e:
+                logger.warning(f"Gemini document analysis failed: {e}")
+
+        return self._analyze_document_local(text)
+
+    def _analyze_document_gemini(self, text: str) -> DocumentAnalysisAIResult:
+        """Deep analysis using Gemini generative model."""
+        prompt = f"""You are an ISO 27001 Auditor. Analyze the following security document text and extract structured compliance data.
+
+Document Text:
+{text[:8000]}  # Limit text for prompt constraints
+
+Return ONLY a valid JSON object with these exact fields:
+{{
+  "summary": "<one sentence overview>",
+  "category": "<policy|procedure|architecture|standard>",
+  "security_practices": [
+    {{"practice": "...", "excerpt": "...", "strength": "strong|partial"}}
+  ],
+  "implemented_controls": [
+    {{"annex": "5.1", "title": "Policies for information security", "confidence": 0.95, "reason": "..."}}
+  ],
+  "missing_controls": [
+    {{"annex": "8.12", "title": "Data leakage prevention", "reason": "Found mention of data but no DLP rules."}}
+  ]
+}}
+
+Guidelines:
+- Categorize the document accurately.
+- Identify 3-10 implemented controls from ISO 27001:2022.
+- Identify 1-3 missing controls that logically SHOULD be in this type of document.
+- Extract specific practices found in the text."""
+
+        response = self._gemini_client.models.generate_content(
+            model=self.GEMINI_GENERATE_MODEL,
+            contents=prompt,
+        )
+        
+        raw_text = response.text.strip()
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```")[1]
+            if raw_text.startswith("json"):
+                raw_text = raw_text[4:]
+        
+        result = json.loads(raw_text)
+        
+        return DocumentAnalysisAIResult(
+            summary=result.get("summary", "Analysis completed."),
+            category=result.get("category", "general"),
+            implemented_controls=result.get("implemented_controls", []),
+            missing_controls=result.get("missing_controls", []),
+            security_practices=result.get("security_practices", [])
+        )
+
+    def _analyze_document_local(self, text: str) -> DocumentAnalysisAIResult:
+        """Heuristic analysis using local embeddings and keywords."""
+        # Categorize
+        category = self._categorize(text)
+        
+        # Simple similarity for implemented controls
+        basic_res = self.analyze_evidence(text, top_n=5)
+        implemented = [
+            {"annex": m.annex, "title": m.title, "confidence": m.confidence/100, "reason": "Semantic similarity match."}
+            for m in basic_res.matched_controls
+        ]
+        
+        # Basic practice detection via keywords
+        practices = []
+        text_lower = text.lower()
+        if "mfa" in text_lower or "multi-factor" in text_lower:
+            practices.append({"practice": "Multi-factor authentication", "strength": "strong"})
+        if "encryption" in text_lower or "aes-256" in text_lower:
+            practices.append({"practice": "Data encryption", "strength": "strong"})
+        if "review" in text_lower or "audit" in text_lower:
+            practices.append({"practice": "Periodic review compliance", "strength": "partial"})
+
+        return DocumentAnalysisAIResult(
+            summary=basic_res.summary,
+            category=category,
+            implemented_controls=implemented,
+            missing_controls=[], # Local fallback is poor at detecting missing logic
+            security_practices=practices
+        )
+
     def _categorize(self, text: str) -> str:
         """Classify evidence into a category based on keyword matching."""
         text_lower = text.lower()
@@ -422,7 +544,7 @@ class AIService:
                 scores[category] = score
 
         if scores:
-            return max(scores, key=scores.get)
+            return str(max(scores, key=lambda k: scores[k]))
         return "general"
 
     # ------------------------------------------------------------------

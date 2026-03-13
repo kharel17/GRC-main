@@ -10,7 +10,7 @@ class ControlBase(BaseModel):
     control_type: ControlType
     effectiveness: ControlEffectiveness
     status: ControlStatus = ControlStatus.planned
-    owner_id: UUID
+    owner_id: str
 
 class ControlCreate(ControlBase):
     pass
@@ -21,7 +21,7 @@ class ControlUpdate(BaseModel):
     control_type: Optional[ControlType] = None
     effectiveness: Optional[ControlEffectiveness] = None
     status: Optional[ControlStatus] = None
-    owner_id: Optional[UUID] = None
+    owner_id: Optional[str] = None
 
 class ControlInDBBase(ControlBase):
     id: UUID

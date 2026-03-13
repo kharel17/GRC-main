@@ -1,20 +1,19 @@
-from typing import Generator, Optional
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from typing import Generator, Optional, List
+from fastapi import Depends, HTTPException, status, Request
+from fastapi.security import OAuth2PasswordBearer, APIKeyCookie
 from jose import jwt, JWTError
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app import models, schemas
 from app.config import settings
 from app.database import get_db
-from app.utils import security
+import logging
 
-from fastapi.security import APIKeyCookie, OAuth2PasswordBearer
-from fastapi import Request
+logger = logging.getLogger("grc.deps")
 
 # Support both cookie and Bearer header auth
 reusable_oauth2_cookie = APIKeyCookie(name="access_token", auto_error=False)
-reusable_oauth2_header = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login", auto_error=False)
+reusable_oauth2_header = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 
 async def get_current_user(
     request: Request,
@@ -22,35 +21,97 @@ async def get_current_user(
     cookie_token: str = Depends(reusable_oauth2_cookie),
     header_token: str = Depends(reusable_oauth2_header),
 ) -> models.User:
-    # Try Bearer header first, then fall back to cookie
+    """
+    Validates the JWT token from header or cookie and returns the user.
+    Auto-provisions users from Supabase if they don't exist locally.
+    """
     token = header_token or cookie_token
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
-    try:
-        # Decode the Supabase JWT
-        # Supabase uses HS256 and the JWT secret is in the dashboard
-        payload = jwt.decode(
-            token, 
-            settings.SUPABASE_JWT_SECRET, 
-            algorithms=["HS256"],
-            options={"verify_aud": False} # Accept the default Supabase 'authenticated' audience
-        )
+
+    if token.startswith("Bearer "):
+        token = token[7:].strip()
         
+    try:
+        # Extract header for debugging
+        header = jwt.get_unverified_header(token)
+        alg = header.get("alg", "HS256")
+        
+        # Broaden algorithms to ensure ES256 (Supabase default) is always allowed
+        allowed_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256"]
+        
+        # Try decoding with Supabase secret first (most flexible way)
+        payload = None
+        
+        # 1. Step: Try Supabase Secret with explicitly forced HS256 (Supabase default symmetric)
+        # This avoids PEM framing errors triggered by cryptography backend for ES256
+        try:
+            payload = jwt.decode(
+                token,
+                settings.SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                options={"verify_aud": False}
+            )
+        except JWTError:
+            # 2. Step: Try with the provided algorithm in the header if it wasn't HS256
+            if alg != "HS256":
+                try:
+                    # If it's ES256, we try parsing with potential PEM wrapping
+                    # but only if standard decode fails
+                    key = settings.SUPABASE_JWT_SECRET
+                    if alg == "ES256" and not key.startswith("-----BEGIN"):
+                        formatted_key = f"-----BEGIN PUBLIC KEY-----\n{key}\n-----END PUBLIC KEY-----"
+                        try:
+                            payload = jwt.decode(
+                                token,
+                                formatted_key,
+                                algorithms=["ES256"],
+                                options={"verify_aud": False}
+                            )
+                        except JWTError:
+                            # If PEM wrapping failed, try the raw key as ES256 (unlikely but possible)
+                            payload = jwt.decode(
+                                token,
+                                key,
+                                algorithms=["ES256"],
+                                options={"verify_aud": False}
+                            )
+                    else:
+                        payload = jwt.decode(
+                            token,
+                            key,
+                            algorithms=[alg],
+                            options={"verify_aud": False}
+                        )
+                except JWTError as e:
+                    logger.warning(f"Supabase specific alg {alg} decode failed: {e}")
+        
+        # 3. Step: Final fallback to internal SECRET_KEY
+        if not payload:
+            logger.warning("Supabase decode failed all stages. Trying internal secret...")
+            try:
+                payload = jwt.decode(
+                    token,
+                    settings.SECRET_KEY,
+                    algorithms=allowed_algs,
+                    options={"verify_aud": False}
+                )
+            except JWTError as e:
+                logger.error(f"Internal secret decode failed: {e}")
+                raise
+            
         user_id = payload.get("sub")
         if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token structure",
-            )
+            raise ValueError("Token missing 'sub' claim")
             
-    except (JWTError, ValidationError) as e:
-        print(f"Token validation error: {e}")
+    except Exception as e:
+        logger.error(f"JWT Validation Error: {type(e).__name__}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
+            detail=f"Could not validate credentials: {str(e)}",
         )
     
     # Check if user exists in our local database
@@ -60,7 +121,7 @@ async def get_current_user(
         # Auto-provision user on first Supabase login
         # Extract email from app_metadata or user_metadata if available
         email = payload.get("email", "")
-        role_str = payload.get("user_metadata", {}).get("role", "analyst")
+        role_str = payload.get("user_metadata", {}).get("role", "admin")
         
         # Dev seed accounts only - do not use in production
         DEV_ROLE_MAP = {
@@ -72,7 +133,7 @@ async def get_current_user(
         try:
             role_enum = models.UserRole(role_str)
         except ValueError:
-            role_enum = models.UserRole.analyst
+            role_enum = models.UserRole.admin
 
         # 1. Check if email maps to a dev seed account
         if email in DEV_ROLE_MAP:
@@ -107,6 +168,18 @@ async def get_current_user(
             print(f"Error auto-provisioning user: {e}")
             raise HTTPException(status_code=500, detail="Error creating user profile")
          
+    # Aggressively enforce admin role if requested (temporary global admin mode)
+    if user_orm and user_orm.role != models.UserRole.admin:
+        # Check if we should override or just return. 
+        # Requirement: "Everyone who logs in is an admin"
+        user_orm.role = models.UserRole.admin
+        db.add(user_orm)
+        try:
+            await db.commit()
+            await db.refresh(user_orm)
+        except Exception:
+            await db.rollback()
+            
     return user_orm
 
 class RoleChecker:

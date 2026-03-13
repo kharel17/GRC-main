@@ -10,6 +10,7 @@
  */
 
 import { api } from './api-client';
+import { supabase } from './supabase';
 import {
   mockRisks,
   mockRiskCategories,
@@ -18,6 +19,9 @@ import {
   mockEvidence,
   mockAuditLogs,
   mockTickets,
+  mockOrganization,
+  mockAssets,
+  mockDocumentAnalyses,
 } from './mock-data';
 import type { Risk, RiskCategory } from '@/types/risk';
 import type { Control } from '@/types/control';
@@ -25,6 +29,7 @@ import type { ComplianceItem } from '@/types/compliance';
 import type { Evidence } from '@/types/evidence';
 import type { AuditLog } from '@/types/audit';
 import type { Ticket } from '@/types/ticket';
+import { Organization, Asset, DocumentAnalysis } from '@/types';
 
 // -- Helper --────────
 async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
@@ -184,6 +189,10 @@ export async function markAllRead(): Promise<void> {
 }
 
 // -- Users --────────
+export async function fetchCurrentUserProfile(): Promise<any> {
+  return api.get<any>('/auth/me');
+}
+
 export async function fetchUsers(): Promise<any[]> {
   try {
     return await api.get<any[]>('/users/');
@@ -203,4 +212,86 @@ export async function createUser(data: {
   is_acting_admin?: number;
 }): Promise<any> {
   return api.post<any>('/users/', data);
+}
+
+// -- Organization --────────
+export async function fetchOrganization(): Promise<Organization | undefined> {
+  return fetchOrFallback<Organization | undefined>('/organizations/', mockOrganization);
+}
+
+export async function updateOrganization(id: string, data: Partial<Organization>): Promise<Organization> {
+  return api.put<Organization>(`/organizations/${id}/`, data);
+}
+
+// -- Assets --────────
+export async function fetchAssets(): Promise<Asset[]> {
+  return fetchOrFallback<Asset[]>('/assets/', mockAssets);
+}
+
+export async function createAsset(data: Partial<Asset>): Promise<Asset> {
+  return api.post<Asset>('/assets/', data);
+}
+
+export async function updateAsset(id: string, data: Partial<Asset>): Promise<Asset> {
+  return api.put<Asset>(`/assets/${id}/`, data);
+}
+
+export async function deleteAsset(id: string): Promise<void> {
+  return api.delete(`/assets/${id}/`);
+}
+
+export async function linkRiskToAsset(assetId: string, riskId: string): Promise<any> {
+  return api.post<any>(`/assets/${assetId}/risks`, { risk_id: riskId });
+}
+
+export async function unlinkRiskFromAsset(assetId: string, riskId: string): Promise<void> {
+  return api.delete(`/assets/${assetId}/risks/${riskId}`);
+}
+
+// -- Audit Preparation --────────
+export async function fetchReadinessScore(orgId: string): Promise<any> {
+  return fetchOrFallback<any>(`/audit-preparation/readiness?organization_id=${orgId}`, {
+    compliance_percentage: 0,
+    weighted_readiness: 0,
+    total_controls: 0,
+    implemented_controls: 0,
+    critical_gaps: 0,
+    high_gaps: 0
+  });
+}
+
+async function downloadExport(endpoint: string, fallbackFilename: string): Promise<Blob> {
+  const url = `${api.baseUrl}${endpoint}`;
+  
+  // Custom fetch needed for Blob handling
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {};
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
+  }
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) throw new Error('Export failed');
+  return response.blob();
+}
+
+export async function exportAuditReport(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
+  return downloadExport(`/audit-preparation/export?organization_id=${orgId}&format=${format}`, 'Audit_Report');
+}
+
+export async function exportSoAReport(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
+  return downloadExport(`/audit-preparation/soa/export?organization_id=${orgId}&format=${format}`, 'ISO27001_SoA');
+}
+
+export async function exportRiskRegister(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
+  return downloadExport(`/audit-preparation/risk-register/export?organization_id=${orgId}&format=${format}`, 'Risk_Register');
+}
+
+// -- Document Analysis --────────
+export async function fetchDocumentAnalyses(): Promise<DocumentAnalysis[]> {
+  return fetchOrFallback<DocumentAnalysis[]>('/document-analysis/', mockDocumentAnalyses);
+}
+
+export async function submitDocumentForAnalysis(file: File): Promise<DocumentAnalysis> {
+  return api.upload<DocumentAnalysis>('/document-analysis/upload', file);
 }

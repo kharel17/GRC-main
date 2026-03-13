@@ -34,7 +34,7 @@ async def create_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
     risk_in: schemas.RiskCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager, models.UserRole.analyst])),
 ) -> Any:
     """
     Create new risk.
@@ -92,7 +92,7 @@ async def update_risk(
     db: AsyncSession = Depends(deps.get_db),
     id: str,
     risk_in: schemas.RiskUpdate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager, models.UserRole.analyst])),
 ) -> Any:
     """
     Update an existing risk.
@@ -181,7 +181,7 @@ async def map_control_to_risk(
     db: AsyncSession = Depends(deps.get_db),
     id: str,
     body: schemas.RiskControlMappingCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager, models.UserRole.analyst])),
 ) -> Any:
     """
     Map a control to a risk.

@@ -20,7 +20,7 @@ async def create_user(db: AsyncSession, user_in: schemas.UserCreate) -> models.U
         email=user_in.email,
         full_name=user_in.full_name,
         hashed_password=hashed_password,
-        role=user_in.role or models.UserRole.analyst,
+        role=user_in.role or models.UserRole.admin,
         department=user_in.department,
         is_active=True
     )

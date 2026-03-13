@@ -10,9 +10,25 @@
 
 import { supabase } from './supabase';
 import { clearTokens } from './token-storage';
-
+import { toast } from 'sonner';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 1, retryDelay = 3000): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: AbortSignal.timeout(15000), // 15s timeout
+    });
+  } catch (error) {
+    if (retries > 0 && error instanceof Error && error.name !== 'AbortError') {
+      toast.info('Connection slow, retrying...');
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      return fetchWithRetry(url, options, retries - 1, retryDelay);
+    }
+    throw error;
+  }
+}
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
 export class ApiError extends Error {
@@ -46,7 +62,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}${endpoint}`, {
     ...rest,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -70,7 +86,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
       if (refreshed) {
         // Retry the original request with the new token
         const newHeaders = { ...headers, 'Authorization': `Bearer ${refreshed.accessToken}` };
-        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+        const retryResponse = await fetchWithRetry(`${API_BASE_URL}${endpoint}`, {
           ...rest,
           headers: newHeaders,
           credentials: 'include',
@@ -135,7 +151,7 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
     headers['Authorization'] = `Bearer ${session.access_token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,
     body: formData,

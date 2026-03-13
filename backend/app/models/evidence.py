@@ -12,9 +12,10 @@ class EvidenceRelatedTo(str, enum.Enum):
     compliance_item = "compliance_item"
 
 class EvidenceStatus(str, enum.Enum):
-    active = "active"
-    expired = "expired"
+    pending = "pending"
+    verified = "verified"
     rejected = "rejected"
+    expired = "expired"
 
 
 class Evidence(Base):
@@ -28,9 +29,11 @@ class Evidence(Base):
     file_type = Column(String, nullable=True)
     file_size = Column(Integer, nullable=True)
     
-    status = Column(SAEnum(EvidenceStatus), default=EvidenceStatus.active, nullable=False)
+    status = Column(SAEnum(EvidenceStatus), default=EvidenceStatus.pending, nullable=False)
     valid_until = Column(DateTime, nullable=True)
     
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+
     related_to = Column(SAEnum(EvidenceRelatedTo), nullable=False)
     related_id = Column(UUID(as_uuid=True), nullable=False)
     

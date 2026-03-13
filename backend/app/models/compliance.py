@@ -30,11 +30,13 @@ class ComplianceItem(Base):
     priority = Column(SAEnum(CompliancePriority), default=CompliancePriority.medium)
     due_date = Column(DateTime, nullable=True)
     
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    organization = relationship("Organization", foreign_keys=[organization_id])
     owner = relationship("User", foreign_keys=[owner_id])
     evidence = relationship("Evidence", back_populates="related_compliance_item", foreign_keys="Evidence.related_id", primaryjoin="and_(Evidence.related_id==ComplianceItem.id, Evidence.related_to=='compliance_item')")

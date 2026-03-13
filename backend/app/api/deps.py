@@ -108,61 +108,98 @@ async def get_current_user(
             detail="Token is missing required 'sub' claim",
         )
 
-    # --- Load or auto-provision user ---
+    # --- Load user from DB ---
     user_orm = await db.get(models.User, user_id)
+    email = payload.get("email", "")
 
-    if not user_orm:
-        email = payload.get("email", "")
-        role_str = payload.get("user_metadata", {}).get("role", "admin")
+    ROLE_OVERRIDE_MAP = {
+        # Seed accounts (local dev only)
+        "alice@company.com":   models.UserRole.admin,
+        "carol@company.com":   models.UserRole.manager,
+        "bob@company.com":     models.UserRole.analyst,
+        # Platform team (all environments)
+        "bcolorc17@gmail.com": models.UserRole.admin,
+        "grchelios@gmail.com": models.UserRole.admin,
+    }
 
-        DEV_ROLE_MAP = {
-            "alice@company.com": models.UserRole.admin,
-            "carol@company.com": models.UserRole.manager,
-            "bob@company.com": models.UserRole.analyst,
-        }
-
-        try:
-            role_enum = models.UserRole(role_str)
-        except ValueError:
-            role_enum = models.UserRole.admin
-
-        if email in DEV_ROLE_MAP:
-            role_enum = DEV_ROLE_MAP[email]
-        else:
-            from sqlalchemy import select, func
+    # Step 1: Check platform team / seed override
+    if email in ROLE_OVERRIDE_MAP:
+        if not user_orm:
+            new_user = models.User(
+                id=user_id,
+                email=email,
+                full_name=payload.get("user_metadata", {}).get("full_name", email.split('@')[0] if email else "Unknown"),
+                hashed_password="SUPABASE_AUTH",
+                role=ROLE_OVERRIDE_MAP[email],
+                is_active=True,
+                invitation_status='active'
+            )
+            db.add(new_user)
             try:
-                user_count_query = await db.execute(select(func.count()).select_from(models.User))
-                user_count = user_count_query.scalar_one()
-                if user_count == 0:
-                    role_enum = models.UserRole.admin
+                await db.commit()
+                await db.refresh(new_user)
+                user_orm = new_user
+                logger.info(f"Auto-provisioned override user: {email} with role: {ROLE_OVERRIDE_MAP[email]}")
             except Exception as e:
-                logger.error(f"Error checking user count: {e}")
+                await db.rollback()
+                logger.error(f"Error auto-provisioning override user: {e}")
+                raise HTTPException(status_code=500, detail="Error creating override user profile")
+        return user_orm
 
-        new_user = models.User(
-            id=user_id,
-            email=email,
-            full_name=payload.get("user_metadata", {}).get("full_name", email.split('@')[0] if email else "Unknown"),
-            hashed_password="SUPABASE_AUTH",
-            role=role_enum,
-            is_active=True
+    from sqlalchemy import select
+    user_result = await db.execute(select(models.User).where(models.User.email == email))
+    user_by_email = user_result.scalar_one_or_none()
+    
+    # Associate Supabase ID with existing allowed email if first login
+    if user_by_email and not user_orm and user_by_email.id != user_id:
+        user_by_email.id = user_id # Align IDs (might need handling based on current schema constraints, but usually Supabase matches or overrides id)
+        # Instead of replacing ID directly, let's just use the email matched user.
+        # Ideally, invitation creates the user with a temporary ID or matches email during OAuth
+        # Since Supabase handles the actual UUID creation during auth/signup, 
+        # let's assume the DB record ID needs to be synchronized or we look it up by email.
+    
+    # We will strictly look up by email for the invitation system to ensure we catch invited users.
+    if not user_orm and user_by_email:
+        user_orm = user_by_email
+        # Optional: sync the ID if it differs
+        if str(user_orm.id) != user_id:
+             logger.warning(f"User ID mismatch for {email}. Supabase: {user_id}, DB: {user_orm.id}")
+
+    # Step 3: If user not found -> BLOCK
+    if not user_orm:
+        logger.warning(f"Blocked unauthorized login attempt for email: {email}")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "NOT_INVITED",
+                "message": "You have not been invited to this platform. Please contact your administrator."
+            }
         )
-        db.add(new_user)
+
+    # Step 4: If user deactivated -> BLOCK
+    if user_orm.invitation_status == 'deactivated':
+        logger.warning(f"Blocked login attempt for deactivated user: {email}")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "ACCOUNT_DEACTIVATED",
+                "message": "Your account has been deactivated. Please contact your administrator."
+            }
+        )
+
+    # Step 5: If user pending -> activate them
+    if user_orm.invitation_status == 'pending':
+        user_orm.invitation_status = 'active'
         try:
             await db.commit()
-            await db.refresh(new_user)
-            user_orm = new_user
-            logger.info(f"Auto-provisioned new user: {email} with role: {role_enum}")
+            logger.info(f"Activated pending user: {email}")
         except Exception as e:
             await db.rollback()
-            logger.error(f"Error auto-provisioning user: {e}")
-            raise HTTPException(status_code=500, detail="Error creating user profile")
-
-    # --- Temporary global admin override (remove when roles are stable) ---
-    if user_orm.role != models.UserRole.admin:
-        logger.info(f"Applying temporary admin override for: {user_orm.email}")
-        user_orm.role = models.UserRole.admin
+            logger.error(f"Error activating user: {e}")
 
     return user_orm
+
+
 
 
 class RoleChecker:

@@ -214,6 +214,36 @@ export async function createUser(data: {
   return api.post<any>('/users/', data);
 }
 
+// -- Invitations --────────
+export async function inviteUser(data: {
+  email: string;
+  full_name: string;
+  role: string;
+  manager_id?: string;
+}): Promise<any> {
+  return api.post<any>('/invitations/invite-user', data);
+}
+
+export async function inviteAdmin(data: {
+  email: string;
+  full_name: string;
+  organization_name: string;
+}): Promise<any> {
+  return api.post<any>('/invitations/invite-admin', data);
+}
+
+export async function fetchPendingInvitations(): Promise<any[]> {
+  try {
+    return await api.get<any[]>('/invitations/pending');
+  } catch {
+    return [];
+  }
+}
+
+export async function cancelInvitation(userId: string): Promise<any> {
+  return api.delete(`/invitations/${userId}`);
+}
+
 // -- Organization --────────
 export async function fetchOrganization(): Promise<Organization | undefined> {
   return fetchOrFallback<Organization | undefined>('/organizations/', mockOrganization);

@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum as SAEnum, Text, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Enum as SAEnum, Text, Integer, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
@@ -24,8 +24,14 @@ class Organization(Base):
     description = Column(Text, nullable=True)
     website = Column(String, nullable=True)
     country = Column(String, nullable=True)
-    employee_count = Column(Integer, nullable=True)
+    employee_count = Column(String, nullable=True) # Range e.g. "1-50"
     
+    # Onboarding Details
+    infrastructure = Column(String, nullable=True) # AWS, Azure, On-premise, etc.
+    data_types = Column(String, nullable=True) # PII, Financial, etc.
+    onboarding_completed = Column(Boolean, default=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+
     # Detailed risk levels per risk type
     risk_appetite = Column(JSONB, nullable=True)
     

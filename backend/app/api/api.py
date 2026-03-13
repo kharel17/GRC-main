@@ -3,7 +3,7 @@ from app.api import (
     auth, users, organization, assets, risks, audit_logs, controls, 
     control_applicability, compliance, evidence, document_analysis, 
     gap_analysis, audit_preparation, reports, notifications, ai, 
-    dashboard, tickets,
+    dashboard, tickets, invitations, onboarding,
 )
 
 api_router = APIRouter()
@@ -47,3 +47,5 @@ api_router.include_router(evidence.router, prefix="/evidence", tags=["evidence"]
 api_router.include_router(audit_logs.router, prefix="/audit-logs", tags=["audit-logs"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
+api_router.include_router(invitations.router, prefix="/invitations", tags=["invitations"])
+api_router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])

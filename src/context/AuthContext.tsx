@@ -78,7 +78,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
               email: profile.email,
               role: profile.role,
             });
-          } catch (profileErr) {
+          } catch (profileErr: any) {
+            // Check for invitation system errors
+            if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
+              const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
+              if (detail?.code === 'NOT_INVITED') {
+                window.location.href = '/not-invited';
+                return;
+              }
+              if (detail?.code === 'ACCOUNT_DEACTIVATED') {
+                window.location.href = '/deactivated';
+                return;
+              }
+            }
             console.warn('[Auth] Backend profile fetch failed:', profileErr);
             setUser(mapSupabaseUser(initialSession.user));
           }
@@ -124,7 +136,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
               email: profile.email,
               role: profile.role,
             });
-          } catch (profileErr) {
+          } catch (profileErr: any) {
+            // Check for invitation system errors
+            if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
+              const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
+              if (detail?.code === 'NOT_INVITED') {
+                window.location.href = '/not-invited';
+                return;
+              }
+              if (detail?.code === 'ACCOUNT_DEACTIVATED') {
+                window.location.href = '/deactivated';
+                return;
+              }
+            }
             console.warn('[Auth] Auth change profile fetch failed, using metadata', profileErr);
             setUser(mapSupabaseUser(currentSession.user));
           }

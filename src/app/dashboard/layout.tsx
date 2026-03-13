@@ -4,8 +4,9 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api-client";
 
 export default function DashboardLayout({
   children,
@@ -14,6 +15,7 @@ export default function DashboardLayout({
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -22,8 +24,32 @@ export default function DashboardLayout({
     }
   }, [isLoading, isAuthenticated, router]);
 
-  // Show loading state while checking auth
-  if (isLoading) {
+  // Check onboarding status for admin users
+  useEffect(() => {
+    async function checkOnboarding() {
+      if (!user || user.role !== "admin") {
+        setOnboardingChecked(true);
+        return;
+      }
+      try {
+        const status = await api.get<{ completed: boolean }>("/onboarding/status");
+        if (!status.completed) {
+          router.push("/onboarding");
+          return;
+        }
+      } catch {
+        // If the check fails, allow access
+      }
+      setOnboardingChecked(true);
+    }
+
+    if (isAuthenticated && user) {
+      checkOnboarding();
+    }
+  }, [isAuthenticated, user, router]);
+
+  // Show loading state while checking auth or onboarding
+  if (isLoading || (!onboardingChecked && isAuthenticated)) {
     return (
       <div className="h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">

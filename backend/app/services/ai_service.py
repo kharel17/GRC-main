@@ -15,6 +15,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
+from app.config import settings
+
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -159,7 +161,7 @@ class AIService:
 
     LOCAL_MODEL_NAME = "all-MiniLM-L6-v2"
     GEMINI_EMBED_MODEL = "text-embedding-004"
-    GEMINI_GENERATE_MODEL = "gemini-2.5-flash"
+    GEMINI_GENERATE_MODEL = "gemini-1.5-flash"
     DEFAULT_TOP_N = 5
     DEFAULT_THRESHOLD = 0.30
 
@@ -221,7 +223,7 @@ class AIService:
 
     def _init_gemini(self) -> None:
         """Try to initialize the Gemini client and pre-embed controls."""
-        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        api_key = (settings.GEMINI_API_KEY or "").strip()
         if not api_key:
             logger.info("AI Service: No GEMINI_API_KEY found. Gemini disabled.")
             return

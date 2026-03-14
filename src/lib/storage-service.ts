@@ -1,5 +1,5 @@
 
-import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats } from '@/types/iso27001';
+import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats } from '@/types';
 import { api } from './api-client';
 
 let isUsingFallback = false;

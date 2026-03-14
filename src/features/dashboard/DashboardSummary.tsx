@@ -1,8 +1,6 @@
 'use client';
 
-import { Risk } from '@/types/risk';
-import { ComplianceItem } from '@/types/compliance';
-import { Control } from '@/types/control';
+import { Risk, ComplianceItem, Control } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, Shield, CheckCircle2, BarChart3 } from 'lucide-react';
 
@@ -39,7 +37,7 @@ export function DashboardSummary({ risks, controls, complianceItems, isLoading }
   }
 
   const avgRiskScore =
-    risks.length > 0 ? Math.round(risks.reduce((sum, r) => sum + r.riskScore, 0) / risks.length) : 0;
+    risks.length > 0 ? Math.round(risks.reduce((sum, r) => sum + r.score, 0) / risks.length) : 0;
 
   const openRisks = risks.filter((r) => r.status !== 'mitigated' && r.status !== 'accepted').length;
 

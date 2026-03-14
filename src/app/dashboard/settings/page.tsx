@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { mockUsers } from '@/lib/mock-data';
+import { mockUsers } from '@/lib';
 
 // Use first mock user as current user
 const mockCurrentUser = mockUsers[0];

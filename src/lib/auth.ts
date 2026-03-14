@@ -1,4 +1,4 @@
-import { UserRole } from '@/types/user';
+import { UserRole } from '@/types';
 import { setTokens as storageSetTokens, getTokens as storageGetTokens, clearTokens as storageClearTokens } from './token-storage';
 import { api } from './api-client';
 

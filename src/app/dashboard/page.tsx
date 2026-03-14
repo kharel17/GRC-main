@@ -1,15 +1,14 @@
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
-import { fetchRisks, fetchControls, fetchComplianceItems, fetchOrganization, fetchReadinessScore } from "@/lib/data-service";
-import { useApiData } from "@/hooks/use-api-data";
+import { Risk, Control } from "@/types";
+import { useAuth } from "@/hooks";
+import { fetchRisks, fetchControls, fetchComplianceItems, fetchOrganization, fetchReadinessScore } from "@/lib";
+import { useApiData } from "@/hooks";
 import { DashboardSummary } from "@/features/dashboard/DashboardSummary";
 import { RiskHighlights } from "@/features/dashboard/RiskHighlights";
 import { OverdueItems } from "@/features/dashboard/OverdueItems";
 import { AlertCircle, TrendingUp, FileText, Shield, Clock, BarChart3, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Risk } from "@/types/risk";
-import type { Control } from "@/types/control";
 
 // =============================================================================
 // Role-Specific Widget Components
@@ -39,7 +38,7 @@ function AdminSystemOverview({ controls, risks, readiness }: { controls: Control
             </div>
             <div>
               <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
-                {risks.filter(r => r.status === 'identified').length}
+                {risks.filter(r => r.status === 'open').length}
               </p>
               <p className="text-sm text-amber-700 dark:text-amber-300">Open Risks</p>
             </div>

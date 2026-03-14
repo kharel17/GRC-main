@@ -1,7 +1,7 @@
 'use client';
 
 import { fetchRisk, fetchRiskControls } from '@/lib/data-service';
-import { useApiData } from '@/hooks/use-api-data';
+import { useApiData } from '@/hooks';
 import { RiskScoreExplanation } from '@/features/risk/RiskScoreExplanation';
 import { EditRiskDialog } from '@/features/risk/EditRiskDialog';
 import { MapControlDialog } from '@/features/risk/MapControlDialog';
@@ -76,8 +76,8 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <Badge className={getScoreBadgeColor(risk.riskScore)}>
-                Score: {risk.riskScore}
+              <Badge className={getScoreBadgeColor(risk.riskScore || risk.score)}>
+                Score: {risk.riskScore || risk.score}
               </Badge>
               <Badge className={getStatusColor(risk.status)}>
                 {risk.status}
@@ -111,7 +111,7 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
             </div>
             <div className="bg-slate-50 p-4 rounded-lg">
               <p className="text-xs text-slate-600 font-medium mb-2">Created</p>
-              <p className="font-medium text-slate-900">{new Date(risk.createdAt).toLocaleDateString()}</p>
+                <p className="font-medium text-slate-900">{new Date(risk.created_at || '').toLocaleDateString()}</p>
               <p className="text-xs text-slate-500 mt-1">in register</p>
             </div>
           </div>

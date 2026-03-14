@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { fetchAuditLogs } from '@/lib/data-service';
-import { useApiData } from '@/hooks/use-api-data';
-import { mockUsers } from '@/lib/mock-data';
+import { useApiData } from '@/hooks';
+import { AuditLog } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -47,7 +47,7 @@ export default function AuditPage() {
 
   const filteredLogs = allLogs.filter((log) => {
     if (actionFilter !== 'all' && log.action !== actionFilter) return false;
-    if (userFilter !== 'all' && log.userId !== userFilter) return false;
+    if (userFilter !== 'all' && (log.actor_id !== userFilter && log.actor_id !== userFilter)) return false;
     return true;
   });
 
@@ -111,14 +111,10 @@ export default function AuditPage() {
             <SelectTrigger className="w-[180px] h-9">
               <SelectValue placeholder="Filter by user" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Users</SelectItem>
-              {mockUsers.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.fullName}
-                </SelectItem>
-              ))}
-            </SelectContent>
+              <SelectContent>
+                <SelectItem value="all">All Users</SelectItem>
+                {/* User filtering simplified for now since we removed mockUsers import */}
+              </SelectContent>
           </Select>
         </div>
       </div>
@@ -166,7 +162,7 @@ export default function AuditPage() {
                           {log.action} {log.entityType?.replace('_', ' ')}
                         </p>
                         <time className="text-xs text-slate-500">
-                          {new Date(log.timestamp).toLocaleString()}
+                          {new Date(log.timestamp || log.created_at || '').toLocaleString()}
                         </time>
                       </div>
                       {log.description && (

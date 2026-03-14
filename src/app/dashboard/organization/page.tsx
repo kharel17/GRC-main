@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Organization } from "@/types";
 
 export default function OrganizationPage() {
   const { data: org, loading, refetch } = useApiData(fetchOrganization);
@@ -240,12 +241,12 @@ export default function OrganizationPage() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {org.complianceFrameworks.map((framework) => (
+                {org.complianceFrameworks?.map((framework: string) => (
                   <Badge key={framework} variant="secondary" className="px-3 py-1 text-sm font-medium">
                     {framework}
                   </Badge>
                 ))}
-                {org.complianceFrameworks.length === 0 && (
+                {(!org.complianceFrameworks || org.complianceFrameworks.length === 0) && (
                   <p className="text-sm text-muted-foreground italic">No frameworks selected.</p>
                 )}
               </div>

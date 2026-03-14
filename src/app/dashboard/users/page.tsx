@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useApiData } from "@/hooks/use-api-data";
-import { fetchUsers, createUser, inviteUser } from "@/lib/data-service";
+import { useApiData } from "@/hooks";
+import { fetchUsers, createUser, inviteUser } from "@/lib";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,8 +22,8 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Loader2, AlertTriangle, Send } from "lucide-react";
-import { RoleGuard } from "@/components/auth/RoleGuard";
-import { useAuth } from "@/hooks/useAuth";
+import { RoleGuard } from "@/components/auth";
+import { useAuth } from "@/hooks";
 
 export default function UsersPage() {
     const { data: users, loading, error, refetch } = useApiData(fetchUsers);

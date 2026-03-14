@@ -1,4 +1,4 @@
-import { RiskCategory } from '@/types/risk';
+import { RiskCategory } from '@/types';
 
 export const RISK_CATEGORIES: RiskCategory[] = [
   { id: '1', name: 'Operational', description: 'Day-to-day operational risks', color: '#3b82f6' },

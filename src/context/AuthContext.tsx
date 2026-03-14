@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { UserRole } from '@/types/user';
+import { UserRole } from '@/types';
 import { AuthUser, canAccessRoute } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -169,7 +169,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      let { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: _data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      let error = signInError;
 
       // Auto-signup fallback for Dev Mode seed users if they don't exist yet in Supabase Auth
       if (

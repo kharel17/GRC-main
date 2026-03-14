@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { fetchEvidence } from "@/lib/data-service";
-import { useApiData } from "@/hooks/use-api-data";
+import { useApiData } from "@/hooks";
+import { Evidence } from "@/types";
 import {
   Table,
   TableBody,

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { updateControl } from '@/lib/data-service';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
-import type { Control } from '@/types/control';
+import { Control } from '@/types';
 import {
     Dialog,
     DialogContent,
@@ -33,22 +33,22 @@ interface EditControlDialogProps {
 }
 
 export function EditControlDialog({ open, onOpenChange, control, onSuccess }: EditControlDialogProps) {
-    const [title, setTitle] = useState(control.title);
-    const [description, setDescription] = useState(control.description);
-    const [controlType, setControlType] = useState<'preventive' | 'detective' | 'corrective'>(control.controlType as any);
-    const [effectiveness, setEffectiveness] = useState<'high' | 'medium' | 'low'>(control.effectiveness as any);
-    const [status, setStatus] = useState<string>(control.status);
+    const [title, setTitle] = useState(control.title || '');
+    const [description, setDescription] = useState(control.description || '');
+    const [controlType, setControlType] = useState<'preventive' | 'detective' | 'corrective'>((control.type || 'preventive') as any);
+    const [effectiveness, setEffectiveness] = useState<'high' | 'medium' | 'low'>((control.effectiveness || 'medium') as any);
+    const [status, setStatus] = useState<string>(control.status || 'planned');
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [attempted, setAttempted] = useState(false);
 
     useEffect(() => {
         if (open && control) {
-            setTitle(control.title);
-            setDescription(control.description);
-            setControlType(control.controlType);
-            setEffectiveness(control.effectiveness);
-            setStatus(control.status);
+            setTitle(control.title || '');
+            setDescription(control.description || '');
+            setControlType((control.type || 'preventive') as any);
+            setEffectiveness((control.effectiveness || 'medium') as any);
+            setStatus(control.status || 'planned');
             setErrors({});
             setAttempted(false);
         }

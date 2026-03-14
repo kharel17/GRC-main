@@ -25,7 +25,7 @@ import {
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { UserRole } from '@/types/user';
+import { UserRole } from '@/types';
 
 // =============================================================================
 // Navigation Configuration
@@ -44,79 +44,79 @@ const NAV_ITEMS: NavItem[] = [
     href: '/dashboard', 
     label: 'Dashboard', 
     icon: BarChart3, 
-    roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/organization', 
     label: 'Organization', 
     icon: Building2, 
-    roles: ['admin', 'compliance_officer', 'department_manager', 'executive'] 
+    roles: ['admin', 'manager'] 
   },
   { 
     href: '/dashboard/assets', 
     label: 'Assets', 
     icon: Boxes, 
-    roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'auditor'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/risks', 
     label: 'Risks', 
     icon: AlertTriangle, 
-    roles: ['admin', 'analyst', 'risk_owner', 'compliance_officer', 'executive', 'auditor'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/controls', 
     label: 'Controls', 
     icon: Shield, 
-    roles: ['admin', 'analyst', 'control_owner', 'compliance_officer', 'auditor'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/iso27001', 
     label: 'ISO 27001', 
     icon: ShieldCheck, 
-    roles: ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/evidence', 
     label: 'Evidence', 
     icon: FileText, 
-    roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'auditor'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/document-analysis', 
     label: 'Doc Analysis', 
     icon: Microscope, 
-    roles: ['admin', 'analyst', 'compliance_officer'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/gap-analysis', 
     label: 'Gap Analysis', 
     icon: PieChart, 
-    roles: ['admin', 'analyst', 'compliance_officer', 'executive'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/audit-preparation', 
     label: 'Audit Prep', 
     icon: ClipboardCheck, 
-    roles: ['admin', 'compliance_officer', 'auditor'] 
+    roles: ['admin', 'manager'] 
   },
   { 
     href: '/dashboard/tickets', 
     label: 'Tickets', 
     icon: Ticket, 
-    roles: ['admin', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/audits', 
     label: 'Audit Log', 
     icon: Clock, 
-    roles: ['admin', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
+    roles: ['admin', 'manager'] 
   },
   { 
     href: '/dashboard/reports', 
     label: 'Reports', 
     icon: CheckCircle2, 
-    roles: ['admin', 'analyst', 'compliance_officer', 'department_manager', 'executive', 'auditor'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
 ];
 
@@ -125,15 +125,16 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: '/dashboard/users', 
     label: 'Users', 
     icon: Users, 
-    roles: ['admin'] 
+    roles: ['admin', 'superadmin'] 
   },
   { 
     href: '/dashboard/settings', 
     label: 'Settings', 
     icon: Settings, 
-    roles: ['admin'] 
+    roles: ['admin', 'superadmin'] 
   },
 ];
+
 
 // =============================================================================
 // Component
@@ -184,14 +185,10 @@ export function Sidebar() {
   // Role badge color mapping
   const getRoleBadgeStyle = (role: UserRole): string => {
     const styles: Record<string, string> = {
+      superadmin: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
       admin: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-      analyst: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-      control_owner: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
-      risk_owner: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
-      compliance_officer: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
-      department_manager: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-      executive: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-      auditor: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300',
+      manager: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      analyst: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
     };
     return styles[role] || styles.analyst;
   };
@@ -199,17 +196,14 @@ export function Sidebar() {
   // Human-readable role label
   const getRoleLabel = (role: UserRole): string => {
     const labels: Record<string, string> = {
+      superadmin: 'Super Admin',
       admin: 'Administrator',
+      manager: 'Manager',
       analyst: 'Risk Analyst',
-      control_owner: 'Control Owner',
-      risk_owner: 'Risk Owner',
-      compliance_officer: 'Compliance Officer',
-      department_manager: 'Dept. Manager',
-      executive: 'Executive',
-      auditor: 'Auditor',
     };
     return labels[role] || role;
   };
+
 
   return (
     <>

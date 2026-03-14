@@ -1,0 +1,60 @@
+yarn run v1.22.22
+$ next build
+   Creating an optimized production build...
+ ✓ Compiled successfully
+   Skipping linting
+   Checking validity of types...
+   Collecting page data...
+   Generating static pages (0/26)...
+   Generating static pages (6/26)
+
+   Generating static pages (12/26)
+
+ ⚠ Entire page /login deopted into client-side rendering. https://nextjs.org/docs/messages/deopted-into-client-rendering /login
+   Generating static pages (19/26)
+
+ ✓ Generating static pages (26/26)
+   Finalizing page optimization...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    3.95 kB        97.8 kB
+├ ○ /_not-found                          877 B          80.6 kB
+├ ○ /dashboard                           8.75 kB         182 kB
+├ ○ /dashboard/assets                    5.95 kB         193 kB
+├ ○ /dashboard/audit-preparation         5.49 kB         161 kB
+├ ○ /dashboard/audits                    3.42 kB         190 kB
+├ ○ /dashboard/controls                  6.06 kB         203 kB
+├ λ /dashboard/controls/[id]             3.31 kB         223 kB
+├ ○ /dashboard/document-analysis         6.52 kB         162 kB
+├ ○ /dashboard/evidence                  3.5 kB          217 kB
+├ ○ /dashboard/gap-analysis              103 kB          258 kB
+├ ○ /dashboard/iso27001                  2.19 kB         167 kB
+├ ○ /dashboard/iso27001/controls         3.61 kB         203 kB
+├ λ /dashboard/iso27001/controls/[id]    7.72 kB         234 kB
+├ ○ /dashboard/iso27001/evidence         5.56 kB         167 kB
+├ ○ /dashboard/iso27001/reports          4.99 kB         159 kB
+├ ○ /dashboard/organization              8.73 kB         168 kB
+├ ○ /dashboard/reports                   6.53 kB         162 kB
+├ ○ /dashboard/risks                     7.46 kB         204 kB
+├ λ /dashboard/risks/[id]                5.64 kB         225 kB
+├ ○ /dashboard/settings                  13.2 kB         181 kB
+├ ○ /dashboard/tickets                   7.44 kB         201 kB
+├ λ /dashboard/tickets/[id]              11.5 kB         188 kB
+├ ○ /dashboard/users                     8.63 kB         204 kB
+├ ○ /deactivated                         2.15 kB        81.9 kB
+├ ○ /login                               6.51 kB         162 kB
+├ ○ /not-invited                         2.18 kB        81.9 kB
+└ ○ /onboarding                          4.99 kB         153 kB
++ First Load JS shared by all            79.7 kB
+  ├ chunks/7864-7559a9af9afc48c5.js      26.6 kB
+  ├ chunks/fd9d1056-9b3e772c68911339.js  50.9 kB
+  ├ chunks/main-app-5329d23add8de47a.js  228 B
+  └ chunks/webpack-a5864cd940aebcfd.js   2 kB
+
+
+ƒ Middleware                             27.1 kB
+
+λ  (Server)  server-side renders at runtime (uses getInitialProps or getServerSideProps)
+○  (Static)  automatically rendered as static HTML (uses no initial props)
+
+Done in 102.94s.

@@ -9,12 +9,11 @@ import { EscalationBadge } from './EscalationBadge';
 import { getPriorityStyles, getStatusStyles, getCategoryLabel } from './TicketCard';
 import { SLACountdown } from './SLACountdown';
 import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks';
 import { updateTicket, escalateTicket, resolveTicket, createTicketComment, fetchTicket, requestEvidence } from '@/lib/data-service';
 import { canActOnTicket, isTicketOverdue } from '@/lib/ticket-utils';
 import { toast } from 'sonner';
-import { Ticket, TicketStatus, TicketActivity, EscalationLevel } from '@/types/ticket';
-import { AuditLog } from '@/types/audit';
+import { Ticket, TicketStatus, TicketActivity, EscalationLevel, AuditLog } from '@/types';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -155,7 +154,7 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
             </h3>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-0.5">
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                This ISO clause ({ticket.isoClause}) has been flagged multiple times in the last 90 days. Risk Score: {ticket.riskScore}.
+                This ISO clause ({ticket.isoClause || ticket.iso_clause}) has been flagged multiple times in the last 90 days. Risk Score: {ticket.riskScore || ticket.weight_score}.
               </p>
               {ticket.previousTicketId && (
                 <Link 
@@ -187,16 +186,16 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="space-y-2 flex-1">
             <div className="flex flex-wrap gap-2">
-              <Badge className={`${priorityStyles.badge} text-xs font-semibold uppercase border`}>
+              <Badge className={`${priorityStyles?.badge || ''} text-xs font-semibold uppercase border`}>
                 {ticket.priority}
               </Badge>
-              <Badge className={`${statusStyles} text-xs capitalize`}>
+              <Badge className={`${statusStyles || ''} text-xs capitalize`}>
                 {ticket.status.replace('_', ' ')}
               </Badge>
               <Badge variant="outline" className="text-xs">
                 {getCategoryLabel(ticket.category)}
               </Badge>
-              <EscalationBadge level={ticket.escalationLevel as EscalationLevel} />
+              <EscalationBadge level={(ticket.escalationLevel || 1) as any} />
             </div>
             <h1 className="text-xl lg:text-2xl font-bold text-foreground leading-tight">
               {ticket.title}
@@ -304,7 +303,7 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
                   SLA Breached: Ticket is Overdue
                 </h3>
                 <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
-                  Due date was {new Date(ticket.dueDate).toLocaleString()}
+                  Due date was {new Date(ticket.dueDate || ticket.due_date || '').toLocaleString()}
                 </p>
               </div>
               <div className="text-right">
@@ -327,7 +326,7 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
                    Time remaining to resolve this ticket without escalation.
                  </p>
                </div>
-               <SLACountdown dueDate={ticket.dueDate} />
+                <SLACountdown dueDate={ticket.dueDate || ticket.due_date || ''} />
              </div>
           )}
           
@@ -378,7 +377,7 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
                       {sourceAuditLog.action} {sourceAuditLog.entityType?.replace('_', ' ')}
                     </span>
                     <time className="text-xs text-muted-foreground">
-                      {new Date(sourceAuditLog.timestamp).toLocaleString()}
+                      {new Date(sourceAuditLog.timestamp || sourceAuditLog.created_at || '').toLocaleString()}
                     </time>
                   </div>
                   {sourceAuditLog.description && (
@@ -557,7 +556,7 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Priority</span>
-                  <Badge className={`${priorityStyles.badge} text-xs uppercase border`}>{ticket.priority}</Badge>
+                  <Badge className={`${priorityStyles?.badge || ''} text-xs uppercase border`}>{ticket.priority}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Status</span>
@@ -605,13 +604,13 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Created</span>
                     <span className="text-xs text-foreground">
-                      {new Date(ticket.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {new Date(ticket.createdAt || ticket.created_at || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Updated</span>
                     <span className="text-xs text-foreground">
-                      {new Date(ticket.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {new Date(ticket.updatedAt || ticket.updated_at || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   </div>
                   {ticket.resolvedAt && (

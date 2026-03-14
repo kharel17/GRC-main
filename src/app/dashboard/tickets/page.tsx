@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import { fetchTickets } from '@/lib/data-service';
-import { useApiData } from '@/hooks/use-api-data';
-import { TicketCard } from '@/features/tickets/TicketCard';
+import { useApiData, useAuth } from '@/hooks';
+import { RoleGuard } from '@/components/auth';
+import { TicketStatus, TicketPriority, TicketCategory, Ticket as TicketType } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,8 +28,7 @@ import {
   Ticket,
   XCircle,
 } from 'lucide-react';
-import { RoleGuard } from '@/components/auth/RoleGuard';
-import { TicketStatus, TicketPriority, TicketCategory } from '@/types/ticket';
+import { TicketCard } from '@/features/tickets/TicketCard';
 
 export default function TicketsPage() {
   const { user } = useAuth();

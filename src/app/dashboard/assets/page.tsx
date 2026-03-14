@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import type { Asset, AssetType, AssetCriticality, AssetClassification } from "@/types";
+import type { Asset, AssetType, AssetCriticality, AssetClassification, TicketActivity } from "@/types";
+import { Ticket } from "@/types"; // Just in case, ensuring they are exported from index.ts
 
 const AssetTypeIcon = ({ type }: { type: AssetType }) => {
   switch (type) {
@@ -150,18 +151,18 @@ export default function AssetsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5 capitalize text-sm">
-                      <AssetTypeIcon type={asset.assetType} />
-                      {asset.assetType}
+                      <AssetTypeIcon type={asset.type || 'data'} />
+                      {asset.type || 'N/A'}
                     </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="capitalize text-[10px] px-2 py-0">
-                      {asset.classification}
+                      {asset.classification || 'internal'}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getCriticalityColor(asset.criticality)}`}>
-                      {asset.criticality}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getCriticalityColor(asset.criticality || 'medium' as any)}`}>
+                      {asset.criticality || 'medium'}
                     </span>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{asset.location || 'N/A'}</TableCell>
@@ -173,7 +174,7 @@ export default function AssetsPage() {
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {asset.related_risks && asset.related_risks.length > 0 ? (
-                        asset.related_risks.map((riskId) => {
+                        asset.related_risks.map((riskId: string) => {
                           const risk = risks?.find(r => r.id === riskId);
                           return (
                             <Badge key={riskId} variant="outline" className="text-[9px] gap-1 bg-amber-50 text-amber-700 border-amber-200 pr-1">
@@ -238,7 +239,7 @@ export default function AssetsPage() {
                   {risks?.map((risk) => (
                     <SelectItem key={risk.id} value={risk.id}>
                       <span className="flex items-center gap-2 text-xs">
-                        <Badge variant="outline" className="text-[8px] uppercase">Score: {risk.riskScore}</Badge>
+                        <Badge variant="outline" className="text-[8px] uppercase">Score: {risk.score}</Badge>
                         {risk.title}
                       </span>
                     </SelectItem>

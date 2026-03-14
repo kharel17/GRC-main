@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { fetchRisks, getRiskCategories } from "@/lib/data-service";
-import { useApiData } from "@/hooks/use-api-data";
+import { useApiData } from "@/hooks";
+import { Risk } from "@/types";
 import { RiskList } from "@/features/risk/RiskList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -213,8 +214,8 @@ export default function RisksPage() {
                     <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
                       {risk.title}
                     </h3>
-                    <Badge className={`${getScoreStyles(risk.riskScore)} font-semibold shrink-0`}>
-                      {risk.riskScore}
+                    <Badge className={`${getScoreStyles(risk.riskScore || risk.score)} font-semibold shrink-0`}>
+                      {risk.riskScore || risk.score}
                     </Badge>
                   </div>
 

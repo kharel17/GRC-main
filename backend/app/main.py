@@ -69,7 +69,7 @@ async def request_logging_middleware(request: Request, call_next):
 # ── CORS Middleware (registered last = runs first) ─────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=settings.BACKEND_CORS_ORIGINS or allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

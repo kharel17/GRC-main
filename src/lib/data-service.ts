@@ -330,3 +330,32 @@ export async function fetchDocumentAnalyses(): Promise<DocumentAnalysis[]> {
 export async function submitDocumentForAnalysis(file: File): Promise<DocumentAnalysis> {
   return api.upload<DocumentAnalysis>('/document-analysis/upload', file);
 }
+// -- Dashboard --────────
+export interface DashboardSummary {
+  risk_stats: {
+    total: number;
+    high_risk: number;
+    mitigated: number;
+  };
+  control_stats: {
+    total: number;
+    implemented: number;
+    effectiveness_avg: number;
+  };
+  compliance_stats: {
+    overall_percentage: number;
+    total_frameworks: number;
+  };
+  recent_activity: AuditLog[];
+}
+
+export async function fetchDashboardSummary(): Promise<DashboardSummary> {
+  const fallback: DashboardSummary = {
+    risk_stats: { total: mockRisks.length, high_risk: mockRisks.filter(r => r.riskScore > 15).length, mitigated: mockRisks.filter(r => r.status === 'mitigated').length },
+    control_stats: { total: mockControls.length, implemented: mockControls.filter(c => c.status === 'implemented').length, effectiveness_avg: 85 },
+    compliance_stats: { overall_percentage: 72, total_frameworks: 1 },
+    recent_activity: mockAuditLogs.slice(0, 5)
+  };
+
+  return fetchOrFallback<DashboardSummary>('/dashboard/summary', fallback);
+}

@@ -137,6 +137,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
               role: profile.role,
             });
           } catch (profileErr: any) {
+            // Ignore Supabase lock race conditions in React Strict Mode
+            if (profileErr instanceof Error && profileErr.name === 'AbortError') {
+              console.log('[Auth] Lock race condition ignored');
+              return;
+            }
+
             // Check for invitation system errors
             if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
               const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;

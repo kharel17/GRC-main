@@ -105,20 +105,51 @@ async def fix_platform_team_roles():
 
     try:
         async with SessionLocal() as db:
+            # 1. Ensure "Platform Team" organization exists
+            org_result = await db.execute(
+                select(models.Organization).where(models.Organization.name == "Platform Team")
+            )
+            platform_org = org_result.scalar_one_or_none()
+            
+            if not platform_org:
+                platform_org = models.Organization(
+                    name="Platform Team",
+                    industry="Technology",
+                    onboarding_completed=True
+                )
+                db.add(platform_org)
+                await db.commit()
+                await db.refresh(platform_org)
+                logger.info("Startup check: Created Platform Team organization")
+
+            # 2. Fix roles and associate with organization
             for email, role in ROLE_OVERRIDE_MAP.items():
                 result = await db.execute(
                     select(models.User).where(models.User.email == email)
                 )
                 user = result.scalar_one_or_none()
-                if user and user.role != role:
-                    user.role = role
-                    user.invitation_status = 'active'
-                    await db.commit()
-                    logger.info(f"Fixed role: {email} → {role.value}")
-                elif user and user.invitation_status != 'active':
-                    user.invitation_status = 'active'
-                    await db.commit()
-                    logger.info(f"Activated user: {email}")
+                
+                if user:
+                    needs_update = False
+                    if user.role != role:
+                        user.role = role
+                        needs_update = True
+                        logger.info(f"Startup check: Fixed role for {email} → {role.value}")
+                    
+                    if user.invitation_status != 'active':
+                        user.invitation_status = 'active'
+                        needs_update = True
+                        logger.info(f"Startup check: Activated user {email}")
+                    
+                    # Associate platform users with organization
+                    if email in ["bcolorc17@gmail.com", "grchelios@gmail.com"]:
+                        if user.organization_id != platform_org.id:
+                            user.organization_id = platform_org.id
+                            needs_update = True
+                            logger.info(f"Startup check: Associated {email} with Platform Team")
+
+                    if needs_update:
+                        await db.commit()
     except Exception as e:
         logger.warning(f"Platform team role fix skipped: {e}")
 

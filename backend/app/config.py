@@ -81,11 +81,9 @@ class Settings(BaseSettings):
     # ALLOWED HOSTS
     ALLOWED_HOSTS: List[str] = ["*"]
 
-<<<<<<< HEAD
-=======
     # AI (Gemini)
     GEMINI_API_KEY: Optional[str] = None
->>>>>>> f2c75b83e4bc8ae764d24d00bb615b83dc8351f5
+
 
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod

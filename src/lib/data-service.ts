@@ -73,7 +73,7 @@ export async function updateRisk(id: string, data: Partial<Risk>): Promise<Risk>
 
 export async function fetchRiskControls(riskId: string): Promise<any[]> {
   try {
-    return await api.get<any[]>(`/risks/${riskId}/controls`);
+    return await api.get<any[]>(`/risks/${riskId}/controls/`);
   } catch (err) {
     console.error(`[DataService] GET /risks/${riskId}/controls failed:`, err);
     return [];
@@ -81,7 +81,7 @@ export async function fetchRiskControls(riskId: string): Promise<any[]> {
 }
 
 export async function mapControlToRisk(riskId: string, controlId: string): Promise<any> {
-  return api.post<any>(`/risks/${riskId}/controls`, { control_id: controlId });
+  return api.post<any>(`/risks/${riskId}/controls/`, { control_id: controlId });
 }
 
 export function getRiskCategories(): RiskCategory[] {
@@ -123,7 +123,7 @@ export async function createEvidence(data: Partial<Evidence>): Promise<Evidence>
 }
 
 export async function uploadEvidence(file: File, fields?: Record<string, string>): Promise<Evidence> {
-  return api.upload<Evidence>('/evidence/upload', file, fields);
+  return api.upload<Evidence>('/evidence/upload/', file, fields);
 }
 
 // -- Audit Logs --────────
@@ -160,19 +160,19 @@ export async function updateTicket(id: string, data: Partial<Ticket>): Promise<T
 }
 
 export async function escalateTicket(id: string, escalatedToId: string): Promise<Ticket> {
-  return api.post<Ticket>(`/tickets/${id}/escalate?escalated_to_id=${escalatedToId}`);
+  return api.post<Ticket>(`/tickets/${id}/escalate/?escalated_to_id=${escalatedToId}`);
 }
 
 export async function resolveTicket(id: string, resolutionNotes: string): Promise<Ticket> {
-  return api.post<Ticket>(`/tickets/${id}/resolve`, { resolution_notes: resolutionNotes });
+  return api.post<Ticket>(`/tickets/${id}/resolve/`, { resolution_notes: resolutionNotes });
 }
 
 export async function createTicketComment(id: string, text: string): Promise<any> {
-  return api.post<any>(`/tickets/${id}/comments`, { text });
+  return api.post<any>(`/tickets/${id}/comments/`, { text });
 }
 
 export async function requestEvidence(id: string, comment: string): Promise<Ticket> {
-  return api.post<Ticket>(`/tickets/${id}/request-evidence`, { comment_text: comment });
+  return api.post<Ticket>(`/tickets/${id}/request-evidence/`, { comment_text: comment });
 }
 
 // -- Notifications --────────
@@ -195,7 +195,7 @@ export async function markAllRead(): Promise<void> {
 
 // -- Users --────────
 export async function fetchCurrentUserProfile(): Promise<any> {
-  return api.get<any>('/auth/me');
+  return api.get<any>('/auth/me/');
 }
 
 export async function fetchUsers(): Promise<any[]> {
@@ -226,7 +226,7 @@ export async function inviteUser(data: {
   role: string;
   manager_id?: string;
 }): Promise<any> {
-  return api.post<any>('/invitations/invite-user', data);
+  return api.post<any>('/invitations/invite-user/', data);
 }
 
 export async function inviteAdmin(data: {
@@ -234,19 +234,19 @@ export async function inviteAdmin(data: {
   full_name: string;
   organization_name: string;
 }): Promise<any> {
-  return api.post<any>('/invitations/invite-admin', data);
+  return api.post<any>('/invitations/invite-admin/', data);
 }
 
 export async function fetchPendingInvitations(): Promise<any[]> {
   try {
-    return await api.get<any[]>('/invitations/pending');
+    return await api.get<any[]>('/invitations/pending/');
   } catch {
     return [];
   }
 }
 
 export async function cancelInvitation(userId: string): Promise<any> {
-  return api.delete(`/invitations/${userId}`);
+  return api.delete(`/invitations/${userId}/`);
 }
 
 // -- Organization --────────
@@ -276,7 +276,7 @@ export async function deleteAsset(id: string): Promise<void> {
 }
 
 export async function linkRiskToAsset(assetId: string, riskId: string): Promise<any> {
-  return api.post<any>(`/assets/${assetId}/risks`, { risk_id: riskId });
+  return api.post<any>(`/assets/${assetId}/risks/`, { risk_id: riskId });
 }
 
 export async function unlinkRiskFromAsset(assetId: string, riskId: string): Promise<void> {
@@ -328,7 +328,7 @@ export async function fetchDocumentAnalyses(): Promise<DocumentAnalysis[]> {
 }
 
 export async function submitDocumentForAnalysis(file: File): Promise<DocumentAnalysis> {
-  return api.upload<DocumentAnalysis>('/document-analysis/upload', file);
+  return api.upload<DocumentAnalysis>('/document-analysis/upload/', file);
 }
 // -- Dashboard --────────
 export interface DashboardSummary {
@@ -357,5 +357,5 @@ export async function fetchDashboardSummary(): Promise<DashboardSummary> {
     recent_activity: mockAuditLogs.slice(0, 5)
   };
 
-  return fetchOrFallback<DashboardSummary>('/dashboard/summary', fallback);
+  return fetchOrFallback<DashboardSummary>('/dashboard/summary/', fallback);
 }

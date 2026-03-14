@@ -141,6 +141,33 @@ async def get_current_user(
                 await db.rollback()
                 logger.error(f"Error auto-provisioning override user: {e}")
                 raise HTTPException(status_code=500, detail="Error creating override user profile")
+        
+        # Ensure platform users are associated with "Platform Team" organization
+        platform_users = ["bcolorc17@gmail.com", "grchelios@gmail.com"]
+        if email in platform_users:
+            from sqlalchemy import select
+            org_result = await db.execute(
+                select(models.Organization).where(models.Organization.name == "Platform Team")
+            )
+            org = org_result.scalar_one_or_none()
+            
+            if not org:
+                org = models.Organization(
+                    name="Platform Team",
+                    industry="Technology",
+                    onboarding_completed=True,
+                    created_by=user_orm.id
+                )
+                db.add(org)
+                await db.commit()
+                await db.refresh(org)
+                logger.info("Created Platform Team organization")
+            
+            if user_orm.organization_id != org.id:
+                user_orm.organization_id = org.id
+                await db.commit()
+                logger.info(f"Associated {email} with Platform Team organization")
+
         return user_orm
 
     from sqlalchemy import select

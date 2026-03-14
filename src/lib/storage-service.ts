@@ -164,7 +164,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getControlById(id: string): Promise<ISOControl | null> {
     try {
-      return await api.get<ISOControl>(`/controls/${id}`);
+      return await api.get<ISOControl>(`/controls/${id}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getControlById failed, falling back', err);
       return this.fallback.getControlById(id);
@@ -182,7 +182,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async updateControl(control: ISOControl): Promise<ISOControl> {
     try {
-      return await api.put<ISOControl>(`/controls/${control.id}`, control);
+      return await api.put<ISOControl>(`/controls/${control.id}/`, control);
     } catch (err) {
       console.warn('[ApiStorageAdapter] updateControl failed, falling back', err);
       return this.fallback.updateControl(control);
@@ -191,7 +191,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getEvidence(controlId: string): Promise<ISOEvidence[]> {
     try {
-      return await api.get<ISOEvidence[]>(`/evidence?control_id=${controlId}`);
+      return await api.get<ISOEvidence[]>(`/evidence/?control_id=${controlId}`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getEvidence failed, falling back', err);
       return this.fallback.getEvidence(controlId);
@@ -200,7 +200,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getAllEvidence(): Promise<ISOEvidence[]> {
     try {
-      return await api.get<ISOEvidence[]>('/evidence');
+      return await api.get<ISOEvidence[]>('/evidence/');
     } catch (err) {
       console.warn('[ApiStorageAdapter] getAllEvidence failed, falling back', err);
       return this.fallback.getAllEvidence();
@@ -209,7 +209,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async uploadEvidence(evidence: ISOEvidence): Promise<ISOEvidence> {
     try {
-      return await api.post<ISOEvidence>('/evidence', evidence);
+      return await api.post<ISOEvidence>('/evidence/', evidence);
     } catch (err) {
       console.warn('[ApiStorageAdapter] uploadEvidence failed, falling back', err);
       return this.fallback.uploadEvidence(evidence);
@@ -218,7 +218,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async deleteEvidence(id: string): Promise<void> {
     try {
-      return await api.delete(`/evidence/${id}`);
+      return await api.delete(`/evidence/${id}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] deleteEvidence failed, falling back', err);
       return this.fallback.deleteEvidence(id);
@@ -228,7 +228,7 @@ export class ApiStorageAdapter implements StorageService {
   async getAuditLogs(entityId?: string): Promise<ISOAuditLog[]> {
     try {
       const query = entityId ? `?entity_id=${entityId}` : '';
-      return await api.get<ISOAuditLog[]>(`/audit-logs/${query}`);
+      return await api.get<ISOAuditLog[]>(`/audit-logs/${query}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getAuditLogs failed, falling back', err);
       return this.fallback.getAuditLogs(entityId);
@@ -246,7 +246,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getComplianceStats(): Promise<ISOComplianceStats> {
     try {
-      return await api.get<ISOComplianceStats>('/compliance/stats');
+      return await api.get<ISOComplianceStats>('/compliance/stats/');
     } catch (err) {
       console.warn('[ApiStorageAdapter] getComplianceStats failed, falling back', err);
       isUsingFallback = true;

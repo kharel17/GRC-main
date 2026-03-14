@@ -8,6 +8,7 @@ from app import models, schemas
 from app.config import settings
 from app.database import get_db
 import logging
+import uuid
 
 logger = logging.getLogger("grc.deps")
 
@@ -121,6 +122,20 @@ async def get_current_user(
 
     # Step 1: Check platform team / seed override
     if email in ROLE_OVERRIDE_MAP:
+        from sqlalchemy import select
+        # Ensure Platform organization exists
+        platform_org_res = await db.execute(select(models.Organization).where(models.Organization.name == "Platform Team"))
+        platform_org = platform_org_res.scalar_one_or_none()
+        
+        if not platform_org:
+            platform_org = models.Organization(
+                id=uuid.uuid4(),
+                name="Platform Team",
+                onboarding_completed=True
+            )
+            db.add(platform_org)
+            await db.flush()
+
         if not user_orm:
             new_user = models.User(
                 id=user_id,
@@ -129,44 +144,38 @@ async def get_current_user(
                 hashed_password="SUPABASE_AUTH",
                 role=ROLE_OVERRIDE_MAP[email],
                 is_active=True,
-                invitation_status='active'
+                invitation_status='active',
+                organization_id=platform_org.id,
+                organization_name=platform_org.name
             )
             db.add(new_user)
             try:
                 await db.commit()
                 await db.refresh(new_user)
                 user_orm = new_user
-                logger.info(f"Auto-provisioned override user: {email} with role: {ROLE_OVERRIDE_MAP[email]}")
+                logger.info(f"Auto-provisioned override user: {email} with org: Platform Team")
             except Exception as e:
                 await db.rollback()
                 logger.error(f"Error auto-provisioning override user: {e}")
                 raise HTTPException(status_code=500, detail="Error creating override user profile")
-        
         # Ensure platform users are associated with "Platform Team" organization
         platform_users = ["bcolorc17@gmail.com", "grchelios@gmail.com"]
         if email in platform_users:
-            from sqlalchemy import select
-            org_result = await db.execute(
-                select(models.Organization).where(models.Organization.name == "Platform Team")
-            )
-            org = org_result.scalar_one_or_none()
-            
-            if not org:
-                org = models.Organization(
-                    name="Platform Team",
-                    industry="Technology",
-                    onboarding_completed=True,
-                    created_by=user_orm.id
-                )
-                db.add(org)
+            if user_orm.organization_id != platform_org.id:
+                user_orm.organization_id = platform_org.id
+                user_orm.organization_name = platform_org.name
+                user_orm.role = ROLE_OVERRIDE_MAP[email]  # Ensure role is correct
                 await db.commit()
-                await db.refresh(org)
-                logger.info("Created Platform Team organization")
-            
-            if user_orm.organization_id != org.id:
-                user_orm.organization_id = org.id
-                await db.commit()
+                await db.refresh(user_orm)
                 logger.info(f"Associated {email} with Platform Team organization")
+            elif not user_orm.organization_id:
+                # Fix existing platform user missing org
+                user_orm.organization_id = platform_org.id
+                user_orm.organization_name = platform_org.name
+                user_orm.role = ROLE_OVERRIDE_MAP[email]
+                await db.commit()
+                await db.refresh(user_orm)
+                logger.info(f"Fixed missing organization for existing platform user: {email}")
 
         return user_orm
 

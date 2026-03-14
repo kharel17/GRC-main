@@ -106,20 +106,21 @@ async def fix_platform_team_roles():
     try:
         async with SessionLocal() as db:
             # 1. Ensure "Platform Team" organization exists
-            org_result = await db.execute(
+            # 1. Ensure "Platform Team" organization exists
+            platform_org_result = await db.execute(
                 select(models.Organization).where(models.Organization.name == "Platform Team")
             )
-            platform_org = org_result.scalar_one_or_none()
+            platform_org = platform_org_result.scalar_one_or_none()
             
             if not platform_org:
                 platform_org = models.Organization(
+                    id=uuid.uuid4(),
                     name="Platform Team",
                     industry="Technology",
                     onboarding_completed=True
                 )
                 db.add(platform_org)
-                await db.commit()
-                await db.refresh(platform_org)
+                await db.flush()
                 logger.info("Startup check: Created Platform Team organization")
 
             # 2. Fix roles and associate with organization
@@ -145,11 +146,14 @@ async def fix_platform_team_roles():
                     if email in ["bcolorc17@gmail.com", "grchelios@gmail.com"]:
                         if user.organization_id != platform_org.id:
                             user.organization_id = platform_org.id
+                            user.organization_name = platform_org.name
                             needs_update = True
                             logger.info(f"Startup check: Associated {email} with Platform Team")
 
                     if needs_update:
-                        await db.commit()
+                        await db.flush()
+            
+            await db.commit()
     except Exception as e:
         logger.warning(f"Platform team role fix skipped: {e}")
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useApiData } from "@/hooks/use-api-data";
+import { useApiData } from "@/hooks";
 import { fetchDocumentAnalyses, submitDocumentForAnalysis } from "@/lib/data-service";
+import { DocumentAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { FileUp, Search, CheckCircle2, AlertCircle, FileText, Loader2, Microscop
 import { Progress } from "@/components/ui/progress";
 
 export default function DocumentAnalysisPage() {
-  const { data: analyses, loading, refetch } = useApiData(fetchDocumentAnalyses);
+  const { data: analyses, loading, refetch } = useApiData<DocumentAnalysis[]>(fetchDocumentAnalyses);
   const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {

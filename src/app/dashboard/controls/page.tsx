@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { fetchControls } from '@/lib/data-service';
-import { useApiData } from '@/hooks/use-api-data';
+import { useApiData } from '@/hooks';
+import { Control } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -68,16 +69,16 @@ export default function ControlsPage() {
   const allControls = controls ?? [];
 
   const filteredControls = allControls.filter((control) => {
-    if (typeFilter !== 'all' && control.controlType !== typeFilter) return false;
+    if (typeFilter !== 'all' && (control.type !== typeFilter && control.controlType !== typeFilter)) return false;
     if (statusFilter !== 'all' && control.status !== statusFilter) return false;
     return true;
   });
 
   const typeButtons: { label: string; value: ControlType; count: number }[] = [
     { label: 'All', value: 'all', count: allControls.length },
-    { label: 'Preventive', value: 'preventive', count: allControls.filter(c => c.controlType === 'preventive').length },
-    { label: 'Detective', value: 'detective', count: allControls.filter(c => c.controlType === 'detective').length },
-    { label: 'Corrective', value: 'corrective', count: allControls.filter(c => c.controlType === 'corrective').length },
+    { label: 'Preventive', value: 'preventive', count: allControls.filter(c => c.type === 'preventive' || c.controlType === 'preventive').length },
+    { label: 'Detective', value: 'detective', count: allControls.filter(c => c.type === 'detective' || c.controlType === 'detective').length },
+    { label: 'Corrective', value: 'corrective', count: allControls.filter(c => c.type === 'corrective' || c.controlType === 'corrective').length },
   ];
 
   if (loading) {
@@ -171,7 +172,7 @@ export default function ControlsPage() {
           {filteredControls.map((control) => (
             <Link key={control.id} href={`/dashboard/controls/${control.id}`}>
               <Card
-                className={`h-full hover:shadow-md transition-shadow border-l-4 cursor-pointer group ${getTypeColor(control.controlType)}`}
+                className={`h-full hover:shadow-md transition-shadow border-l-4 cursor-pointer group ${getTypeColor((control.type || control.controlType) as any)}`}
               >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium line-clamp-2 group-hover:text-blue-600 transition-colors">{control.title}</CardTitle>
@@ -182,11 +183,11 @@ export default function ControlsPage() {
                     <Badge variant="outline" className="text-xs capitalize">
                       {control.controlType}
                     </Badge>
-                    <Badge className={`text-xs capitalize ${getEffectivenessStyles(control.effectiveness)}`}>
-                      {control.effectiveness}
+                    <Badge className={`text-xs capitalize ${getEffectivenessStyles(String(control.effectiveness || 'medium'))}`}>
+                      {String(control.effectiveness || 'N/A')}
                     </Badge>
-                    <Badge variant="secondary" className={`text-xs capitalize ${getStatusStyles(control.status)}`}>
-                      {control.status.replace('_', ' ')}
+                    <Badge variant="secondary" className={`text-xs capitalize ${getStatusStyles(control.status || 'planned')}`}>
+                      {(control.status || 'planned').replace('_', ' ')}
                     </Badge>
                   </div>
                   <div className="pt-2 border-t text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">

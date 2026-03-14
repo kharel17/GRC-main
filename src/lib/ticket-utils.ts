@@ -1,5 +1,4 @@
-import { UserRole } from '@/types/user';
-import { Ticket, TicketStatus, TicketPriority, EscalationLevel } from '@/types/ticket';
+import { UserRole, Ticket, TicketStatus, TicketPriority, EscalationLevel } from '@/types';
 import { addDays, addHours, isPast, parseISO } from 'date-fns';
 
 // ============================================================================
@@ -21,6 +20,7 @@ export const ROLE_ESCALATION_LEVEL: Record<UserRole, EscalationLevel | null> = {
   
   // Auditor is read-only, cannot be escalated to
   auditor: null,
+  superadmin: 4,
 };
 
 // ============================================================================

@@ -24,4 +24,3 @@ export function useAuth(): AuthContextType {
   return useAuthContext();
 }
 
-export default useAuth;

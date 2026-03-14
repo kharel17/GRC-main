@@ -4,11 +4,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useEffect, useState } from "react";
-import { isoService } from "@/lib/iso-service";
-import { ISOComplianceStats } from "@/types/iso27001";
+import { isoService, getIsUsingFallback } from "@/lib";
+import { ISOComplianceStats } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { getIsUsingFallback } from "@/lib/storage-service";
 
 
 export function ISOControlsStatusWidget() {

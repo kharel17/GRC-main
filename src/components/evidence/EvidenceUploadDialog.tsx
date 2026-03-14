@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useApiData } from '@/hooks/use-api-data';
+import { useApiData } from '@/hooks';
 import { fetchRisks, fetchControls } from '@/lib/data-service';
-import { EvidenceDropzone } from '@/components/evidence/EvidenceDropzone';
+import { EvidenceDropzone } from '@/components/evidence';
+import { Risk, Control } from '@/types';
 import { toast } from 'sonner';
 import {
     Dialog,

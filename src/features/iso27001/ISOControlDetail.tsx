@@ -73,7 +73,7 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
       if (ownerId !== (control.ownerId || "")) {
         const owner = mockUsers.find(u => u.id === ownerId);
         if (owner) {
-          await isoService.assignOwner(control.id, ownerId, owner.fullName, {
+          await isoService.assignOwner(control.id, ownerId, owner.fullName || owner.full_name || '', {
             id: user.id, name: user.email, role: user.role
           });
         }

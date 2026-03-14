@@ -5,12 +5,12 @@ import {
   ISOEvidence,
   ISOComplianceStats,
   ISOClause,
-  ISOAuditLog
-} from '@/types/iso27001';
+  ISOAuditLog,
+  UserRole
+} from '@/types';
 import { storageService } from './storage-service';
 import { DataValidator } from './data-validation';
 import isoData from '@/data/iso27001-controls.json';
-import { UserRole } from '@/types/user';
 
 // Initialize data if needed
 // This effectively acts as a database migration/seeder for the local session

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EscalationBadge } from './EscalationBadge';
-import { Ticket, TicketPriority, TicketStatus } from '@/types/ticket';
+import { Ticket, TicketPriority, TicketStatus } from '@/types';
 import {
   ArrowUpRight,
   Clock,
@@ -39,6 +39,12 @@ export function getPriorityStyles(priority: TicketPriority) {
         badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200',
         dot: 'bg-green-500',
         border: 'border-l-green-500',
+      };
+    default:
+      return {
+        badge: 'bg-slate-100 text-slate-700 border-slate-200',
+        dot: 'bg-slate-500',
+        border: 'border-l-slate-500',
       };
   }
 }
@@ -102,12 +108,12 @@ export function TicketCard({ ticket }: TicketCardProps) {
 
   return (
     <Link href={`/dashboard/tickets/${ticket.id}`}>
-      <Card className={`h-full border-l-4 ${priorityStyles.border} hover:shadow-lg transition-all duration-200 cursor-pointer group`}>
+      <Card className={`h-full border-l-4 ${priorityStyles?.border || 'border-l-slate-500'} hover:shadow-lg transition-all duration-200 cursor-pointer group`}>
         <CardContent className="pt-5 pb-4 space-y-3">
           {/* Header: Priority + Status */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-wrap gap-1.5">
-              <Badge className={`${priorityStyles.badge} text-xs font-semibold uppercase border`}>
+              <Badge className={`${priorityStyles?.badge || ''} text-xs font-semibold uppercase border`}>
                 {ticket.priority}
               </Badge>
               <Badge className={`${statusStyles} text-xs capitalize`}>
@@ -132,7 +138,7 @@ export function TicketCard({ ticket }: TicketCardProps) {
             <Badge variant="outline" className="text-xs">
               {getCategoryLabel(ticket.category)}
             </Badge>
-            <EscalationBadge level={ticket.escalationLevel} />
+            <EscalationBadge level={(ticket.escalationLevel || 1) as any} />
           </div>
 
           {/* Footer: Assignee, Time, Comments */}
@@ -150,7 +156,7 @@ export function TicketCard({ ticket }: TicketCardProps) {
               )}
               <div className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
-                <span>{getTimeAgo(ticket.createdAt)}</span>
+                <span>{getTimeAgo(ticket.createdAt || ticket.created_at || '')}</span>
               </div>
             </div>
           </div>

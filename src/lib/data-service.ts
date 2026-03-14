@@ -23,13 +23,18 @@ import {
   mockAssets,
   mockDocumentAnalyses,
 } from './mock-data';
-import type { Risk, RiskCategory } from '@/types/risk';
-import type { Control } from '@/types/control';
-import type { ComplianceItem } from '@/types/compliance';
-import type { Evidence } from '@/types/evidence';
-import type { AuditLog } from '@/types/audit';
-import type { Ticket } from '@/types/ticket';
-import { Organization, Asset, DocumentAnalysis } from '@/types';
+import { 
+  Risk, 
+  RiskCategory, 
+  Control, 
+  ComplianceItem, 
+  Evidence, 
+  AuditLog, 
+  Ticket, 
+  Organization, 
+  Asset, 
+  DocumentAnalysis 
+} from '@/types';
 
 // -- Helper --────────
 async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {

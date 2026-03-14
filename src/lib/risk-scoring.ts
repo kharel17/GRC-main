@@ -1,4 +1,4 @@
-import { Risk, RiskSeverity } from '@/types/risk';
+import { Risk, RiskSeverity } from '@/types';
 
 export interface RiskScoreExplanation {
   likelihood: {
@@ -74,12 +74,12 @@ export function explainRiskScore(risk: Risk): RiskScoreExplanation {
       description: SEVERITY_DESCRIPTIONS[risk.impact],
     },
     score: {
-      value: risk.riskScore,
-      label: getScoreLabel(risk.riskScore),
-      severity: getRiskSeverity(risk.riskScore),
-      color: getRiskColor(risk.riskScore),
+      value: risk.riskScore || 0,
+      label: getScoreLabel(risk.riskScore || 0),
+      severity: getRiskSeverity(risk.riskScore || 0),
+      color: getRiskColor(risk.riskScore || 0),
     },
-    recommendation: getRecommendation(risk.riskScore, risk.status),
+    recommendation: getRecommendation(risk.riskScore || 0, risk.status || 'open'),
   };
 }
 

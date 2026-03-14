@@ -1,6 +1,6 @@
 'use client';
 
-import { Risk } from '@/types/risk';
+import { Risk } from '@/types';
 import { explainRiskScore } from '@/lib/risk-scoring';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Info } from 'lucide-react';

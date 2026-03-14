@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { fetchControls, mapControlToRisk } from '@/lib/data-service';
 import { toast } from 'sonner';
-import type { Control } from '@/types/control';
+import { Control } from '@/types';
 import {
     Dialog,
     DialogContent,
@@ -104,7 +104,7 @@ export function MapControlDialog({
                 <DialogHeader>
                     <DialogTitle>Map Control to Risk</DialogTitle>
                     <DialogDescription>
-                        Select a control to associate with <strong>"{riskTitle}"</strong>.
+                        Select a control to associate with <strong>&quot;{riskTitle}&quot;</strong>.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -142,11 +142,11 @@ export function MapControlDialog({
                                             {control.description}
                                         </p>
                                         <div className="flex flex-wrap gap-1.5 mt-2">
-                                            <Badge className={`text-[10px] ${getTypeColor(control.controlType)}`}>
-                                                {control.controlType}
+                                            <Badge className={`text-[10px] ${getTypeColor(control.type || 'preventive' as any)}`}>
+                                                {control.type || 'N/A'}
                                             </Badge>
-                                            <Badge className={`text-[10px] ${getStatusColor(control.status)}`}>
-                                                {control.status}
+                                            <Badge className={`text-[10px] ${getStatusColor(control.status || 'planned' as any)}`}>
+                                                {control.status || 'planned'}
                                             </Badge>
                                         </div>
                                     </div>

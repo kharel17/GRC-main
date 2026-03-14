@@ -11,7 +11,7 @@ import {
   ArrowRight 
 } from "lucide-react";
 import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks";
 import dynamic from "next/dynamic";
 
 const ISOComplianceWidget = dynamic(

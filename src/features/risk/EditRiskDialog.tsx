@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { updateRisk, getRiskCategories } from '@/lib/data-service';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
-import type { Risk } from '@/types/risk';
+import { Risk } from '@/types';
 import {
     Dialog,
     DialogContent,

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { UserRole } from '@/types/user';
+import { UserRole } from '@/types';
 import { AuthUser, canAccessRoute } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -66,14 +66,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
           console.error('[Auth] Error getting session:', error.message);
           if (mounted) setIsLoading(false);
         } else if (initialSession && mounted) {
-          console.log('[Auth] Initial session found, setting session...');
+          console.log('[Auth] Initial session found, fetching profile...');
           setSession(initialSession);
           // Set user from supabase metadata immediately so dashboard can render
           setUser(mapSupabaseUser(initialSession.user));
           // Stop loading now so the dashboard shell appears
           setIsLoading(false);
           
-          // Profiles are fetched asynchronously by the other effect
+          // Fetch real profile from backend to get the correct role
+          try {
+            console.log('[Auth] Calling backend /auth/me...');
+            const profile = await fetchCurrentUserProfile();
+            console.log('[Auth] Backend profile received:', profile);
+            setUser({
+              id: profile.id,
+              email: profile.email,
+              role: profile.role,
+            });
+          } catch (profileErr: any) {
+            // Check for invitation system errors
+            if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
+              const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
+              if (detail?.code === 'NOT_INVITED') {
+                window.location.href = '/not-invited';
+                return;
+              }
+              if (detail?.code === 'ACCOUNT_DEACTIVATED') {
+                window.location.href = '/deactivated';
+                return;
+              }
+            }
+            console.warn('[Auth] Backend profile fetch failed:', profileErr);
+            setUser(mapSupabaseUser(initialSession.user));
+          }
         } else {
           console.log('[Auth] No initial session found');
           if (mounted) setIsLoading(false);
@@ -99,10 +124,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setSession(currentSession);
         
         if (currentSession?.user) {
-          // Set initial user state from metadata (fast)
-          setUser(mapSupabaseUser(currentSession.user));
-          // Ensure we don't get stuck in loading
-          setIsLoading(false);
+          console.log('[Auth] Setting user:', {
+            id: currentSession.user.id,
+            email: currentSession.user.email,
+          });
+          
+          // Prefer backend profile for correct roles
+          try {
+            const profile = await fetchCurrentUserProfile();
+            setUser({
+              id: profile.id,
+              email: profile.email,
+              role: profile.role,
+            });
+          } catch (profileErr: any) {
+            // Check for invitation system errors
+            if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
+              const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
+              if (detail?.code === 'NOT_INVITED') {
+                window.location.href = '/not-invited';
+                return;
+              }
+              if (detail?.code === 'ACCOUNT_DEACTIVATED') {
+                window.location.href = '/deactivated';
+                return;
+              }
+            }
+            console.warn('[Auth] Auth change profile fetch failed, using metadata', profileErr);
+            setUser(mapSupabaseUser(currentSession.user));
+          }
         } else {
           setUser(null);
           setIsLoading(false);
@@ -160,7 +210,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      let { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: _data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      let error = signInError;
 
       // Auto-signup fallback for Dev Mode seed users if they don't exist yet in Supabase Auth
       if (

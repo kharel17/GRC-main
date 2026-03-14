@@ -1,8 +1,8 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { fetchTicket, fetchAuditLogs } from '@/lib/data-service';
-import { useApiData } from '@/hooks/use-api-data';
+import { fetchTicket, fetchAuditLogs } from '@/lib';
+import { useApiData } from '@/hooks';
 import { TicketDetail } from '@/features/tickets/TicketDetail';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

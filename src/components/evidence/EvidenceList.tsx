@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api-client';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks';
+import { Evidence } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,24 +34,7 @@ import { toast } from 'sonner';
 
 // ── Types ───────────────────────────────────────────────────
 
-interface EvidenceItem {
-    id: string;
-    title: string;
-    description?: string;
-    file_url?: string;
-    file_name?: string;
-    file_type?: string;
-    file_size?: number;
-    uploaded_by: string;
-    uploaded_at: string;
-    status?: string;
-    valid_until?: string;
-    verified?: boolean;
-    verified_by?: string;
-    verified_at?: string;
-    related_to: string;
-    related_id: string;
-}
+type EvidenceItem = Evidence;
 
 interface EvidenceListProps {
     relatedTo: 'control' | 'risk';

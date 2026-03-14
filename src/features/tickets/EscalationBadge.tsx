@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
-import { EscalationLevel } from '@/types/ticket';
+import { EscalationLevel } from '@/types';
 
 const ESCALATION_CONFIG: Record<EscalationLevel, { label: string; color: string; bgColor: string }> = {
   1: { label: 'Team', color: 'text-sky-700 dark:text-sky-300', bgColor: 'bg-sky-100 dark:bg-sky-900/30 border-sky-200 dark:border-sky-800' },

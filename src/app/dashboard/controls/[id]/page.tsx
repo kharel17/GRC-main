@@ -1,7 +1,7 @@
 'use client';
 
 import { fetchControl } from '@/lib/data-service';
-import { useApiData } from '@/hooks/use-api-data';
+import { useApiData } from '@/hooks';
 import { EditControlDialog } from '@/features/control/EditControlDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -66,7 +66,7 @@ export default function ControlDetailPage({ params }: { params: { id: string } }
         );
     }
 
-    const typeInfo = getTypeLabel(control.controlType);
+    const typeInfo = getTypeLabel(control.type || (control as any).controlType);
 
     return (
         <div className="space-y-6">
@@ -94,11 +94,11 @@ export default function ControlDetailPage({ params }: { params: { id: string } }
 
                         <div className="flex flex-wrap items-center gap-3">
                             <Badge className={typeInfo.color}>{typeInfo.label}</Badge>
-                            <Badge className={getEffectivenessStyles(control.effectiveness)}>
-                                Effectiveness: {control.effectiveness}
+                            <Badge className={getEffectivenessStyles(String(control.effectiveness || 'medium'))}>
+                                Effectiveness: {String(control.effectiveness || 'N/A')}
                             </Badge>
-                            <Badge className={getStatusStyles(control.status)}>
-                                {control.status.replace('_', ' ')}
+                            <Badge className={getStatusStyles(control.status || 'planned')}>
+                                {(control.status || 'planned').replace('_', ' ')}
                             </Badge>
                         </div>
                     </div>
@@ -108,7 +108,7 @@ export default function ControlDetailPage({ params }: { params: { id: string } }
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="bg-slate-50 p-4 rounded-lg">
                             <p className="text-xs text-slate-600 font-medium mb-2">Type</p>
-                            <p className="font-medium text-slate-900 capitalize">{control.controlType}</p>
+                            <p className="font-medium text-slate-900 capitalize">{control.type || (control as any).controlType}</p>
                         </div>
                         <div className="bg-slate-50 p-4 rounded-lg">
                             <p className="text-xs text-slate-600 font-medium mb-2">Effectiveness</p>
@@ -120,7 +120,7 @@ export default function ControlDetailPage({ params }: { params: { id: string } }
                         </div>
                         <div className="bg-slate-50 p-4 rounded-lg">
                             <p className="text-xs text-slate-600 font-medium mb-2">Created</p>
-                            <p className="font-medium text-slate-900">{new Date(control.createdAt).toLocaleDateString()}</p>
+                             <p className="font-medium text-slate-900">{new Date(control.created_at || '').toLocaleDateString()}</p>
                         </div>
                     </div>
                 </CardContent>

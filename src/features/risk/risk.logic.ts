@@ -1,11 +1,11 @@
-import { Risk } from '@/types/risk';
+import { Risk } from '@/types';
 
 export function sortRisksByPriority(risks: Risk[]): Risk[] {
   return [...risks].sort((a, b) => {
-    if (a.riskScore !== b.riskScore) {
-      return b.riskScore - a.riskScore;
+    if (a.score !== b.score) {
+      return (b.score || 0) - (a.score || 0);
     }
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    return new Date(b.updated_at || b.created_at || '').getTime() - new Date(a.updated_at || a.created_at || '').getTime();
   });
 }
 

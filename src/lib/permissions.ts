@@ -1,10 +1,11 @@
-import { UserRole } from '@/types/user';
+import { UserRole } from '@/types';
 
 // =============================================================================
 // Role Display Configuration
 // =============================================================================
 
 export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
+  superadmin: 'Super Administrator',
   admin: 'Administrator',
   analyst: 'Risk Analyst',
   control_owner: 'Control Owner',
@@ -21,6 +22,31 @@ export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
 // =============================================================================
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
+  superadmin: [
+    'manage_users',
+    'manage_roles',
+    'view_all_data',
+    'create_risk',
+    'edit_risk',
+    'delete_risk',
+    'create_control',
+    'edit_control',
+    'delete_control',
+    'create_evidence',
+    'verify_evidence',
+    'delete_evidence',
+    'create_compliance',
+    'edit_compliance',
+    'view_audit_logs',
+    'export_reports',
+    'configure_system',
+    'create_ticket',
+    'escalate_ticket',
+    'resolve_ticket',
+    'assign_ticket',
+    'manage_organizations',
+    'bypass_rls',
+  ],
   admin: [
     'manage_users',
     'manage_roles',

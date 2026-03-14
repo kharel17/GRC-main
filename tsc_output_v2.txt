@@ -1,0 +1,81 @@
+src/app/dashboard/assets/page.tsx(154,38): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/app/dashboard/assets/page.tsx(164,118): error TS2345: Argument of type 'Criticality | undefined' is not assignable to parameter of type 'Criticality'.
+  Type 'undefined' is not assignable to type 'Criticality'.
+src/app/dashboard/audits/page.tsx(165,37): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+src/app/dashboard/controls/[id]/page.tsx(100,63): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/app/dashboard/controls/[id]/page.tsx(101,34): error TS18048: 'control.status' is possibly 'undefined'.
+src/app/dashboard/controls/[id]/page.tsx(123,81): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+src/app/dashboard/controls/page.tsx(189,97): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/app/dashboard/controls/page.tsx(190,24): error TS18048: 'control.status' is possibly 'undefined'.
+src/app/dashboard/risks/[id]/page.tsx(114,69): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+src/features/control/EditControlDialog.tsx(40,50): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string | (() => string)'.
+  Type 'undefined' is not assignable to type 'string | (() => string)'.
+src/features/control/EditControlDialog.tsx(51,23): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<string>'.
+src/features/control/EditControlDialog.tsx(64,14): error TS18048: 'description' is possibly 'undefined'.
+src/features/control/EditControlDialog.tsx(66,20): error TS18048: 'description' is possibly 'undefined'.
+src/features/control/EditControlDialog.tsx(82,30): error TS18048: 'description' is possibly 'undefined'.
+src/features/control/EditControlDialog.tsx(141,75): error TS18048: 'description' is possibly 'undefined'.
+src/features/iso27001/ISOControlDetail.tsx(76,61): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/features/risk/MapControlDialog.tsx(145,91): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/features/risk/MapControlDialog.tsx(148,93): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/features/risk/risk.logic.ts(8,21): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+      Type 'undefined' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+      Type 'undefined' is not assignable to type 'string | number'.
+src/features/risk/risk.logic.ts(8,56): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+src/features/tickets/TicketCard.tsx(159,35): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/mock-data.ts(94,3): error TS2739: Type '{ id: string; email: string; fullName: string; role: "admin"; department: string; createdAt: string; updatedAt: string; }' is missing the following properties from type 'UserProfile': full_name, organization_id, invitation_status, is_acting_admin
+src/lib/mock-data.ts(103,3): error TS2739: Type '{ id: string; email: string; fullName: string; role: "analyst"; department: string; createdAt: string; updatedAt: string; }' is missing the following properties from type 'UserProfile': full_name, organization_id, invitation_status, is_acting_admin
+src/lib/mock-data.ts(112,3): error TS2739: Type '{ id: string; email: string; fullName: string; role: "department_manager"; department: string; createdAt: string; updatedAt: string; }' is missing the following properties from type 'UserProfile': full_name, organization_id, invitation_status, is_acting_admin
+src/lib/mock-data.ts(121,3): error TS2739: Type '{ id: string; email: string; fullName: string; role: "control_owner"; department: string; createdAt: string; updatedAt: string; }' is missing the following properties from type 'UserProfile': full_name, organization_id, invitation_status, is_acting_admin
+src/lib/mock-data.ts(130,3): error TS2739: Type '{ id: string; email: string; fullName: string; role: "risk_owner"; department: string; createdAt: string; updatedAt: string; }' is missing the following properties from type 'UserProfile': full_name, organization_id, invitation_status, is_acting_admin
+src/lib/mock-data.ts(139,3): error TS2739: Type '{ id: string; email: string; fullName: string; role: "compliance_officer"; department: string; createdAt: string; updatedAt: string; }' is missing the following properties from type 'UserProfile': full_name, organization_id, invitation_status, is_acting_admin
+src/lib/mock-data.ts(148,3): error TS2739: Type '{ id: string; email: string; fullName: string; role: "executive"; department: string; createdAt: string; updatedAt: string; }' is missing the following properties from type 'UserProfile': full_name, organization_id, invitation_status, is_acting_admin
+src/lib/mock-data.ts(157,3): error TS2739: Type '{ id: string; email: string; fullName: string; role: "auditor"; department: string; createdAt: string; updatedAt: string; }' is missing the following properties from type 'UserProfile': full_name, organization_id, invitation_status, is_acting_admin
+src/lib/mock-data.ts(178,3): error TS2741: Property 'score' is missing in type '{ id: string; title: string; description: string; categoryId: string; category: RiskCategory; likelihood: 3; impact: 5; riskScore: number; status: string; ownerId: string; ownerName: string; createdBy: string; createdAt: string; updatedAt: string; }' but required in type 'Risk'.
+src/lib/mock-data.ts(194,3): error TS2741: Property 'score' is missing in type '{ id: string; title: string; description: string; categoryId: string; category: RiskCategory; likelihood: 2; impact: 4; riskScore: number; status: string; ownerId: string; ownerName: string; createdBy: string; createdAt: string; updatedAt: string; }' but required in type 'Risk'.
+src/lib/mock-data.ts(210,3): error TS2741: Property 'score' is missing in type '{ id: string; title: string; description: string; categoryId: string; category: RiskCategory; likelihood: 2; impact: 4; riskScore: number; status: string; ownerId: string; ownerName: string; createdBy: string; createdAt: string; updatedAt: string; }' but required in type 'Risk'.
+src/lib/mock-data.ts(226,3): error TS2741: Property 'score' is missing in type '{ id: string; title: string; description: string; categoryId: string; category: RiskCategory; likelihood: 3; impact: 3; riskScore: number; status: string; ownerId: string; ownerName: string; createdBy: string; createdAt: string; updatedAt: string; }' but required in type 'Risk'.
+src/lib/mock-data.ts(242,3): error TS2741: Property 'score' is missing in type '{ id: string; title: string; description: string; categoryId: string; category: RiskCategory; likelihood: 4; impact: 3; riskScore: number; status: string; ownerId: string; ownerName: string; createdBy: string; createdAt: string; updatedAt: string; }' but required in type 'Risk'.
+src/lib/mock-data.ts(392,3): error TS2740: Type '{ id: string; title: string; description: string; fileUrl: string; fileName: string; fileType: string; fileSize: number; relatedTo: string; relatedId: string; relatedName: string; uploadedBy: string; ... 5 more ...; verifiedAt: string; }' is missing the following properties from type 'Evidence': file_path, file_name, uploaded_by, uploaded_at, and 2 more.
+src/lib/mock-data.ts(411,3): error TS2740: Type '{ id: string; title: string; description: string; fileUrl: string; fileName: string; fileType: string; fileSize: number; relatedTo: string; relatedId: string; relatedName: string; uploadedBy: string; ... 5 more ...; verifiedAt: string; }' is missing the following properties from type 'Evidence': file_path, file_name, uploaded_by, uploaded_at, and 2 more.
+src/lib/mock-data.ts(433,3): error TS2739: Type '{ id: string; userId: string; userName: string; action: string; entityType: string; entityId: string; entityName: string; timestamp: string; description: string; }' is missing the following properties from type 'AuditLog': actor_id, meta
+src/lib/mock-data.ts(444,3): error TS2739: Type '{ id: string; userId: string; userName: string; action: string; entityType: string; entityId: string; entityName: string; oldValues: { status: string; riskScore: number; }; newValues: { status: string; riskScore: number; }; timestamp: string; description: string; }' is missing the following properties from type 'AuditLog': actor_id, meta
+src/lib/mock-data.ts(457,3): error TS2739: Type '{ id: string; userId: string; userName: string; action: string; entityType: string; entityId: string; entityName: string; timestamp: string; description: string; }' is missing the following properties from type 'AuditLog': actor_id, meta
+src/lib/risk-scoring.ts(77,7): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/risk-scoring.ts(78,28): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/risk-scoring.ts(79,33): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/risk-scoring.ts(80,27): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/lib/risk-scoring.ts(82,39): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.

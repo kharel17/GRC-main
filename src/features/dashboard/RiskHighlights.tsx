@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Risk } from '@/types/risk';
+import { Risk } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,19 +37,19 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
 
   const filteredRisks = risks.filter((risk) => {
     if (filter === 'all') return true;
-    return getRiskLevel(risk.riskScore) === filter;
+    return getRiskLevel(risk.score) === filter;
   });
 
   // Sort by risk score descending and take top 5
   const topRisks = [...filteredRisks]
-    .sort((a, b) => b.riskScore - a.riskScore)
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, 5);
 
   const filterButtons: { label: string; value: FilterType; count: number }[] = [
     { label: 'All', value: 'all', count: risks.length },
-    { label: 'High', value: 'high', count: risks.filter(r => getRiskLevel(r.riskScore) === 'high').length },
-    { label: 'Medium', value: 'medium', count: risks.filter(r => getRiskLevel(r.riskScore) === 'medium').length },
-    { label: 'Low', value: 'low', count: risks.filter(r => getRiskLevel(r.riskScore) === 'low').length },
+    { label: 'High', value: 'high', count: risks.filter(r => getRiskLevel(r.score) === 'high').length },
+    { label: 'Medium', value: 'medium', count: risks.filter(r => getRiskLevel(r.score) === 'medium').length },
+    { label: 'Low', value: 'low', count: risks.filter(r => getRiskLevel(r.score) === 'low').length },
   ];
 
   return (
@@ -117,14 +117,14 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">
-                        L:{risk.likelihood} × I:{risk.impact}
+                        L:{risk.likelihood || risk.probability} × I:{risk.impact}
                       </span>
                     </div>
                   </div>
                   <Badge 
-                    className={`font-semibold text-xs px-2 py-1 border ${getScoreStyles(risk.riskScore)}`}
+                    className={`font-semibold text-xs px-2 py-1 border ${getScoreStyles(risk.score)}`}
                   >
-                    {risk.riskScore}
+                    {risk.score}
                   </Badge>
                 </div>
               </Link>

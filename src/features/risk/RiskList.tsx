@@ -1,6 +1,6 @@
 'use client';
 
-import { Risk } from '@/types/risk';
+import { Risk } from '@/types';
 import {
   Table,
   TableBody,
@@ -48,7 +48,7 @@ export function RiskList({ risks, showCategory = true }: RiskListProps) {
             <TableRow key={risk.id} className="hover:bg-slate-50">
               <TableCell>
                 <Link
-                  href={`/risks/${risk.id}`}
+                  href={`/dashboard/risks/${risk.id}`}
                   className="font-medium text-blue-600 hover:underline"
                 >
                   {risk.title}
@@ -66,13 +66,13 @@ export function RiskList({ risks, showCategory = true }: RiskListProps) {
               )}
               <TableCell>
                 <div className="flex justify-center">
-                  <Badge className={getScoreBadgeColor(risk.riskScore)}>
-                    {risk.riskScore}
+                  <Badge className={getScoreBadgeColor(risk.score)}>
+                    {risk.score}
                   </Badge>
                 </div>
               </TableCell>
               <TableCell className="text-center text-sm text-slate-600">
-                {risk.likelihood}/{risk.impact}
+                {(risk.likelihood || risk.probability)}/{risk.impact}
               </TableCell>
               <TableCell>
                 <Badge className={getStatusColor(risk.status)} variant="secondary">

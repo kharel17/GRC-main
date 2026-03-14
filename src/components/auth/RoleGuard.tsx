@@ -2,7 +2,7 @@
 
 import { ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { UserRole } from '@/types/user';
+import { UserRole } from '@/types';
 
 // =============================================================================
 // Types
@@ -83,4 +83,4 @@ export function withRoleGuard<P extends object>(
   };
 }
 
-export default RoleGuard;
+

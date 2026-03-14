@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner"; 
 import { fetchRisks } from "@/lib/data-service";
 import { useApiData } from "@/hooks/use-api-data";
-import { Risk } from "@/types/risk";
+import { Risk } from "@/types";
 
 export function RiskMapping({ 
   controlId, 
@@ -103,7 +103,7 @@ export function RiskMapping({
                   ) : (
                     availableRisks.map(r => (
                       <SelectItem key={r.id} value={r.id}>
-                        {r.title} ({r.riskScore})
+                        {r.title} ({r.score})
                       </SelectItem>
                     ))
                   )}
@@ -128,12 +128,12 @@ export function RiskMapping({
             <div key={risk.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-card">
               <div className="flex items-center gap-3">
                  <ShieldAlert className={`h-5 w-5 ${
-                   risk.riskScore >= 15 ? "text-red-500" : 
-                   risk.riskScore >= 8 ? "text-amber-500" : "text-blue-500"
+                   (risk.score || 0) >= 15 ? "text-red-500" : 
+                   (risk.score || 0) >= 8 ? "text-amber-500" : "text-blue-500"
                  }`} />
                  <div>
                    <div className="font-medium text-sm text-foreground">{risk.title}</div>
-                   <div className="text-xs text-muted-foreground">Score: {risk.riskScore} | Impact: {risk.impact}</div>
+                   <div className="text-xs text-muted-foreground">Score: {risk.score} | Impact: {risk.impact}</div>
                  </div>
               </div>
               <Badge variant="outline">{risk.status}</Badge>

@@ -1,8 +1,8 @@
 "use client";
 
-import { Risk, Control } from "@/types";
+import { Risk, Control, ComplianceItem, Ticket } from "@/types";
 import { useAuth } from "@/hooks";
-import { fetchRisks, fetchControls, fetchComplianceItems, fetchOrganization, fetchReadinessScore } from "@/lib";
+import { fetchRisks, fetchControls, fetchComplianceItems, fetchTickets, fetchOrganization, fetchReadinessScore } from "@/lib";
 import { useApiData } from "@/hooks";
 import { DashboardSummary } from "@/features/dashboard/DashboardSummary";
 import { RiskHighlights } from "@/features/dashboard/RiskHighlights";
@@ -190,12 +190,48 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const role = user?.role || 'analyst';
 
-  const { data: summary, loading: summaryLoading } = useApiData(fetchDashboardSummary);
-  const { data: risks, loading: risksLoading } = useApiData(fetchRisks);
-  const { data: controls, loading: controlsLoading } = useApiData(fetchControls);
-  const { data: complianceItems, loading: complianceLoading } = useApiData(fetchComplianceItems);
+  const { data: fetchedRisks, loading: risksLoading } = useApiData(fetchRisks);
+  const risks = fetchedRisks ?? [];
   
-  const loading = summaryLoading;
+  const { data: fetchedControls, loading: controlsLoading } = useApiData(fetchControls);
+  const controls = fetchedControls ?? [];
+  
+  const { data: fetchedCompliance, loading: complianceLoading } = useApiData(fetchComplianceItems);
+  const compliance = fetchedCompliance ?? [];
+  
+  const { data: fetchedTickets, loading: ticketsLoading } = useApiData(fetchTickets);
+  const tickets = fetchedTickets ?? [];
+  
+  const { data: org, loading: orgLoading } = useApiData(fetchOrganization);
+  
+  const orgId = org?.id || "";
+  const { data: readiness, loading: readinessLoading } = useApiData(
+    () => orgId ? fetchReadinessScore(orgId) : Promise.resolve(null),
+    [orgId]
+  );
+
+  const loading = risksLoading || controlsLoading || complianceLoading || ticketsLoading || orgLoading || (orgId && readinessLoading);
+
+  // Role-specific greeting
+  const getGreeting = () => {
+    switch (role) {
+      case 'admin':
+        return { title: 'System Overview', subtitle: 'Complete platform visibility and control' };
+      case 'analyst':
+      case 'control_owner':
+      case 'risk_owner':
+        return { title: 'Risk & Compliance Dashboard', subtitle: 'Track your tasks and assessments' };
+      case 'compliance_officer':
+        return { title: 'Compliance Dashboard', subtitle: 'Monitor compliance posture and findings' };
+      case 'department_manager':
+      case 'executive':
+        return { title: 'Executive Dashboard', subtitle: 'High-level reports and insights' };
+      case 'auditor':
+        return { title: 'Audit Dashboard', subtitle: 'Review compliance and risk data (read-only)' };
+      default:
+        return { title: 'Dashboard', subtitle: 'Risk and compliance overview' };
+    }
+  };
 
   const greeting = getGreeting(role);
 
@@ -214,10 +250,8 @@ export default function DashboardPage() {
     );
   }
 
-  const allRisks = risks ?? [];
-  const allControls = controls ?? [];
-  const allCompliance = complianceItems ?? [];
-
+  // Dashboard components use risks, controls, and compliance from state above
+  
   return (
     <div className="space-y-6">
       <div>
@@ -225,8 +259,8 @@ export default function DashboardPage() {
         <p className="text-sm text-muted-foreground">{greeting.subtitle}</p>
       </div>
 
-      {/* Admin-specific system overview - Uses Consolidated Summary */}
-      {role === 'admin' && <AdminSystemOverview summary={summary} risks={allRisks} />}
+      {/* Admin-specific system overview */}
+      {role === 'admin' && <AdminSystemOverview controls={controls} risks={risks} readiness={readiness} />}
 
       {/* Analyst/Owner-specific task widget */}
       {(role === 'analyst' || role === 'control_owner' || role === 'risk_owner') && <AnalystTaskWidget />}
@@ -236,19 +270,19 @@ export default function DashboardPage() {
 
       {/* Common summary component - visible to all */}
       <DashboardSummary
-        risks={allRisks}
-        controls={allControls}
-        complianceItems={allCompliance}
+        risks={risks}
+        controls={controls}
+        complianceItems={compliance}
       />
 
       {/* Risk highlights and overdue items - visibility based on role */}
       {(role === 'admin' || role === 'analyst' || role === 'risk_owner' || role === 'control_owner' || role === 'compliance_officer') && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <RiskHighlights risks={allRisks} />
+            <RiskHighlights risks={risks} />
           </div>
           <div>
-            <OverdueItems complianceItems={allCompliance} />
+            <OverdueItems complianceItems={compliance} />
           </div>
         </div>
       )}
@@ -256,7 +290,7 @@ export default function DashboardPage() {
       {/* Manager/Executive sees reports-focused content */}
       {(role === 'department_manager' || role === 'executive') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <OverdueItems complianceItems={allCompliance} />
+          <OverdueItems complianceItems={compliance} />
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Quick Actions</CardTitle>

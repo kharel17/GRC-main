@@ -21,7 +21,12 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 1, re
       signal: AbortSignal.timeout(60000), // 60s timeout for Render cold starts
     });
   } catch (error) {
-    if (retries > 0 && error instanceof Error && error.name !== 'AbortError') {
+    // Don't retry AbortErrors (timeouts or Supabase lock race conditions)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
+    
+    if (retries > 0 && error instanceof Error) {
       toast.info('Connection slow, retrying...');
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
       return fetchWithRetry(url, options, retries - 1, retryDelay);

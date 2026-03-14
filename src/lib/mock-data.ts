@@ -198,12 +198,12 @@ export const mockUsers: UserProfile[] = [
 ];
 
 export const mockRiskCategories: RiskCategory[] = [
-  { id: '1', name: 'Operational', description: 'Day-to-day operational risks', color: '#3b82f6' },
-  { id: '2', name: 'Financial', description: 'Financial stability risks', color: '#10b981' },
-  { id: '3', name: 'Compliance', description: 'Regulatory compliance risks', color: '#f59e0b' },
-  { id: '4', name: 'Strategic', description: 'Long-term strategy risks', color: '#8b5cf6' },
-  { id: '5', name: 'Reputational', description: 'Brand and reputation risks', color: '#ef4444' },
-  { id: '6', name: 'Technology', description: 'IT and cybersecurity risks', color: '#06b6d4' },
+  { id: '00000000-0000-0000-0000-000000000001', name: 'Operational', description: 'Day-to-day operational risks', color: '#3b82f6' },
+  { id: '00000000-0000-0000-0000-000000000002', name: 'Financial', description: 'Financial stability risks', color: '#10b981' },
+  { id: '00000000-0000-0000-0000-000000000003', name: 'Compliance', description: 'Regulatory compliance risks', color: '#f59e0b' },
+  { id: '00000000-0000-0000-0000-000000000004', name: 'Strategic', description: 'Long-term strategy risks', color: '#8b5cf6' },
+  { id: '00000000-0000-0000-0000-000000000005', name: 'Reputational', description: 'Brand and reputation risks', color: '#ef4444' },
+  { id: '00000000-0000-0000-0000-000000000006', name: 'Technology', description: 'IT and cybersecurity risks', color: '#06b6d4' },
 ];
 
 export const mockRisks: Risk[] = [
@@ -211,7 +211,7 @@ export const mockRisks: Risk[] = [
     id: 'risk-1',
     title: 'Data Breach',
     description: 'Unauthorized access to sensitive customer data',
-    categoryId: '6',
+    categoryId: '00000000-0000-0000-0000-000000000006',
     category: mockRiskCategories[5],
     likelihood: 3,
     impact: 5,
@@ -229,7 +229,7 @@ export const mockRisks: Risk[] = [
     id: 'risk-2',
     title: 'Regulatory Non-Compliance',
     description: 'Failure to meet GDPR requirements',
-    categoryId: '3',
+    categoryId: '00000000-0000-0000-0000-000000000003',
     category: mockRiskCategories[2],
     likelihood: 2,
     impact: 4,
@@ -247,7 +247,7 @@ export const mockRisks: Risk[] = [
     id: 'risk-3',
     title: 'System Downtime',
     description: 'Critical infrastructure failure',
-    categoryId: '1',
+    categoryId: '00000000-0000-0000-0000-000000000001',
     category: mockRiskCategories[0],
     likelihood: 2,
     impact: 4,
@@ -265,7 +265,7 @@ export const mockRisks: Risk[] = [
     id: 'risk-4',
     title: 'Budget Overrun',
     description: 'Project expenses exceed allocated budget',
-    categoryId: '2',
+    categoryId: '00000000-0000-0000-0000-000000000002',
     category: mockRiskCategories[1],
     likelihood: 3,
     impact: 3,
@@ -283,7 +283,7 @@ export const mockRisks: Risk[] = [
     id: 'risk-5',
     title: 'Key Person Dependency',
     description: 'Critical functions dependent on single individual',
-    categoryId: '4',
+    categoryId: '00000000-0000-0000-0000-000000000004',
     category: mockRiskCategories[3],
     likelihood: 4,
     impact: 3,

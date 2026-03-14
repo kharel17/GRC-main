@@ -105,20 +105,46 @@ async def fix_platform_team_roles():
 
     try:
         async with SessionLocal() as db:
+            # 1. Ensure "Platform Team" organization exists
+            platform_org_result = await db.execute(
+                select(models.Organization).where(models.Organization.name == "Platform Team")
+            )
+            platform_org = platform_org_result.scalar_one_or_none()
+            
+            if not platform_org:
+                platform_org = models.Organization(
+                    id=uuid.uuid4(),
+                    name="Platform Team",
+                    onboarding_completed=True
+                )
+                db.add(platform_org)
+                await db.flush()
+                logger.info("Created 'Platform Team' organization for system users.")
+
+            # 2. Apply role overrides and sync organizations
             for email, role in ROLE_OVERRIDE_MAP.items():
                 result = await db.execute(
                     select(models.User).where(models.User.email == email)
                 )
                 user = result.scalar_one_or_none()
-                if user and user.role != role:
-                    user.role = role
-                    user.invitation_status = 'active'
-                    await db.commit()
-                    logger.info(f"Fixed role: {email} → {role.value}")
-                elif user and user.invitation_status != 'active':
-                    user.invitation_status = 'active'
-                    await db.commit()
-                    logger.info(f"Activated user: {email}")
+                if user:
+                    needs_update = False
+                    if user.role != role:
+                        user.role = role
+                        needs_update = True
+                    if user.invitation_status != 'active':
+                        user.invitation_status = 'active'
+                        needs_update = True
+                    if not user.organization_id:
+                        user.organization_id = platform_org.id
+                        user.organization_name = platform_org.name
+                        needs_update = True
+                    
+                    if needs_update:
+                        await db.flush()
+                        logger.info(f"Updated platform user status: {email}")
+            
+            await db.commit()
     except Exception as e:
         logger.warning(f"Platform team role fix skipped: {e}")
 

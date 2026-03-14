@@ -1,0 +1,66 @@
+INFO:     Started server process [10724]
+INFO:     Waiting for application startup.
+{"timestamp": "2026-03-14T21:49:37.298142Z", "level": "INFO", "logger": "grc.ai", "message": "AI Service: Loading ISO 27001 controls..."}
+{"timestamp": "2026-03-14T21:49:37.299697Z", "level": "INFO", "logger": "grc.ai", "message": "AI Service: No GEMINI_API_KEY found. Gemini disabled."}
+2026-03-15 03:34:49.680262: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-03-15 03:34:54.460271: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+C:\Users\blanx\AppData\Roaming\Python\Python313\site-packages\keras\src\export\tf2onnx_lib.py:8: FutureWarning: In the future `np.object` will be defined as the corresponding NumPy scalar.
+  if not hasattr(np, "object"):
+{"timestamp": "2026-03-14T21:49:57.226906Z", "level": "ERROR", "logger": "grc.ai", "message": "AI Service: Local model failed to load (Your currently installed version of Keras is Keras 3, but this is not yet supported in Transformers. Please install the backwards-compatible tf-keras package with `pip install tf-keras`.)"}
+{"timestamp": "2026-03-14T21:49:57.227278Z", "level": "WARNING", "logger": "grc", "message": "AI Service failed to initialize: AI Service: Neither Gemini nor local model available. Cannot start.. AI endpoints will return 503."}
+2026-03-15 03:34:58,295 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+{"timestamp": "2026-03-14T21:49:58.295672Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "select pg_catalog.version()"}
+2026-03-15 03:34:58,295 INFO sqlalchemy.engine.Engine [raw sql] ()
+{"timestamp": "2026-03-14T21:49:58.295894Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[raw sql] ()"}
+2026-03-15 03:34:58,784 INFO sqlalchemy.engine.Engine select current_schema()
+{"timestamp": "2026-03-14T21:49:58.785131Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "select current_schema()"}
+2026-03-15 03:34:58,785 INFO sqlalchemy.engine.Engine [raw sql] ()
+{"timestamp": "2026-03-14T21:49:58.785323Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[raw sql] ()"}
+2026-03-15 03:34:59,435 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+{"timestamp": "2026-03-14T21:49:59.435718Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "show standard_conforming_strings"}
+2026-03-15 03:34:59,435 INFO sqlalchemy.engine.Engine [raw sql] ()
+{"timestamp": "2026-03-14T21:49:59.435907Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[raw sql] ()"}
+2026-03-15 03:34:59,925 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+{"timestamp": "2026-03-14T21:49:59.925548Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+2026-03-15 03:35:00,057 INFO sqlalchemy.engine.Engine SELECT organizations.id, organizations.name, organizations.industry, organizations.size, organizations.description, organizations.website, organizations.country, organizations.employee_count, organizations.infrastructure, organizations.data_types, organizations.onboarding_completed, organizations.created_by, organizations.risk_appetite, organizations.compliance_target_date, organizations.framework_id, organizations.isms_scope, organizations.compliance_frameworks, organizations.primary_contact_id, organizations.created_at, organizations.updated_at 
+FROM organizations 
+WHERE organizations.name = $1::VARCHAR
+{"timestamp": "2026-03-14T21:50:00.057297Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT organizations.id, organizations.name, organizations.industry, organizations.size, organizations.description, organizations.website, organizations.country, organizations.employee_count, organizations.infrastructure, organizations.data_types, organizations.onboarding_completed, organizations.created_by, organizations.risk_appetite, organizations.compliance_target_date, organizations.framework_id, organizations.isms_scope, organizations.compliance_frameworks, organizations.primary_contact_id, organizations.created_at, organizations.updated_at \nFROM organizations \nWHERE organizations.name = $1::VARCHAR"}
+2026-03-15 03:35:00,057 INFO sqlalchemy.engine.Engine [generated in 0.00082s] ('Platform Team',)
+{"timestamp": "2026-03-14T21:50:00.057853Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[generated in 0.00082s] ('Platform Team',)"}
+2026-03-15 03:35:01,221 INFO sqlalchemy.engine.Engine SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name 
+FROM users 
+WHERE users.email = $1::VARCHAR
+{"timestamp": "2026-03-14T21:50:01.221429Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name \nFROM users \nWHERE users.email = $1::VARCHAR"}
+2026-03-15 03:35:01,221 INFO sqlalchemy.engine.Engine [generated in 0.00061s] ('alice@company.com',)
+{"timestamp": "2026-03-14T21:50:01.221748Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[generated in 0.00061s] ('alice@company.com',)"}
+2026-03-15 03:35:02,210 INFO sqlalchemy.engine.Engine SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name 
+FROM users 
+WHERE users.email = $1::VARCHAR
+{"timestamp": "2026-03-14T21:50:02.210692Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name \nFROM users \nWHERE users.email = $1::VARCHAR"}
+2026-03-15 03:35:02,210 INFO sqlalchemy.engine.Engine [cached since 0.9898s ago] ('carol@company.com',)
+{"timestamp": "2026-03-14T21:50:02.210909Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 0.9898s ago] ('carol@company.com',)"}
+2026-03-15 03:35:02,375 INFO sqlalchemy.engine.Engine SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name 
+FROM users 
+WHERE users.email = $1::VARCHAR
+{"timestamp": "2026-03-14T21:50:02.375787Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name \nFROM users \nWHERE users.email = $1::VARCHAR"}
+2026-03-15 03:35:02,375 INFO sqlalchemy.engine.Engine [cached since 1.155s ago] ('bob@company.com',)
+{"timestamp": "2026-03-14T21:50:02.376247Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 1.155s ago] ('bob@company.com',)"}
+2026-03-15 03:35:02,541 INFO sqlalchemy.engine.Engine SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name 
+FROM users 
+WHERE users.email = $1::VARCHAR
+{"timestamp": "2026-03-14T21:50:02.542135Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name \nFROM users \nWHERE users.email = $1::VARCHAR"}
+2026-03-15 03:35:02,542 INFO sqlalchemy.engine.Engine [cached since 1.321s ago] ('bcolorc17@gmail.com',)
+{"timestamp": "2026-03-14T21:50:02.542459Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 1.321s ago] ('bcolorc17@gmail.com',)"}
+2026-03-15 03:35:02,708 INFO sqlalchemy.engine.Engine SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name 
+FROM users 
+WHERE users.email = $1::VARCHAR
+{"timestamp": "2026-03-14T21:50:02.708490Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT users.id, users.email, users.full_name, users.hashed_password, users.role, users.department, users.is_active, users.token_version, users.created_at, users.updated_at, users.is_acting_admin, users.manager_id, users.organization_id, users.invitation_status, users.invited_by, users.invited_at, users.organization_name \nFROM users \nWHERE users.email = $1::VARCHAR"}
+2026-03-15 03:35:02,708 INFO sqlalchemy.engine.Engine [cached since 1.488s ago] ('grchelios@gmail.com',)
+{"timestamp": "2026-03-14T21:50:02.708695Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 1.488s ago] ('grchelios@gmail.com',)"}
+2026-03-15 03:35:02,873 INFO sqlalchemy.engine.Engine COMMIT
+{"timestamp": "2026-03-14T21:50:02.873502Z", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "COMMIT"}
+INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8000): [winerror 10048] only one usage of each socket address (protocol/network address/port) is normally permitted
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.

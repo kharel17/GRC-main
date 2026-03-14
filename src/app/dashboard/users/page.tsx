@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useApiData } from "@/hooks/use-api-data";
-import { fetchUsers, createUser } from "@/lib/data-service";
+import { fetchUsers, createUser, inviteUser } from "@/lib/data-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,7 +21,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, Loader2, AlertTriangle, Send } from "lucide-react";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -40,6 +40,16 @@ export default function UsersPage() {
     const [department, setDepartment] = useState("");
     const [managerId, setManagerId] = useState("");
     const [isActingAdmin, setIsActingAdmin] = useState(0);
+
+    // Invite dialog state
+    const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+    const [inviteSubmitting, setInviteSubmitting] = useState(false);
+    const [inviteError, setInviteError] = useState<string | null>(null);
+    const [inviteEmail, setInviteEmail] = useState("");
+    const [inviteFullName, setInviteFullName] = useState("");
+    const [inviteRole, setInviteRole] = useState("analyst");
+    const [inviteManagerId, setInviteManagerId] = useState("");
+    const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
 
     const resetForm = () => {
         setEmail("");
@@ -80,6 +90,43 @@ export default function UsersPage() {
             setSubmitting(false);
         }
     }, [email, fullName, password, role, department, managerId, isActingAdmin, refetch]);
+
+    const resetInviteForm = () => {
+        setInviteEmail("");
+        setInviteFullName("");
+        setInviteRole("analyst");
+        setInviteManagerId("");
+        setInviteError(null);
+        setInviteSuccess(null);
+    };
+
+    const handleInviteSubmit = useCallback(async () => {
+        setInviteError(null);
+        setInviteSuccess(null);
+
+        if (!inviteEmail || !inviteFullName) {
+            setInviteError("Email and full name are required.");
+            return;
+        }
+
+        setInviteSubmitting(true);
+        try {
+            await inviteUser({
+                email: inviteEmail,
+                full_name: inviteFullName,
+                role: inviteRole,
+                manager_id: inviteManagerId || undefined,
+            });
+            setInviteSuccess(`Invitation sent to ${inviteEmail}`);
+            setInviteEmail("");
+            setInviteFullName("");
+            refetch();
+        } catch (err: any) {
+            setInviteError(err?.message || "Failed to send invitation.");
+        } finally {
+            setInviteSubmitting(false);
+        }
+    }, [inviteEmail, inviteFullName, inviteRole, inviteManagerId, refetch]);
 
     if (loading) {
         return (
@@ -230,6 +277,101 @@ export default function UsersPage() {
                                         </>
                                     ) : (
                                         "Create User"
+                                    )}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Invite User Dialog */}
+                    <Dialog open={inviteDialogOpen} onOpenChange={(open) => { setInviteDialogOpen(open); if (!open) resetInviteForm(); }}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="gap-2 w-full sm:w-auto">
+                                <Send className="h-4 w-4" />
+                                Invite User
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                                <DialogTitle>Invite User</DialogTitle>
+                                <DialogDescription>
+                                    Send an email invitation. The user will receive a link to join the platform.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="grid gap-4 py-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">Full Name *</label>
+                                    <Input
+                                        placeholder="e.g. Jane Doe"
+                                        value={inviteFullName}
+                                        onChange={(e) => setInviteFullName(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">Email *</label>
+                                    <Input
+                                        type="email"
+                                        placeholder="e.g. jane@company.com"
+                                        value={inviteEmail}
+                                        onChange={(e) => setInviteEmail(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">Role</label>
+                                    <Select value={inviteRole} onValueChange={setInviteRole}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="manager">Manager</SelectItem>
+                                            <SelectItem value="analyst">Analyst</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                {inviteRole === 'analyst' && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-slate-700">Assign Manager *</label>
+                                        <Select value={inviteManagerId} onValueChange={setInviteManagerId}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a manager" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {users?.filter((u: any) => u.role === 'admin' || u.role === 'manager').map((m: any) => (
+                                                    <SelectItem key={m.id} value={m.id}>{m.full_name} ({m.role})</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
+
+                                {inviteError && (
+                                    <div className="rounded-md bg-red-50 border border-red-200 p-3">
+                                        <p className="text-sm text-red-700">{inviteError}</p>
+                                    </div>
+                                )}
+                                {inviteSuccess && (
+                                    <div className="rounded-md bg-green-50 border border-green-200 p-3">
+                                        <p className="text-sm text-green-700">{inviteSuccess}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setInviteDialogOpen(false)} disabled={inviteSubmitting}>
+                                    Cancel
+                                </Button>
+                                <Button onClick={handleInviteSubmit} disabled={inviteSubmitting}>
+                                    {inviteSubmitting ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                            Sending…
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send className="h-4 w-4 mr-2" />
+                                            Send Invitation
+                                        </>
                                     )}
                                 </Button>
                             </DialogFooter>

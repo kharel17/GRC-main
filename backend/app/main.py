@@ -23,7 +23,9 @@ app = FastAPI(
 allowed_origins = [
     "https://grc-main.vercel.app",
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "http://localhost:3001",
+    "http://127.0.0.1:3001",
 ]
 
 # ── Security Headers Middleware ────────────────────────────
@@ -67,7 +69,7 @@ async def request_logging_middleware(request: Request, call_next):
 # ── CORS Middleware (registered last = runs first) ─────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=settings.BACKEND_CORS_ORIGINS or allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -84,6 +86,42 @@ async def startup_ai_service():
         logger.info("AI Service initialized successfully")
     except Exception as e:
         logger.warning(f"AI Service failed to initialize: {e}. AI endpoints will return 503.")
+
+# ── Platform Team Role Fix ─────────────────────────────────
+@app.on_event("startup")
+async def fix_platform_team_roles():
+    """Ensure platform team accounts always have correct admin roles."""
+    from sqlalchemy import select
+    from app.database import SessionLocal
+    from app import models
+
+    ROLE_OVERRIDE_MAP = {
+        "alice@company.com":   models.UserRole.admin,
+        "carol@company.com":   models.UserRole.manager,
+        "bob@company.com":     models.UserRole.analyst,
+        "bcolorc17@gmail.com": models.UserRole.admin,
+        "grchelios@gmail.com": models.UserRole.admin,
+    }
+
+    try:
+        async with SessionLocal() as db:
+            for email, role in ROLE_OVERRIDE_MAP.items():
+                result = await db.execute(
+                    select(models.User).where(models.User.email == email)
+                )
+                user = result.scalar_one_or_none()
+                if user and user.role != role:
+                    user.role = role
+                    user.invitation_status = 'active'
+                    await db.commit()
+                    logger.info(f"Fixed role: {email} → {role.value}")
+                elif user and user.invitation_status != 'active':
+                    user.invitation_status = 'active'
+                    await db.commit()
+                    logger.info(f"Activated user: {email}")
+    except Exception as e:
+        logger.warning(f"Platform team role fix skipped: {e}")
+
 
 # ── Health Check ───────────────────────────────────────────
 @app.get("/health")

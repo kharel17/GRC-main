@@ -1,4 +1,0 @@
-Failed to load plugin '@typescript-eslint' declared in '.eslintrc.json': Cannot find module '@typescript-eslint/eslint-plugin'
-Require stack:
-- C:\Users\blanx\OneDrive\Desktop\GRC main\__placeholder__.js
-Referenced from: C:\Users\blanx\OneDrive\Desktop\GRC main\.eslintrc.json

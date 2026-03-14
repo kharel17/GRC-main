@@ -12,32 +12,6 @@ import { storageService } from './storage-service';
 import { DataValidator } from './data-validation';
 import isoData from '@/data/iso27001-controls.json';
 
-// Initialize data if needed
-// This effectively acts as a database migration/seeder for the local session
-if (typeof window !== 'undefined') {
-  // Safe initialization that catches network/auth errors to prevent app crashes
-  storageService.getControls()
-    .then(controls => {
-      if (controls && controls.length === 0) {
-
-        const initialControls: ISOControl[] = isoData.controls.map(c => ({
-          ...c,
-          status: c.status as ISOControlStatus,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }));
-
-        // Save all initial controls safely
-        Promise.all(initialControls.map(c => storageService.saveControl(c)))
-
-          .catch(err => console.error('Failed to save initial controls:', err));
-      }
-    })
-    .catch(err => {
-      // Crucial: Catch the 401 or network errors so they don't bubble up as "Failed to fetch" crashes!
-      console.warn('[ISO Service] Initial controls seeding skipped. This is expected if the backend is unreachable, or you are logged out.', err.message || err);
-    });
-}
 
 export const isoService = {
   // ===========================================================================

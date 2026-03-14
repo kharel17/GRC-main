@@ -93,4 +93,4 @@ class TicketComment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     ticket = relationship("Ticket", back_populates="comments")
-    author = relationship("User")
+    author = relationship("User", foreign_keys=[author_id])

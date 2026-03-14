@@ -62,22 +62,19 @@ async def get_current_user(
         last_error = e
         logger.debug(f"HS256 decode failed: {e}")
 
-    # --- Attempt 2: ES256 with PEM wrapping ---
-    if payload is None and alg == "ES256":
-        key = settings.SUPABASE_JWT_SECRET
-        keys_to_try = [key]
-        if not key.startswith("-----BEGIN"):
-            keys_to_try.insert(0, f"-----BEGIN PUBLIC KEY-----\n{key}\n-----END PUBLIC KEY-----")
-        for k in keys_to_try:
-            try:
-                payload = jwt.decode(
-                    token, k, algorithms=["ES256"], options={"verify_aud": False}
-                )
-                logger.debug("JWT decoded via ES256")
-                break
-            except JWTError as e:
-                last_error = e
-                logger.debug(f"ES256 decode attempt failed: {e}")
+    # --- Attempt 2: HS256 with Supabase secret ---
+    if payload is None:
+        try:
+            payload = jwt.decode(
+                token, 
+                settings.SUPABASE_JWT_SECRET, 
+                algorithms=["HS256"], 
+                options={"verify_aud": False}
+            )
+            logger.debug("JWT decoded via Supabase HS256")
+        except JWTError as e:
+            last_error = e
+            logger.debug(f"HS256 decode attempt failed: {e}")
 
     # --- Attempt 3: Internal SECRET_KEY fallback ---
     if payload is None:

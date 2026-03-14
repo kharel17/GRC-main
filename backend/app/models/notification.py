@@ -17,8 +17,8 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    user = relationship("User")
-    ticket = relationship("Ticket")
+    user = relationship("User", foreign_keys=[user_id])
+    ticket = relationship("Ticket", foreign_keys=[ticket_id])
 
     # Compound index for efficient polling
     __table_args__ = (

@@ -50,4 +50,8 @@ class User(Base):
     audit_logs = relationship("AuditLog", back_populates="user")
     organization = relationship("Organization", foreign_keys=[organization_id])
     
-    manager = relationship("User", remote_side=[id], backref="subordinates")
+    manager = relationship("User", remote_side=[id], foreign_keys=[manager_id], back_populates="subordinates")
+    subordinates = relationship("User", back_populates="manager", foreign_keys=[manager_id])
+    
+    invited_by_user = relationship("User", remote_side=[id], foreign_keys=[invited_by], back_populates="invites_sent")
+    invites_sent = relationship("User", back_populates="invited_by_user", foreign_keys=[invited_by])

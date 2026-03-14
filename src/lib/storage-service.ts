@@ -155,7 +155,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getControls(): Promise<ISOControl[]> {
     try {
-      return await api.get<ISOControl[]>('/controls');
+      return await api.get<ISOControl[]>('/controls/');
     } catch (err) {
       console.warn('[ApiStorageAdapter] getControls failed, falling back', err);
       return this.fallback.getControls();
@@ -173,7 +173,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async saveControl(control: ISOControl): Promise<ISOControl> {
     try {
-      return await api.post<ISOControl>('/controls', control);
+      return await api.post<ISOControl>('/controls/', control);
     } catch (err) {
       console.warn('[ApiStorageAdapter] saveControl failed, falling back', err);
       return this.fallback.saveControl(control);
@@ -228,7 +228,7 @@ export class ApiStorageAdapter implements StorageService {
   async getAuditLogs(entityId?: string): Promise<ISOAuditLog[]> {
     try {
       const query = entityId ? `?entity_id=${entityId}` : '';
-      return await api.get<ISOAuditLog[]>(`/audit-logs${query}`);
+      return await api.get<ISOAuditLog[]>(`/audit-logs/${query}`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getAuditLogs failed, falling back', err);
       return this.fallback.getAuditLogs(entityId);
@@ -237,7 +237,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async logAction(logData: Omit<ISOAuditLog, 'id' | 'timestamp'>): Promise<ISOAuditLog> {
     try {
-      return await api.post<ISOAuditLog>('/audit-logs', logData);
+      return await api.post<ISOAuditLog>('/audit-logs/', logData);
     } catch (err) {
       console.warn('[ApiStorageAdapter] logAction failed, falling back', err);
       return this.fallback.logAction(logData);

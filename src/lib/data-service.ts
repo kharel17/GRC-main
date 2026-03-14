@@ -182,7 +182,7 @@ export async function fetchNotifications(): Promise<any[]> {
 
 export async function fetchUnreadCount(): Promise<number> {
   try {
-    const res = await api.get<{ count: number }>('/notifications/unread-count');
+    const res = await api.get<{ count: number }>('/notifications/unread-count/');
     return res.count;
   } catch (err) {
     return 0;
@@ -190,7 +190,7 @@ export async function fetchUnreadCount(): Promise<number> {
 }
 
 export async function markAllRead(): Promise<void> {
-  await api.post('/notifications/mark-all-read');
+  await api.post('/notifications/mark-all-read/');
 }
 
 // -- Users --────────

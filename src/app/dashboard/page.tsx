@@ -14,7 +14,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // Role-Specific Widget Components
 // =============================================================================
 
-function AdminSystemOverview({ controls, risks, readiness }: { controls: Control[]; risks: Risk[]; readiness?: any }) {
+function AdminSystemOverview({ summary }: { summary: any }) {
+  const { control_stats, risk_stats, compliance_stats } = summary ?? { 
+    control_stats: { total: 0 }, 
+    risk_stats: { total: 0 }, 
+    compliance_stats: { overall_percentage: 0 } 
+  };
+  
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/40 dark:to-blue-900/40 dark:border-blue-800">
@@ -24,7 +30,7 @@ function AdminSystemOverview({ controls, risks, readiness }: { controls: Control
               <Shield className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{controls.length}</p>
+              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{control_stats?.total || 0}</p>
               <p className="text-sm text-blue-700 dark:text-blue-300">Active Controls</p>
             </div>
           </div>
@@ -40,7 +46,7 @@ function AdminSystemOverview({ controls, risks, readiness }: { controls: Control
               <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
                 {risks.filter(r => r.status === 'open').length}
               </p>
-              <p className="text-sm text-amber-700 dark:text-amber-300">Open Risks</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">Total Risks</p>
             </div>
           </div>
         </CardContent>
@@ -53,9 +59,9 @@ function AdminSystemOverview({ controls, risks, readiness }: { controls: Control
             </div>
             <div>
               <p className="text-2xl font-bold text-green-900 dark:text-green-100">
-                {readiness?.compliance_percentage || 0}%
+                {compliance_stats?.overall_percentage || 0}%
               </p>
-              <p className="text-sm text-green-700 dark:text-green-300">Compliance Implementation</p>
+              <p className="text-sm text-green-700 dark:text-green-300">Overall Compliance</p>
             </div>
           </div>
         </CardContent>
@@ -68,9 +74,9 @@ function AdminSystemOverview({ controls, risks, readiness }: { controls: Control
             </div>
             <div>
               <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                {readiness?.weighted_readiness || 0}%
+                {compliance_stats?.total_frameworks || 0}
               </p>
-              <p className="text-sm text-purple-700 dark:text-purple-300">Weighted Readiness</p>
+              <p className="text-sm text-purple-700 dark:text-purple-300">Active Frameworks</p>
             </div>
           </div>
         </CardContent>
@@ -159,9 +165,26 @@ function ManagerReportsWidget() {
   );
 }
 
-// =============================================================================
-// Main Dashboard Component
-// =============================================================================
+// Role-specific greeting helper
+const getGreeting = (role: string) => {
+  switch (role) {
+    case 'admin':
+      return { title: 'System Overview', subtitle: 'Complete platform visibility and control' };
+    case 'analyst':
+    case 'control_owner':
+    case 'risk_owner':
+      return { title: 'Risk & Compliance Dashboard', subtitle: 'Track your tasks and assessments' };
+    case 'compliance_officer':
+      return { title: 'Compliance Dashboard', subtitle: 'Monitor compliance posture and findings' };
+    case 'department_manager':
+    case 'executive':
+      return { title: 'Executive Dashboard', subtitle: 'High-level reports and insights' };
+    case 'auditor':
+      return { title: 'Audit Dashboard', subtitle: 'Review compliance and risk data (read-only)' };
+    default:
+      return { title: 'Dashboard', subtitle: 'Risk and compliance overview' };
+  }
+};
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -210,7 +233,7 @@ export default function DashboardPage() {
     }
   };
 
-  const greeting = getGreeting();
+  const greeting = getGreeting(role);
 
   if (loading) {
     return (
@@ -221,7 +244,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-slate-600">Loading dashboard data…</span>
+          <span className="ml-3 text-slate-600">Syncing dashboard...</span>
         </div>
       </div>
     );

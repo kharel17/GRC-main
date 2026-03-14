@@ -14,11 +14,11 @@ import { toast } from 'sonner';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = 1, retryDelay = 3000): Promise<Response> {
+async function fetchWithRetry(url: string, options: RequestInit, retries = 1, retryDelay = 1000): Promise<Response> {
   try {
     return await fetch(url, {
       ...options,
-      signal: AbortSignal.timeout(15000), // 15s timeout
+      signal: AbortSignal.timeout(60000), // 60s timeout for Render cold starts
     });
   } catch (error) {
     // Don't retry AbortErrors (timeouts or Supabase lock race conditions)

@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // Role-Specific Widget Components
 // =============================================================================
 
-function AdminSystemOverview({ summary }: { summary: any }) {
+function AdminSystemOverview({ summary, risks }: { summary: any, risks: Risk[] }) {
   const { control_stats, risk_stats, compliance_stats } = summary ?? { 
     control_stats: { total: 0 }, 
     risk_stats: { total: 0 }, 
@@ -226,7 +226,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Admin-specific system overview - Uses Consolidated Summary */}
-      {role === 'admin' && <AdminSystemOverview summary={summary} />}
+      {role === 'admin' && <AdminSystemOverview summary={summary} risks={allRisks} />}
 
       {/* Analyst/Owner-specific task widget */}
       {(role === 'analyst' || role === 'control_owner' || role === 'risk_owner') && <AnalystTaskWidget />}

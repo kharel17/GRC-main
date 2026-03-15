@@ -219,6 +219,10 @@ export async function createUser(data: {
   return api.post<any>('/users/', data);
 }
 
+export async function removeUser(userId: string): Promise<void> {
+  await api.delete(`/users/${userId}/`);
+}
+
 // -- Invitations --────────
 export async function inviteUser(data: {
   email: string;
@@ -280,7 +284,7 @@ export async function linkRiskToAsset(assetId: string, riskId: string): Promise<
 }
 
 export async function unlinkRiskFromAsset(assetId: string, riskId: string): Promise<void> {
-  return api.delete(`/assets/${assetId}/risks/${riskId}`);
+  return api.delete(`/assets/${assetId}/risks/${riskId}/`);
 }
 
 // -- Audit Preparation --────────
@@ -311,15 +315,15 @@ async function downloadExport(endpoint: string, fallbackFilename: string): Promi
 }
 
 export async function exportAuditReport(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
-  return downloadExport(`/audit-preparation/export?organization_id=${orgId}&format=${format}`, 'Audit_Report');
+  return downloadExport(`/audit-preparation/export/?organization_id=${orgId}&format=${format}`, 'Audit_Report');
 }
 
 export async function exportSoAReport(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
-  return downloadExport(`/audit-preparation/soa/export?organization_id=${orgId}&format=${format}`, 'ISO27001_SoA');
+  return downloadExport(`/audit-preparation/soa/export/?organization_id=${orgId}&format=${format}`, 'ISO27001_SoA');
 }
 
 export async function exportRiskRegister(orgId: string, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
-  return downloadExport(`/audit-preparation/risk-register/export?organization_id=${orgId}&format=${format}`, 'Risk_Register');
+  return downloadExport(`/audit-preparation/risk-register/export/?organization_id=${orgId}&format=${format}`, 'Risk_Register');
 }
 
 // -- Document Analysis --────────
@@ -351,7 +355,7 @@ export interface DashboardSummary {
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary> {
   const fallback: DashboardSummary = {
-    risk_stats: { total: mockRisks.length, high_risk: mockRisks.filter(r => r.riskScore > 15).length, mitigated: mockRisks.filter(r => r.status === 'mitigated').length },
+    risk_stats: { total: mockRisks.length, high_risk: mockRisks.filter(r => (r.riskScore ?? 0) > 15).length, mitigated: mockRisks.filter(r => r.status === 'mitigated').length },
     control_stats: { total: mockControls.length, implemented: mockControls.filter(c => c.status === 'implemented').length, effectiveness_avg: 85 },
     compliance_stats: { overall_percentage: 72, total_frameworks: 1 },
     recent_activity: mockAuditLogs.slice(0, 5)

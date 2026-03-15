@@ -14,7 +14,7 @@ from app.models.user import User
 router = APIRouter()
 
 
-# ─── Schemas ────────────────────────────────────────────────────────────────
+# ─── Schemas ─────────────────────────────────────────────────────────────────
 
 class NotificationResponse(BaseModel):
     id: UUID
@@ -81,7 +81,7 @@ async def mark_notifications_read(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Mark specific notifications (or all) as read."""
+    """Mark specific notifications (or all) as read for current user."""
     query = (
         update(Notification)
         .where(Notification.user_id == current_user.id)
@@ -101,7 +101,7 @@ async def delete_notification(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a single notification (must belong to current user)."""
+    """Delete a single notification belonging to the current user."""
     result = await db.execute(
         select(Notification).where(
             Notification.id == notification_id,

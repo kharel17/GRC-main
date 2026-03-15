@@ -1,6 +1,8 @@
 
 import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats } from '@/types';
 import { api } from './api-client';
+import isoData from '@/data/iso27001-controls.json';
+
 
 let isUsingFallback = false;
 export const getIsUsingFallback = () => isUsingFallback;
@@ -38,9 +40,23 @@ export class LocalStorageAdapter implements StorageService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      if (!localStorage.getItem(this.CONTROLS_KEY)) {
-        localStorage.setItem(this.CONTROLS_KEY, '[]');
+      // Only seed if truly empty — never overwrite existing data
+      const existingControls = localStorage.getItem(this.CONTROLS_KEY);
+      const isEmpty = !existingControls || JSON.parse(existingControls).length === 0;
+
+      if (isEmpty) {
+        // Map controls from the JSON to the ISOControl format
+        const allControls = isoData.controls.map((control: any) => ({
+          ...control,
+          status: control.status || 'not_started',
+          evidenceIds: [],
+          riskIds: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+        localStorage.setItem(this.CONTROLS_KEY, JSON.stringify(allControls));
       }
+
       if (!localStorage.getItem(this.EVIDENCE_KEY)) {
         localStorage.setItem(this.EVIDENCE_KEY, '[]');
       }
@@ -246,7 +262,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getComplianceStats(): Promise<ISOComplianceStats> {
     try {
-      return await api.get<ISOComplianceStats>('/compliance/stats/');
+      return await api.get<ISOComplianceStats>('/compliance/stats');
     } catch (err) {
       console.warn('[ApiStorageAdapter] getComplianceStats failed, falling back', err);
       isUsingFallback = true;

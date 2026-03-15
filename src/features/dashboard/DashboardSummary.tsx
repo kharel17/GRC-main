@@ -36,13 +36,17 @@ export function DashboardSummary({ risks, controls, complianceItems, isLoading }
     );
   }
 
-  const avgRiskScore =
-    risks.length > 0 ? Math.round(risks.reduce((sum, r) => sum + r.score, 0) / risks.length) : 0;
+  const rawAvgRiskScore =
+    risks.length > 0 
+      ? Math.round(risks.reduce((sum, r) => sum + (r.score ?? 0), 0) / risks.length) 
+      : 0;
+  const avgRiskScore = isNaN(rawAvgRiskScore) ? 0 : rawAvgRiskScore;
 
   const openRisks = risks.filter((r) => r.status !== 'mitigated' && r.status !== 'accepted').length;
 
   const compliantItems = complianceItems.filter((c) => c.status === 'compliant').length;
-  const complianceRate = Math.round((compliantItems / complianceItems.length) * 100) || 0;
+  const rawComplianceRate = complianceItems.length > 0 ? Math.round((compliantItems / complianceItems.length) * 100) : 0;
+  const complianceRate = isNaN(rawComplianceRate) ? 0 : rawComplianceRate;
 
   const implementedControls = controls.filter((c) => c.status === 'implemented').length;
 
@@ -109,7 +113,7 @@ export function DashboardSummary({ risks, controls, complianceItems, isLoading }
     },
     {
       label: 'Controls Active',
-      value: `${implementedControls}/${controls.length}`,
+      value: `${implementedControls ?? 0}/${controls.length ?? 0}`,
       trend: implementedControls === controls.length ? 'positive' : 'neutral',
       trendLabel: 'Implemented',
       type: 'controls',

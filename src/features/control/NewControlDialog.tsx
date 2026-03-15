@@ -72,7 +72,10 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
 
     const handleSubmit = async () => {
         setAttempted(true);
-        if (!validateForm()) return;
+        
+        if (!validateForm()) {
+            return;
+        }
 
         setSubmitting(true);
         try {

@@ -28,7 +28,7 @@ class Risk(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    category_id = Column(UUID(as_uuid=True), ForeignKey("risk_categories.id"), nullable=False)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("risk_categories.id"), nullable=True)
     asset_id = Column(UUID(as_uuid=True), ForeignKey("assets.id"), nullable=True)
     
     threat = Column(Text, nullable=True)

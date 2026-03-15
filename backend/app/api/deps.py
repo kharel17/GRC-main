@@ -9,12 +9,103 @@ from app.config import settings
 from app.database import get_db
 import logging
 import uuid
+import httpx
+import json
+from jose import jwk
 
 logger = logging.getLogger("grc.deps")
 
 # Support both cookie and Bearer header auth
 reusable_oauth2_cookie = APIKeyCookie(name="access_token", auto_error=False)
 reusable_oauth2_header = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
+
+JWKS_URL = f"https://{settings.SUPABASE_PROJECT_ID if hasattr(settings, 'SUPABASE_PROJECT_ID') else 'htgojajcceunavgchrgc'}.supabase.co/auth/v1/.well-known/jwks.json"
+
+# Cache the JWKS at module level (fetched once on startup)
+_jwks_cache = None
+
+async def get_jwks():
+    global _jwks_cache
+    if _jwks_cache is None:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(JWKS_URL)
+                _jwks_cache = response.json()
+        except Exception as e:
+            logger.error(f"Failed to fetch JWKS from {JWKS_URL}: {e}")
+            return None
+    return _jwks_cache
+
+async def verify_supabase_token(token: str) -> dict:
+    # Get the kid from token header
+    try:
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        alg = header.get("alg", "HS256")
+    except Exception as e:
+        logger.error(f"Could not read JWT header: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token format",
+        )
+    
+    # If no kid, try legacy HS256 with secret
+    if not kid:
+        logger.debug("No kid in header, trying legacy HS256 decode")
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+    
+    # Get JWKS and find matching key
+    jwks = await get_jwks()
+    if not jwks:
+        # Fallback to legacy secret if JWKS fetch failed
+        logger.warning("JWKS not available, falling back to legacy HS256")
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+    
+    # Find the key matching the kid
+    matching_key = None
+    for key in jwks.get("keys", []):
+        if key.get("kid") == kid:
+            matching_key = key
+            break
+    
+    # If no kid match found, try legacy HS256 with secret
+    if matching_key is None:
+        logger.warning(f"No matching key for kid: {kid}, falling back to legacy HS256")
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+    
+    # Verify with the matched JWK
+    try:
+        public_key = jwk.construct(matching_key)
+        return jwt.decode(
+            token,
+            public_key,
+            algorithms=[alg],
+            options={"verify_aud": False}
+        )
+    except Exception as e:
+        logger.error(f"JWKS decode attempt failed: {e}")
+        # Final fallback attempt with HS256
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
 
 async def get_current_user(
     request: Request,
@@ -40,46 +131,12 @@ async def get_current_user(
     last_error = None
 
     try:
-        header = jwt.get_unverified_header(token)
-        alg = header.get("alg", "HS256")
-        logger.debug(f"JWT header alg: {alg}")
+        payload = await verify_supabase_token(token)
+        logger.debug("JWT verified via verify_supabase_token")
     except Exception as e:
-        logger.error(f"Could not read JWT header: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token format",
-        )
-
-    # --- Attempt 1: Supabase secret, HS256 ---
-    try:
-        payload = jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
-        logger.debug("JWT decoded via Supabase HS256")
-    except JWTError as e:
         last_error = e
-        logger.debug(f"HS256 decode failed: {e}")
-
-    # --- Attempt 2: HS256 with Supabase secret ---
-    if payload is None:
-        try:
-            payload = jwt.decode(
-                token, 
-                settings.SUPABASE_JWT_SECRET, 
-                algorithms=["HS256"], 
-                options={"verify_aud": False}
-            )
-            logger.debug("JWT decoded via Supabase HS256")
-        except JWTError as e:
-            last_error = e
-            logger.debug(f"HS256 decode attempt failed: {e}")
-
-    # --- Attempt 3: Internal SECRET_KEY fallback ---
-    if payload is None:
-        logger.warning("Supabase decode failed. Trying internal SECRET_KEY...")
+        # --- Fallback: Internal SECRET_KEY ---
+        logger.warning(f"Supabase verification failed: {e}. Trying internal SECRET_KEY...")
         try:
             payload = jwt.decode(
                 token,
@@ -88,9 +145,9 @@ async def get_current_user(
                 options={"verify_aud": False}
             )
             logger.debug("JWT decoded via internal SECRET_KEY")
-        except JWTError as e:
-            last_error = e
-            logger.error(f"All JWT decode attempts failed. Last error: {e}")
+        except JWTError as inner_e:
+            last_error = inner_e
+            logger.error(f"All JWT decode attempts failed. Last error: {inner_e}")
 
     if payload is None:
         # Return 401 (not 403) — the token is unreadable, not a permissions issue

@@ -85,7 +85,7 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
 
         setSubmitting(true);
         try {
-            await createRisk({
+            const payload = {
                 title: title.trim(),
                 description: description.trim(),
                 category_id: categoryId,
@@ -94,7 +94,14 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                 risk_score: riskScore,
                 status,
                 owner_id: user?.id,
-            } as any);
+            } as any;
+
+            // Remove category_id from what gets sent to API
+            // TODO: CATEGORY_INTEGRATION — category_id is currently display-only.
+            // Real category endpoint needed before sending to API.
+            const { category_id, ...payloadWithoutCategory } = payload;
+            
+            await createRisk(payloadWithoutCategory);
 
             toast.success('Risk created successfully!');
             resetForm();
@@ -157,6 +164,11 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                     </div>
 
                     <div className="space-y-2">
+                        {/* 
+                            TODO: CATEGORY_INTEGRATION — category_id is 
+                            currently display-only. Real category endpoint 
+                            needed before sending to API. 
+                        */}
                         <Label className={errors.category && attempted ? "text-red-500" : ""}>Category *</Label>
                         <Select value={categoryId} onValueChange={(val) => {
                             setCategoryId(val);

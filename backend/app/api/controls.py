@@ -30,14 +30,18 @@ async def create_control(
     control_in: schemas.ControlCreate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
 ) -> Any:
+    # 1. Build control object
+    control_data = control_in.model_dump()
+    control_data['owner_id'] = control_data.get('owner_id') or current_user.id
+    
     control = models.Control(
-        **control_in.model_dump(),
+        **control_data,
         created_by=current_user.id
     )
     db.add(control)
-    await db.commit()
-    await db.refresh(control)
+    await db.flush() # Get generated ID
     
+    # 2. Audit log
     await audit_service.log_action(
         db=db,
         user=current_user,
@@ -48,7 +52,11 @@ async def create_control(
         new_values=control_in.model_dump(mode='json'),
         description=f"Control created: {control.title}"
     )
+    
+    # 3. Final commit
     await db.commit()
+    await db.refresh(control)
+    
     return control
 
 @router.get("/{id}", response_model=schemas.Control)

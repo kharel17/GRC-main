@@ -64,7 +64,7 @@ export async function fetchRisk(id: string): Promise<Risk | undefined> {
 }
 
 export async function createRisk(data: Partial<Risk>): Promise<Risk> {
-  return api.post<Risk>('/risks/', data);
+  return api.post<Risk>('/risks/', data, { signal: AbortSignal.timeout(15000) });
 }
 
 export async function updateRisk(id: string, data: Partial<Risk>): Promise<Risk> {

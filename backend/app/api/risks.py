@@ -39,18 +39,19 @@ async def create_risk(
     """
     Create new risk.
     """
+    # 1. Build risk object
+    risk_data = risk_in.model_dump()
+    risk_data['owner_id'] = risk_data.get('owner_id') or current_user.id
     risk = models.Risk(
-        **risk_in.model_dump(),
+        **risk_data,
         created_by=current_user.id
     )
     db.add(risk)
-    await db.commit()
-    await db.refresh(risk)
     
-    # Reload with category for response schema
-    # Or just return risk, category will be null in response if not loaded, schema allows Optional
+    # 2. Flush to get the risk.id without committing
+    await db.flush()
     
-    # Log Audit
+    # 3. Add audit log to the same transaction
     await audit_service.log_action(
         db=db,
         user=current_user,
@@ -61,7 +62,12 @@ async def create_risk(
         new_values=risk_in.model_dump(mode='json'),
         description=f"Risk created: {risk.title}"
     )
+    
+    # 4. ONE single commit for everything
     await db.commit()
+    
+    # 5. Refresh after commit
+    await db.refresh(risk)
     
     return risk
 

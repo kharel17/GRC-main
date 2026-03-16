@@ -23,7 +23,7 @@ class RiskCategory(RiskCategoryBase):
 class RiskBase(BaseModel):
     title: str
     description: str
-    category_id: UUID
+    category_id: Optional[UUID] = None
     asset_id: Optional[UUID] = None
     threat: Optional[str] = None
     vulnerability: Optional[str] = None
@@ -31,7 +31,7 @@ class RiskBase(BaseModel):
     impact: int
     risk_score: int
     status: RiskStatus = RiskStatus.identified
-    owner_id: UUID
+    owner_id: Optional[UUID] = None
 
 class RiskCreate(RiskBase):
     pass
@@ -54,6 +54,8 @@ class RiskInDBBase(RiskBase):
     created_by: UUID
     created_at: datetime
     updated_at: datetime
+    category_id: Optional[UUID] = None
+    owner_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True

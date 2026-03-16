@@ -48,8 +48,8 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, user, router]);
 
-  // Show loading state while checking auth or onboarding
-  if (isLoading || (!onboardingChecked && isAuthenticated)) {
+  // Show loading state ONLY while waiting for base authentication to initialize
+  if (isLoading) {
     return (
       <div className="h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">

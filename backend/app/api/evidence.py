@@ -108,7 +108,7 @@ router = APIRouter()
 # ── Supabase Storage helpers ───────────────────────────────
 
 SUPABASE_STORAGE_URL = f"{settings.SUPABASE_URL}/storage/v1"
-BUCKET_NAME = "evidence"
+BUCKET_NAME = settings.SUPABASE_BUCKET_NAME  # from .env: SUPABASE_BUCKET_NAME=evidence
 
 
 async def _upload_to_supabase_storage(
@@ -119,8 +119,8 @@ async def _upload_to_supabase_storage(
     file_bytes = await file.read()
 
     headers = {
-        "Authorization": f"Bearer {settings.SUPABASE_ANON_KEY}",
-        "apikey": settings.SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
+        "apikey": settings.SUPABASE_SERVICE_KEY,
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -195,63 +195,77 @@ async def create_evidence(
     except ValueError:
         raise HTTPException(status_code=422, detail="related_id must be a valid UUID")
 
-    # Validate file size (10 MB)
-    MAX_SIZE = 10 * 1024 * 1024
-    contents = await file.read()
-    if len(contents) > MAX_SIZE:
-        raise HTTPException(status_code=413, detail="File exceeds 10 MB limit")
-    await file.seek(0)  # reset for the upload helper
+    try:
+        # Validate file size (10 MB)
+        MAX_SIZE = 10 * 1024 * 1024
+        contents = await file.read()
+        if len(contents) > MAX_SIZE:
+            raise HTTPException(status_code=413, detail="File exceeds 10 MB limit")
+        await file.seek(0)  # reset for the upload helper
 
-    # Build storage path:  {user_id}/{related_id}/{filename}
-    storage_path = f"{current_user.id}/{related_uuid}/{file.filename}"
+        # Build storage path:  {user_id}/{related_id}/{filename}
+        storage_path = f"{current_user.id}/{related_uuid}/{file.filename}"
 
-    # Upload to Supabase Storage
-    public_url = await _upload_to_supabase_storage(file, storage_path)
+        # Upload to Supabase Storage
+        public_url = await _upload_to_supabase_storage(file, storage_path)
 
-    # Persist metadata row
-    evidence = models.Evidence(
-        title=title,
-        description=description,
-        file_url=public_url,
-        file_name=file.filename,
-        file_type=_derive_file_type(file.filename or ""),
-        file_size=len(contents),
-        status=EvidenceStatus.pending,
-        related_to=related_to_enum,
-        related_id=related_uuid,
-        uploaded_by=current_user.id,
-        uploaded_at=datetime.utcnow(),
-    )
-    db.add(evidence)
-    await db.commit()
-    await db.refresh(evidence)
+        # Persist metadata row
+        evidence = models.Evidence(
+            title=title,
+            description=description,
+            file_url=public_url,
+            file_name=file.filename,
+            file_type=_derive_file_type(file.filename or ""),
+            file_size=len(contents),
+            status=EvidenceStatus.pending,
+            related_to=related_to_enum,
+            related_id=related_uuid,
+            uploaded_by=current_user.id,
+            uploaded_at=datetime.utcnow(),
+            organization_id=current_user.organization_id,
+        )
+        db.add(evidence)
+        await db.commit()
+        await db.refresh(evidence)
 
-    # Queue AI analysis as background task
-    background_tasks.add_task(
-        analyze_evidence_background,
-        evidence_id=str(evidence.id),
-        file_url=evidence.file_url,
-        file_name=evidence.file_name,
-    )
+        # Queue AI analysis as background task
+        background_tasks.add_task(
+            analyze_evidence_background,
+            evidence_id=str(evidence.id),
+            file_url=evidence.file_url,
+            file_name=evidence.file_name,
+        )
 
-    # Audit log
-    await audit_service.log_action(
-        db=db,
-        user=current_user,
-        action=AuditAction.created,
-        entity_type=AuditEntityType.evidence,
-        entity_id=evidence.id,
-        entity_name=evidence.title,
-        new_values={
-            "file_name": file.filename,
-            "related_to": related_to,
-            "related_id": related_id,
-        },
-        description=f"Evidence uploaded: {evidence.title}",
-    )
-    await db.commit()
+        # Audit log
+        await audit_service.log_action(
+            db=db,
+            user=current_user,
+            action=AuditAction.created,
+            entity_type=AuditEntityType.evidence,
+            entity_id=evidence.id,
+            entity_name=evidence.title,
+            new_values={
+                "file_name": file.filename,
+                "related_to": related_to,
+                "related_id": related_id,
+            },
+            description=f"Evidence uploaded: {evidence.title}",
+        )
+        await db.commit()
 
-    return evidence
+        return evidence
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logger.error(f"EVIDENCE UPLOAD CRASH: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"DEBUG CRASH: {str(e)}\n\n{error_msg}")
+
+        return evidence
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logger.error(f"EVIDENCE UPLOAD CRASH: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"DEBUG CRASH: {str(e)}\n\n{error_msg}")
 
 
 # ── GET  /api/v1/evidence  ────────────────────────────────

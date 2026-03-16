@@ -14,12 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // Role-Specific Widget Components
 // =============================================================================
 
-function AdminSystemOverview({ summary, risks }: { summary: any, risks: Risk[] }) {
-  const { control_stats, risk_stats, compliance_stats } = summary ?? { 
-    control_stats: { total: 0 }, 
-    risk_stats: { total: 0 }, 
-    compliance_stats: { overall_percentage: 0 } 
-  };
+function AdminSystemOverview({ controls, risks, readiness }: { controls: Control[], risks: Risk[], readiness: any }) {
+  const totalControls = controls.length;
+  const openRisks = risks.filter(r => r.status === 'open').length;
+  const compliancePercentage = readiness?.score || 0;
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -30,7 +28,7 @@ function AdminSystemOverview({ summary, risks }: { summary: any, risks: Risk[] }
               <Shield className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{control_stats?.total || 0}</p>
+              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{totalControls}</p>
               <p className="text-sm text-blue-700 dark:text-blue-300">Active Controls</p>
             </div>
           </div>
@@ -44,7 +42,7 @@ function AdminSystemOverview({ summary, risks }: { summary: any, risks: Risk[] }
             </div>
             <div>
               <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
-                {risks.filter(r => r.status === 'open').length}
+                {openRisks}
               </p>
               <p className="text-sm text-amber-700 dark:text-amber-300">Total Risks</p>
             </div>
@@ -59,7 +57,7 @@ function AdminSystemOverview({ summary, risks }: { summary: any, risks: Risk[] }
             </div>
             <div>
               <p className="text-2xl font-bold text-green-900 dark:text-green-100">
-                {compliance_stats?.overall_percentage || 0}%
+                {compliancePercentage}%
               </p>
               <p className="text-sm text-green-700 dark:text-green-300">Overall Compliance</p>
             </div>
@@ -74,7 +72,7 @@ function AdminSystemOverview({ summary, risks }: { summary: any, risks: Risk[] }
             </div>
             <div>
               <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                {compliance_stats?.total_frameworks || 0}
+                {readiness?.total_frameworks || 0}
               </p>
               <p className="text-sm text-purple-700 dark:text-purple-300">Active Frameworks</p>
             </div>
@@ -212,26 +210,6 @@ export default function DashboardPage() {
 
   const loading = risksLoading || controlsLoading || complianceLoading || ticketsLoading || orgLoading || (orgId && readinessLoading);
 
-  // Role-specific greeting
-  const getGreeting = () => {
-    switch (role) {
-      case 'admin':
-        return { title: 'System Overview', subtitle: 'Complete platform visibility and control' };
-      case 'analyst':
-      case 'control_owner':
-      case 'risk_owner':
-        return { title: 'Risk & Compliance Dashboard', subtitle: 'Track your tasks and assessments' };
-      case 'compliance_officer':
-        return { title: 'Compliance Dashboard', subtitle: 'Monitor compliance posture and findings' };
-      case 'department_manager':
-      case 'executive':
-        return { title: 'Executive Dashboard', subtitle: 'High-level reports and insights' };
-      case 'auditor':
-        return { title: 'Audit Dashboard', subtitle: 'Review compliance and risk data (read-only)' };
-      default:
-        return { title: 'Dashboard', subtitle: 'Risk and compliance overview' };
-    }
-  };
 
   const greeting = getGreeting(role);
 

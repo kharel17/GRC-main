@@ -1,28 +1,14 @@
 /**
  * GRC Platform - Data Service
  *
- * Centralized data fetching: calls the real FastAPI backend when available,
- * gracefully falls back to mock data when the API is unreachable or when
- * NEXT_PUBLIC_USE_MOCK=true.
+ * Centralized data fetching: calls the real FastAPI backend.
+ * Gracefully handles empty states when API is unreachable or no data exists.
  *
- * Every page should use the functions here instead of importing mock arrays
- * directly.
+ * Every page should use the functions here instead of direct API calls.
  */
 
 import { api } from './api-client';
 import { supabase } from './supabase';
-import {
-  mockRisks,
-  mockRiskCategories,
-  mockControls,
-  mockComplianceItems,
-  mockEvidence,
-  mockAuditLogs,
-  mockTickets,
-  mockOrganization,
-  mockAssets,
-  mockDocumentAnalyses,
-} from './mock-data';
 import { 
   Risk, 
   RiskCategory, 
@@ -38,23 +24,22 @@ import {
 
 // -- Helper --────────
 async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
-  if (api.isMock) return fallback;
+  // Mock mode is strictly disabled in this version to enforce real data usage.
   try {
     return await api.get<T>(endpoint);
   } catch (err) {
     console.error(`[DataService] API call ${endpoint} failed:`, err);
-    // In production, do not fall back to rich mock data. Return empty array/undefined.
-    return (Array.isArray(fallback) ? [] : undefined) as unknown as T;
+    // Return empty array/default on failure to prevent UI crashes.
+    return (Array.isArray(fallback) ? [] : fallback) as unknown as T;
   }
 }
 
 // -- Risk --────────
 export async function fetchRisks(): Promise<Risk[]> {
-  return fetchOrFallback<Risk[]>('/risks/', mockRisks);
+  return fetchOrFallback<Risk[]>('/risks/', []);
 }
 
 export async function fetchRisk(id: string): Promise<Risk | undefined> {
-  if (api.isMock) return mockRisks.find((r) => r.id === id);
   try {
     return await api.get<Risk>(`/risks/${id}/`);
   } catch (err) {
@@ -85,14 +70,13 @@ export async function mapControlToRisk(riskId: string, controlId: string): Promi
 }
 
 export function getRiskCategories(): RiskCategory[] {
-  // Categories are small and rarely change - keep local until a backend
-  // endpoint exists for them.
-  return mockRiskCategories;
+  // Categories will be moved to backend in Step 3. For now, returning empty to reveal need.
+  return [];
 }
 
 // -- Controls --──────
 export async function fetchControls(): Promise<Control[]> {
-  return fetchOrFallback<Control[]>('/controls/', mockControls);
+  return fetchOrFallback<Control[]>('/controls/', []);
 }
 
 export async function createControl(data: Partial<Control>): Promise<Control> {
@@ -100,7 +84,6 @@ export async function createControl(data: Partial<Control>): Promise<Control> {
 }
 
 export async function fetchControl(id: string): Promise<Control | undefined> {
-  if (api.isMock) return mockControls.find((c) => c.id === id);
   try {
     return await api.get<Control>(`/controls/${id}/`);
   } catch (err) {
@@ -115,7 +98,11 @@ export async function updateControl(id: string, data: Partial<Control>): Promise
 
 // -- Evidence --──────
 export async function fetchEvidence(): Promise<Evidence[]> {
-  return fetchOrFallback<Evidence[]>('/evidence/', mockEvidence);
+  return fetchOrFallback<Evidence[]>('/evidence/', []);
+}
+
+export async function deleteEvidence(id: string): Promise<void> {
+  await api.delete(`/evidence/${id}`);
 }
 
 export async function createEvidence(data: Partial<Evidence>): Promise<Evidence> {
@@ -128,21 +115,20 @@ export async function uploadEvidence(file: File, fields?: Record<string, string>
 
 // -- Audit Logs --────────
 export async function fetchAuditLogs(): Promise<AuditLog[]> {
-  return fetchOrFallback<AuditLog[]>('/audit-logs/', mockAuditLogs);
+  return fetchOrFallback<AuditLog[]>('/audit-logs/', []);
 }
 
 // -- Compliance --────────
 export async function fetchComplianceItems(): Promise<ComplianceItem[]> {
-  return fetchOrFallback<ComplianceItem[]>('/compliance/', mockComplianceItems);
+  return fetchOrFallback<ComplianceItem[]>('/compliance/', []);
 }
 
 // -- Tickets --──────
 export async function fetchTickets(): Promise<Ticket[]> {
-  return fetchOrFallback<Ticket[]>('/tickets/', mockTickets);
+  return fetchOrFallback<Ticket[]>('/tickets/', []);
 }
 
 export async function fetchTicket(id: string): Promise<Ticket | undefined> {
-  if (api.isMock) return mockTickets.find((t) => t.id === id);
   try {
     return await api.get<Ticket>(`/tickets/${id}/`);
   } catch (err) {
@@ -255,16 +241,25 @@ export async function cancelInvitation(userId: string): Promise<any> {
 
 // -- Organization --────────
 export async function fetchOrganization(): Promise<Organization | undefined> {
-  return fetchOrFallback<Organization | undefined>('/organizations/', mockOrganization);
+  try {
+    return await api.get<Organization>('/organizations/');
+  } catch (err) {
+    console.error(`[DataService] GET /organizations/ failed:`, err);
+    return undefined;
+  }
 }
 
 export async function updateOrganization(id: string, data: Partial<Organization>): Promise<Organization> {
   return api.put<Organization>(`/organizations/${id}/`, data);
 }
 
+export async function createOrganization(data: Partial<Organization>): Promise<Organization> {
+  return api.post<Organization>('/organizations/', data);
+}
+
 // -- Assets --────────
 export async function fetchAssets(): Promise<Asset[]> {
-  return fetchOrFallback<Asset[]>('/assets/', mockAssets);
+  return fetchOrFallback<Asset[]>('/assets/', []);
 }
 
 export async function createAsset(data: Partial<Asset>): Promise<Asset> {
@@ -328,7 +323,7 @@ export async function exportRiskRegister(orgId: string, format: 'pdf' | 'csv' = 
 
 // -- Document Analysis --────────
 export async function fetchDocumentAnalyses(): Promise<DocumentAnalysis[]> {
-  return fetchOrFallback<DocumentAnalysis[]>('/document-analysis/', mockDocumentAnalyses);
+  return fetchOrFallback<DocumentAnalysis[]>('/document-analysis/', []);
 }
 
 export async function submitDocumentForAnalysis(file: File): Promise<DocumentAnalysis> {
@@ -354,12 +349,12 @@ export interface DashboardSummary {
 }
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary> {
-  const fallback: DashboardSummary = {
-    risk_stats: { total: mockRisks.length, high_risk: mockRisks.filter(r => (r.riskScore ?? 0) > 15).length, mitigated: mockRisks.filter(r => r.status === 'mitigated').length },
-    control_stats: { total: mockControls.length, implemented: mockControls.filter(c => c.status === 'implemented').length, effectiveness_avg: 85 },
-    compliance_stats: { overall_percentage: 72, total_frameworks: 1 },
-    recent_activity: mockAuditLogs.slice(0, 5)
+  const empty: DashboardSummary = {
+    risk_stats: { total: 0, high_risk: 0, mitigated: 0 },
+    control_stats: { total: 0, implemented: 0, effectiveness_avg: 0 },
+    compliance_stats: { overall_percentage: 0, total_frameworks: 0 },
+    recent_activity: []
   };
 
-  return fetchOrFallback<DashboardSummary>('/dashboard/summary/', fallback);
+  return fetchOrFallback<DashboardSummary>('/dashboard/summary/', empty);
 }

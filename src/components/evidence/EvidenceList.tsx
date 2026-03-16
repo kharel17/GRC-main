@@ -30,6 +30,8 @@ import {
     Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { EvidenceDetailSheet } from './EvidenceDetailSheet';
+import { deleteEvidence } from '@/lib/data-service';
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -92,6 +94,10 @@ export function EvidenceList({
     const [reviewNotes, setReviewNotes] = useState('');
     const [reviewing, setReviewing] = useState(false);
 
+    // Detail Sheet state
+    const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
+    const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+
     const canReview = hasRole(['admin', 'manager', 'compliance_officer']);
 
     const items = externalItems || internalItems;
@@ -134,10 +140,27 @@ export function EvidenceList({
             } else {
                 fetchEvidence();
             }
-        } catch (err: any) {
-            toast.error(err?.message || 'Failed to update status');
         } finally {
             setReviewing(false);
+        }
+    };
+
+    const handleRowClick = (item: EvidenceItem) => {
+        setSelectedEvidence(item);
+        setDetailSheetOpen(true);
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this evidence?')) return;
+        
+        try {
+            await deleteEvidence(id);
+            toast.success('Evidence deleted successfully');
+            setDetailSheetOpen(false);
+            if (onRefresh) onRefresh();
+            else fetchEvidence();
+        } catch (err: any) {
+            toast.error(err?.message || 'Failed to delete evidence');
         }
     };
 
@@ -161,7 +184,11 @@ export function EvidenceList({
                         {items.map((item) => {
                             const badge = getStatusBadge(item.status, item.valid_until);
                             return (
-                                <TableRow key={item.id} className="hover:bg-muted/50 border-border">
+                                <TableRow 
+                                    key={item.id} 
+                                    className="hover:bg-muted/50 border-border cursor-pointer group"
+                                    onClick={() => handleRowClick(item)}
+                                >
                                     <TableCell>
                                         <div className="flex items-center gap-2.5">
                                             <FileText className="h-4 w-4 text-blue-500 shrink-0" />
@@ -209,7 +236,10 @@ export function EvidenceList({
                                                         variant="ghost"
                                                         size="sm"
                                                         className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 gap-1"
-                                                        onClick={() => openReviewDialog(item.id, 'verified')}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openReviewDialog(item.id, 'verified');
+                                                        }}
                                                     >
                                                         <ShieldCheck className="h-3.5 w-3.5" />
                                                         Verify
@@ -220,7 +250,10 @@ export function EvidenceList({
                                                         variant="ghost"
                                                         size="sm"
                                                         className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1"
-                                                        onClick={() => openReviewDialog(item.id, 'rejected')}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openReviewDialog(item.id, 'rejected');
+                                                        }}
                                                     >
                                                         <XCircle className="h-3.5 w-3.5" />
                                                         Reject
@@ -244,7 +277,11 @@ export function EvidenceList({
                 {items.map((item) => {
                     const badge = getStatusBadge(item.status, item.valid_until);
                     return (
-                        <div key={item.id} className="rounded-xl border border-border bg-card p-4 space-y-4 hover:shadow-md transition-shadow">
+                        <div 
+                            key={item.id} 
+                            className="rounded-xl border border-border bg-card p-4 space-y-4 hover:shadow-md transition-shadow cursor-pointer group"
+                            onClick={() => handleRowClick(item)}
+                        >
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-start gap-3 min-w-0">
                                     <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -295,7 +332,10 @@ export function EvidenceList({
                                             variant="outline"
                                             size="sm"
                                             className="flex-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900/30 dark:hover:bg-emerald-950/30 text-xs py-1 h-8"
-                                            onClick={() => openReviewDialog(item.id, 'verified')}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openReviewDialog(item.id, 'verified');
+                                            }}
                                         >
                                             <ShieldCheck className="h-3.5 w-3.5 mr-1" />
                                             Verify
@@ -306,7 +346,10 @@ export function EvidenceList({
                                             variant="outline"
                                             size="sm"
                                             className="flex-1 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-950/30 text-xs py-1 h-8"
-                                            onClick={() => openReviewDialog(item.id, 'rejected')}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openReviewDialog(item.id, 'rejected');
+                                            }}
                                         >
                                             <XCircle className="h-3.5 w-3.5 mr-1" />
                                             Reject
@@ -344,6 +387,14 @@ export function EvidenceList({
     return (
         <>
             {viewMode === 'table' ? renderTableView() : renderCardView()}
+
+            {/* Detail Sheet */}
+            <EvidenceDetailSheet
+                evidence={selectedEvidence}
+                open={detailSheetOpen}
+                onOpenChange={setDetailSheetOpen}
+                onDelete={handleDelete}
+            />
 
             {/* Review Dialog */}
             <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>

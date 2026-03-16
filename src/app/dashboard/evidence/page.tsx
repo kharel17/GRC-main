@@ -124,12 +124,28 @@ export default function EvidencePage() {
       </div>
 
       {/* Results View */}
-      <EvidenceList
-        items={filteredEvidence}
-        viewMode={effectiveViewMode}
-        showRelated={true}
-        onRefresh={() => refetch()}
-      />
+      {filteredEvidence.length === 0 ? (
+        <div className="bg-card border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl py-16 text-center">
+          <FileText className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">No evidence uploaded yet</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            Upload documents to prove your controls are working
+          </p>
+          <RoleGuard allowedRoles={['admin', 'analyst', 'manager']}>
+            <Button onClick={() => setUploadDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Upload Evidence
+            </Button>
+          </RoleGuard>
+        </div>
+      ) : (
+        <EvidenceList
+          items={filteredEvidence}
+          viewMode={effectiveViewMode}
+          showRelated={true}
+          onRefresh={() => refetch()}
+        />
+      )}
 
       <EvidenceUploadDialog
         open={uploadDialogOpen}

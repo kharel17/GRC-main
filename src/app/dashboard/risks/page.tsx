@@ -188,16 +188,25 @@ export default function RisksPage() {
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <AlertTriangle className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">No risks found</h3>
+            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
+              {hasActiveFilters ? 'No risks found' : 'No risks identified yet'}
+            </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
               {hasActiveFilters
                 ? 'Try adjusting your filters to see more results.'
-                : 'Get started by creating your first risk assessment.'}
+                : 'Identify and document threats to your organization'}
             </p>
-            {hasActiveFilters && (
+            {hasActiveFilters ? (
               <Button variant="outline" size="sm" onClick={clearFilters}>
                 Clear Filters
               </Button>
+            ) : (
+              <RoleGuard allowedRoles={['admin', 'analyst']}>
+                <Button onClick={() => setNewRiskOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add First Risk
+                </Button>
+              </RoleGuard>
             )}
           </CardContent>
         </Card>

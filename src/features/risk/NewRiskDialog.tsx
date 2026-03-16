@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { createRisk, getRiskCategories } from '@/lib/data-service';
-import { useAuth } from '@/hooks/useAuth';
+import { createRisk, getRiskCategories, fetchUsers } from '@/lib/data-service';
+import { useAuth, useApiData } from '@/hooks';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
 import {
@@ -35,9 +35,12 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
     const { user } = useAuth();
     const categories = getRiskCategories();
 
+    const { data: users, loading: loadingUsers } = useApiData(fetchUsers);
+    
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [categoryId, setCategoryId] = useState('');
+    const [ownerId, setOwnerId] = useState<string>(user?.id || '');
     const [likelihood, setLikelihood] = useState('3');
     const [impact, setImpact] = useState('3');
     const [status, setStatus] = useState('identified');
@@ -51,6 +54,7 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
         setTitle('');
         setDescription('');
         setCategoryId('');
+        setOwnerId(user?.id || '');
         setLikelihood('3');
         setImpact('3');
         setStatus('identified');
@@ -93,7 +97,7 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                 impact: parseInt(impact),
                 risk_score: riskScore,
                 status,
-                owner_id: user?.id,
+                owner_id: ownerId,
             } as any;
 
             // Remove category_id from what gets sent to API
@@ -192,6 +196,25 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                             </SelectContent>
                         </Select>
                         {attempted && errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Assigned Owner *</Label>
+                        <Select value={ownerId} onValueChange={setOwnerId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select owner..."} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {users?.filter(u => ['admin', 'manager', 'analyst'].includes(u.role)).map((u) => (
+                                    <SelectItem key={u.id} value={u.id}>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium">{u.full_name || u.email}</span>
+                                            <span className="text-[10px] text-muted-foreground uppercase">{u.role}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

@@ -157,6 +157,7 @@ export const isoService = {
       uploadedBy: userCtx.id,
       uploadedByName: userCtx.name,
       uploadedAt: new Date().toISOString(),
+      uploaded_at: new Date().toISOString(),
       version: 1,
     };
 

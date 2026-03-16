@@ -75,3 +75,29 @@ async def create_user(
     await db.commit()
     await db.refresh(new_user)
     return new_user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.RoleChecker([UserRole.admin])),
+) -> None:
+    """Delete a user (admin only). Cannot delete yourself."""
+
+    # Prevent self-deletion
+    if str(current_user.id) == str(user_id):
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot delete your own account"
+        )
+
+    stmt = select(User).where(User.id == user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await db.delete(user)
+    await db.commit()

@@ -215,14 +215,24 @@ async def get_current_user(
                 await db.rollback()
                 logger.error(f"Error auto-provisioning override user: {e}")
                 raise HTTPException(status_code=500, detail="Error creating override user profile")
-        elif not user_orm.organization_id:
-            # Fix existing platform user missing org
-            user_orm.organization_id = platform_org.id
-            user_orm.organization_name = platform_org.name
-            user_orm.role = ROLE_OVERRIDE_MAP[email] # Ensure role is correct
-            await db.commit()
-            await db.refresh(user_orm)
-            logger.info(f"Fixed missing organization for existing platform user: {email}")
+        # Ensure platform users are associated with "Platform Team" organization
+        platform_users = ["bcolorc17@gmail.com", "grchelios@gmail.com"]
+        if email in platform_users:
+            if user_orm.organization_id != platform_org.id:
+                user_orm.organization_id = platform_org.id
+                user_orm.organization_name = platform_org.name
+                user_orm.role = ROLE_OVERRIDE_MAP[email]  # Ensure role is correct
+                await db.commit()
+                await db.refresh(user_orm)
+                logger.info(f"Associated {email} with Platform Team organization")
+            elif not user_orm.organization_id:
+                # Fix existing platform user missing org
+                user_orm.organization_id = platform_org.id
+                user_orm.organization_name = platform_org.name
+                user_orm.role = ROLE_OVERRIDE_MAP[email]
+                await db.commit()
+                await db.refresh(user_orm)
+                logger.info(f"Fixed missing organization for existing platform user: {email}")
 
         return user_orm
 

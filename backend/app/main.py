@@ -69,7 +69,7 @@ async def request_logging_middleware(request: Request, call_next):
 # ── CORS Middleware (registered last = runs first) ─────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=settings.BACKEND_CORS_ORIGINS or allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -106,6 +106,7 @@ async def fix_platform_team_roles():
     try:
         async with SessionLocal() as db:
             # 1. Ensure "Platform Team" organization exists
+            # 1. Ensure "Platform Team" organization exists
             platform_org_result = await db.execute(
                 select(models.Organization).where(models.Organization.name == "Platform Team")
             )
@@ -115,34 +116,42 @@ async def fix_platform_team_roles():
                 platform_org = models.Organization(
                     id=uuid.uuid4(),
                     name="Platform Team",
+                    industry="Technology",
                     onboarding_completed=True
                 )
                 db.add(platform_org)
                 await db.flush()
-                logger.info("Created 'Platform Team' organization for system users.")
+                logger.info("Startup check: Created Platform Team organization")
 
-            # 2. Apply role overrides and sync organizations
+            # 2. Fix roles and associate with organization
             for email, role in ROLE_OVERRIDE_MAP.items():
                 result = await db.execute(
                     select(models.User).where(models.User.email == email)
                 )
                 user = result.scalar_one_or_none()
+                
                 if user:
                     needs_update = False
                     if user.role != role:
                         user.role = role
                         needs_update = True
+                        logger.info(f"Startup check: Fixed role for {email} → {role.value}")
+                    
                     if user.invitation_status != 'active':
                         user.invitation_status = 'active'
                         needs_update = True
-                    if not user.organization_id:
-                        user.organization_id = platform_org.id
-                        user.organization_name = platform_org.name
-                        needs_update = True
+                        logger.info(f"Startup check: Activated user {email}")
                     
+                    # Associate platform users with organization
+                    if email in ["bcolorc17@gmail.com", "grchelios@gmail.com"]:
+                        if user.organization_id != platform_org.id:
+                            user.organization_id = platform_org.id
+                            user.organization_name = platform_org.name
+                            needs_update = True
+                            logger.info(f"Startup check: Associated {email} with Platform Team")
+
                     if needs_update:
                         await db.flush()
-                        logger.info(f"Updated platform user status: {email}")
             
             await db.commit()
     except Exception as e:

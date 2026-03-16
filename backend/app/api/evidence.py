@@ -8,7 +8,7 @@ from typing import Any, List, Optional
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -19,17 +19,96 @@ from app.models.audit_log import AuditAction, AuditEntityType
 from app.models.evidence import EvidenceStatus, EvidenceRelatedTo
 from app.config import settings
 
+from app.services.ai_service import ai_service
 import httpx
 import logging
 
 logger = logging.getLogger("grc.evidence")
+
+async def analyze_evidence_background(
+    evidence_id: str,
+    file_url: str,
+    file_name: str,
+):
+    """
+    Background task: runs AI analysis on uploaded 
+    evidence and updates the evidence record.
+    Called automatically after every evidence upload.
+    """
+    from app.database import SessionLocal
+    from sqlalchemy import select
+    from datetime import datetime
+    import httpx
+    
+    async with SessionLocal() as db:
+        try:
+            # Get evidence record
+            result = await db.execute(
+                select(models.Evidence).where(
+                    models.Evidence.id == evidence_id
+                )
+            )
+            evidence = result.scalar_one_or_none()
+            if not evidence:
+                return
+            
+            # Fetch file content from URL
+            file_content = None
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.get(file_url)
+                    if resp.status_code == 200:
+                        file_content = resp.content
+            except Exception as e:
+                logger.error(f"Failed to fetch evidence file for analysis: {e}")
+            
+            # Run AI analysis using available AIService methods
+            analysis = None
+            if file_content and file_name.lower().endswith(".pdf"):
+                # Use PDF-specific analysis
+                analysis = ai_service.analyze_evidence_pdf(file_content)
+            elif file_content:
+                # Try as text
+                try:
+                    text = file_content.decode("utf-8", errors="ignore")
+                    analysis = ai_service.analyze_evidence(text)
+                except Exception:
+                    analysis = ai_service.analyze_evidence(f"Metadata analysis for {file_name}")
+            else:
+                # Fallback to metadata analysis
+                analysis = ai_service.analyze_evidence(f"Metadata analysis for {file_name}")
+            
+            # Store results back to evidence record
+            evidence.ai_analyzed = True
+            evidence.ai_analyzed_at = datetime.utcnow()
+            
+            if analysis:
+                evidence.ai_summary = getattr(analysis, 'summary', None) or str(analysis)
+                evidence.ai_category = getattr(analysis, 'category', None)
+                
+                # Update status based on top match confidence
+                if analysis.matched_controls:
+                    top_match = analysis.matched_controls[0]
+                    confidence = top_match.confidence / 100.0 # ai_service uses 0-100 range
+                    
+                    if confidence >= 0.7:
+                        evidence.status = models.evidence.EvidenceStatus.verified
+                    elif confidence >= 0.4:
+                        evidence.status = models.evidence.EvidenceStatus.pending
+                    else:
+                        evidence.status = models.evidence.EvidenceStatus.rejected
+            
+            await db.commit()
+            
+        except Exception as e:
+            logger.error(f"AI analysis failed for evidence {evidence_id}: {e}")
 
 router = APIRouter()
 
 # ── Supabase Storage helpers ───────────────────────────────
 
 SUPABASE_STORAGE_URL = f"{settings.SUPABASE_URL}/storage/v1"
-BUCKET_NAME = "evidence-files"
+BUCKET_NAME = "evidence"
 
 
 async def _upload_to_supabase_storage(
@@ -91,6 +170,7 @@ def _derive_file_type(filename: str) -> str:
 async def create_evidence(
     *,
     db: AsyncSession = Depends(deps.get_db),
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
     file: UploadFile = File(...),
     title: str = Form(...),
@@ -136,7 +216,7 @@ async def create_evidence(
         file_name=file.filename,
         file_type=_derive_file_type(file.filename or ""),
         file_size=len(contents),
-        status=EvidenceStatus.active,
+        status=EvidenceStatus.pending,
         related_to=related_to_enum,
         related_id=related_uuid,
         uploaded_by=current_user.id,
@@ -145,6 +225,14 @@ async def create_evidence(
     db.add(evidence)
     await db.commit()
     await db.refresh(evidence)
+
+    # Queue AI analysis as background task
+    background_tasks.add_task(
+        analyze_evidence_background,
+        evidence_id=str(evidence.id),
+        file_url=evidence.file_url,
+        file_name=evidence.file_name,
+    )
 
     # Audit log
     await audit_service.log_action(
@@ -235,7 +323,7 @@ async def update_evidence_status(
         evidence.valid_until = status_in.valid_until
 
     # Mark as verified if applicable
-    if new_status == EvidenceStatus.active:
+    if new_status == EvidenceStatus.verified:
         evidence.verified = True
         evidence.verified_by = current_user.id
         evidence.verified_at = datetime.utcnow()

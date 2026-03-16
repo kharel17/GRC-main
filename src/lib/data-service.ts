@@ -123,7 +123,7 @@ export async function createEvidence(data: Partial<Evidence>): Promise<Evidence>
 }
 
 export async function uploadEvidence(file: File, fields?: Record<string, string>): Promise<Evidence> {
-  return api.upload<Evidence>('/evidence/upload/', file, fields);
+  return api.upload<Evidence>('/evidence/', file, fields);
 }
 
 // -- Audit Logs --────────

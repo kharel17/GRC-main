@@ -47,6 +47,7 @@ class Evidence(Base):
     ai_category = Column(String, nullable=True)  # e.g., "policy", "procedure", "log", "certificate"
     ai_analyzed = Column(Boolean, default=False)
     ai_analyzed_at = Column(DateTime, nullable=True)
+    ai_summary = Column(Text, nullable=True)
 
     # Relationships
     uploader = relationship("User", foreign_keys=[uploaded_by])

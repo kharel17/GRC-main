@@ -27,7 +27,6 @@ import {
     ExternalLink,
     ShieldCheck,
     XCircle,
-    Clock,
     Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -37,15 +36,20 @@ import { toast } from 'sonner';
 type EvidenceItem = Evidence;
 
 interface EvidenceListProps {
-    relatedTo: 'control' | 'risk';
-    relatedId: string;
+    relatedTo?: 'control' | 'risk';
+    relatedId?: string;
     refreshKey?: number; // increment to trigger re-fetch
+    items?: EvidenceItem[];           // external data, overrides internal fetch
+    viewMode?: 'table' | 'cards';     // default: 'table'
+    showRelated?: boolean;            // show "Related To" column, default: false
+    onRefresh?: () => void;           // callback after status update
 }
 
 // ── Status helpers ──────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-    active: { label: 'Submitted', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+    pending: { label: 'Pending Review', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+    verified: { label: 'Verified', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
     expired: { label: 'Expired', color: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
     rejected: { label: 'Rejected', color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
 };
@@ -55,7 +59,7 @@ function getStatusBadge(status?: string, validUntil?: string): { label: string; 
     if (validUntil && new Date(validUntil) < new Date()) {
         return STATUS_CONFIG.expired;
     }
-    return STATUS_CONFIG[status || 'active'] || STATUS_CONFIG.active;
+    return STATUS_CONFIG[status || 'pending'] || STATUS_CONFIG.pending;
 }
 
 function formatDate(iso?: string): string {
@@ -69,36 +73,47 @@ function formatDate(iso?: string): string {
 
 // ── Component ───────────────────────────────────────────────
 
-export function EvidenceList({ relatedTo, relatedId, refreshKey }: EvidenceListProps) {
+export function EvidenceList({
+    relatedTo,
+    relatedId,
+    refreshKey,
+    items: externalItems,
+    viewMode = 'table',
+    showRelated = false,
+    onRefresh
+}: EvidenceListProps) {
     const { user, hasRole } = useAuth();
-    const [items, setItems] = useState<EvidenceItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [internalItems, setInternalItems] = useState<EvidenceItem[]>([]);
+    const [loading, setLoading] = useState(!externalItems);
 
     // Dialog state for verify/reject
     const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
-    const [reviewTarget, setReviewTarget] = useState<{ id: string; action: 'active' | 'rejected' } | null>(null);
+    const [reviewTarget, setReviewTarget] = useState<{ id: string; action: 'verified' | 'rejected' } | null>(null);
     const [reviewNotes, setReviewNotes] = useState('');
     const [reviewing, setReviewing] = useState(false);
 
-    const canReview = hasRole(['admin', 'department_manager', 'compliance_officer']);
+    const canReview = hasRole(['admin', 'manager', 'compliance_officer']);
+
+    const items = externalItems || internalItems;
 
     const fetchEvidence = useCallback(async () => {
+        if (externalItems || !relatedId) return;
         try {
             setLoading(true);
             const data = await api.get<EvidenceItem[]>(`/evidence/?related_id=${relatedId}`);
-            setItems(data);
+            setInternalItems(data);
         } catch (err) {
             console.error('Failed to load evidence', err);
         } finally {
             setLoading(false);
         }
-    }, [relatedId]);
+    }, [relatedId, externalItems]);
 
     useEffect(() => {
         if (relatedId) fetchEvidence();
     }, [relatedId, refreshKey, fetchEvidence]);
 
-    const openReviewDialog = (evidenceId: string, action: 'active' | 'rejected') => {
+    const openReviewDialog = (evidenceId: string, action: 'verified' | 'rejected') => {
         setReviewTarget({ id: evidenceId, action });
         setReviewNotes('');
         setReviewDialogOpen(true);
@@ -112,9 +127,13 @@ export function EvidenceList({ relatedTo, relatedId, refreshKey }: EvidenceListP
                 status: reviewTarget.action,
                 review_notes: reviewNotes || undefined,
             });
-            toast.success(reviewTarget.action === 'active' ? 'Evidence verified' : 'Evidence rejected');
+            toast.success(reviewTarget.action === 'verified' ? 'Evidence verified' : 'Evidence rejected');
             setReviewDialogOpen(false);
-            fetchEvidence();
+            if (onRefresh) {
+                onRefresh();
+            } else {
+                fetchEvidence();
+            }
         } catch (err: any) {
             toast.error(err?.message || 'Failed to update status');
         } finally {
@@ -122,33 +141,16 @@ export function EvidenceList({ relatedTo, relatedId, refreshKey }: EvidenceListP
         }
     };
 
-    // ── Render ──────────────────────────────────────────────
+    // ── Render Helpers ──────────────────────────────────────────
 
-    if (loading) {
+    const renderTableView = () => {
         return (
-            <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                <span className="ml-2 text-sm text-muted-foreground">Loading evidence…</span>
-            </div>
-        );
-    }
-
-    if (items.length === 0) {
-        return (
-            <div className="text-center py-10 text-muted-foreground border border-dashed border-border rounded-xl">
-                <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No evidence uploaded yet</p>
-            </div>
-        );
-    }
-
-    return (
-        <>
             <div className="rounded-xl border border-border bg-card overflow-hidden">
                 <Table>
                     <TableHeader>
                         <TableRow className="hover:bg-muted/50 border-border">
                             <TableHead className="text-muted-foreground">File</TableHead>
+                            {showRelated && <TableHead className="text-muted-foreground">Related To</TableHead>}
                             <TableHead className="text-muted-foreground">Uploaded</TableHead>
                             <TableHead className="text-muted-foreground">Status</TableHead>
                             <TableHead className="text-muted-foreground">Valid Until</TableHead>
@@ -183,6 +185,11 @@ export function EvidenceList({ relatedTo, relatedId, refreshKey }: EvidenceListP
                                             </div>
                                         </div>
                                     </TableCell>
+                                    {showRelated && (
+                                        <TableCell className="text-sm text-foreground">
+                                            {item.relatedName || '—'}
+                                        </TableCell>
+                                    )}
                                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                                         {formatDate(item.uploaded_at)}
                                     </TableCell>
@@ -197,18 +204,18 @@ export function EvidenceList({ relatedTo, relatedId, refreshKey }: EvidenceListP
                                     {canReview && (
                                         <TableCell className="text-right">
                                             <div className="flex gap-1 justify-end">
-                                                {item.status !== 'active' && (
+                                                {item.status === 'pending' && (
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
                                                         className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 gap-1"
-                                                        onClick={() => openReviewDialog(item.id, 'active')}
+                                                        onClick={() => openReviewDialog(item.id, 'verified')}
                                                     >
                                                         <ShieldCheck className="h-3.5 w-3.5" />
                                                         Verify
                                                     </Button>
                                                 )}
-                                                {item.status !== 'rejected' && (
+                                                {item.status === 'pending' && (
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
@@ -228,13 +235,122 @@ export function EvidenceList({ relatedTo, relatedId, refreshKey }: EvidenceListP
                     </TableBody>
                 </Table>
             </div>
+        );
+    };
+
+    const renderCardView = () => {
+        return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {items.map((item) => {
+                    const badge = getStatusBadge(item.status, item.valid_until);
+                    return (
+                        <div key={item.id} className="rounded-xl border border-border bg-card p-4 space-y-4 hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-3 min-w-0">
+                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                        <FileText className="h-5 w-5 text-blue-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        {item.file_url ? (
+                                            <a
+                                                href={item.file_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-sm font-semibold text-foreground hover:text-blue-600 hover:underline block truncate"
+                                            >
+                                                {item.file_name || item.title}
+                                            </a>
+                                        ) : (
+                                            <span className="text-sm font-semibold text-foreground block truncate">{item.file_name || item.title}</span>
+                                        )}
+                                        <p className="text-xs text-muted-foreground">{formatDate(item.uploaded_at)}</p>
+                                    </div>
+                                </div>
+                                <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 font-medium whitespace-nowrap ${badge.color}`}>
+                                    {badge.label}
+                                </Badge>
+                            </div>
+
+                            <div className="text-xs space-y-1.5 border-t border-border pt-3">
+                                {showRelated && (
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Related:</span>
+                                        <span className="text-foreground font-medium">{item.relatedName || '—'}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">By:</span>
+                                    <span className="text-foreground font-medium">{item.uploadedByName || '—'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Valid Until:</span>
+                                    <span className="text-foreground font-medium">{formatDate(item.valid_until)}</span>
+                                </div>
+                            </div>
+
+                            {canReview && (
+                                <div className="pt-3 border-t border-border flex gap-2">
+                                    {item.status === 'pending' && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900/30 dark:hover:bg-emerald-950/30 text-xs py-1 h-8"
+                                            onClick={() => openReviewDialog(item.id, 'verified')}
+                                        >
+                                            <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                                            Verify
+                                        </Button>
+                                    )}
+                                    {item.status === 'pending' && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-950/30 text-xs py-1 h-8"
+                                            onClick={() => openReviewDialog(item.id, 'rejected')}
+                                        >
+                                            <XCircle className="h-3.5 w-3.5 mr-1" />
+                                            Reject
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    // ── Render ──────────────────────────────────────────────────
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading evidence…</span>
+            </div>
+        );
+    }
+
+    if (items.length === 0) {
+        return (
+            <div className="text-center py-10 text-muted-foreground border border-dashed border-border rounded-xl">
+                <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No evidence found</p>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            {viewMode === 'table' ? renderTableView() : renderCardView()}
 
             {/* Review Dialog */}
             <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            {reviewTarget?.action === 'active' ? 'Verify Evidence' : 'Reject Evidence'}
+                            {reviewTarget?.action === 'verified' ? 'Verify Evidence' : 'Reject Evidence'}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
@@ -253,14 +369,14 @@ export function EvidenceList({ relatedTo, relatedId, refreshKey }: EvidenceListP
                             onClick={submitReview}
                             disabled={reviewing}
                             className={
-                                reviewTarget?.action === 'active'
+                                reviewTarget?.action === 'verified'
                                     ? 'bg-emerald-600 hover:bg-emerald-700'
                                     : 'bg-red-600 hover:bg-red-700'
                             }
                         >
                             {reviewing
                                 ? 'Submitting…'
-                                : reviewTarget?.action === 'active'
+                                : reviewTarget?.action === 'verified'
                                     ? 'Confirm Verify'
                                     : 'Confirm Reject'}
                         </Button>

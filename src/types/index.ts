@@ -153,7 +153,7 @@ export interface ComplianceItem {
 export type ComplianceItemPriority = 'critical' | 'high' | 'medium' | 'low' | string
 
 export type EvidenceStatus = 
-  'submitted' | 'under_review' | 
+  'submitted' | 'under_review' | 'pending' |
   'verified' | 'rejected' | 'expired' | 'active'
 
 export interface Evidence {

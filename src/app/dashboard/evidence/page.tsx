@@ -170,13 +170,13 @@ export default function EvidencePage() {
                       <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
                       <div className="min-w-0">
                         <p className="font-medium text-sm truncate">{item.title}</p>
-                        <p className="text-xs text-slate-500 truncate">{item.fileName}</p>
+                        <p className="text-xs text-slate-500 truncate">{item.file_name}</p>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">{item.relatedName}</TableCell>
                   <TableCell className="text-sm text-slate-500 hidden sm:table-cell">
-                    {formatFileSize(item.fileSize ?? 0)}
+                    {formatFileSize(item.file_size ?? 0)}
                   </TableCell>
                   <TableCell className="text-sm text-slate-600 hidden md:table-cell">
                     {item.uploadedByName}
@@ -211,13 +211,13 @@ export default function EvidencePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{item.title}</p>
-                    <p className="text-xs text-slate-500 truncate">{item.fileName}</p>
+                    <p className="text-xs text-slate-500 truncate">{item.file_name}</p>
                   </div>
                 </div>
 
                 <div className="text-xs text-slate-500 space-y-1">
                   <p>Related: {item.relatedName}</p>
-                  <p>Size: {formatFileSize(item.fileSize ?? 0)}</p>
+                  <p>Size: {formatFileSize(item.file_size ?? 0)}</p>
                   <p>By: {item.uploadedByName}</p>
                 </div>
 

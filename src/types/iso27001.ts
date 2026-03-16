@@ -31,14 +31,22 @@ export interface ISOEvidence {
   id: string;
   title: string;
   description?: string;
-  fileUrl: string;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  controlId: string;
-  uploadedBy: string;
+  file_url?: string;
+  fileUrl: string; // Keep for compatibility
+  file_name?: string;
+  fileName: string; // Keep for compatibility
+  file_type?: string;
+  fileType: string; // Keep for compatibility
+  file_size?: number;
+  fileSize: number; // Keep for compatibility
+  control_id?: string;
+  controlId: string; // Keep for compatibility
+  uploaded_by?: string;
+  uploadedBy: string; // Keep for compatibility
+  uploaded_by_name?: string;
   uploadedByName?: string;
-  uploadedAt: string;
+  uploaded_at: string;
+  uploadedAt?: string; // Change to optional if not usually used as alias
   version: number;
   previousVersionId?: string;
 }

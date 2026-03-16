@@ -168,7 +168,7 @@ async def get_risk_controls(
     mappings = result.scalars().all()
     out = []
     for m in mappings:
-        out.append(RiskControlMappingOut(
+        out.append(schemas.RiskControlMappingOut(
             id=str(m.id),
             risk_id=str(m.risk_id),
             control_id=str(m.control_id),
@@ -210,8 +210,7 @@ async def map_control_to_risk(
         mapped_by=current_user.id,
     )
     db.add(mapping)
-    await db.commit()
-    await db.refresh(mapping)
+    await db.flush()
 
     # Audit
     await audit_service.log_action(
@@ -224,9 +223,23 @@ async def map_control_to_risk(
         new_values={"control_id": str(body.control_id), "control_title": ctrl.title},
         description=f"Control '{ctrl.title}' mapped to Risk '{risk.title}'"
     )
-    await db.commit()
 
-    return RiskControlMappingOut(
+    # Auto-update risk status based on control mapping
+    if risk and risk.status != models.RiskStatus.accepted:
+        # If control is high effectiveness or implemented -> mark risk as mitigated
+        if (
+            ctrl.effectiveness == models.ControlEffectiveness.high
+            or ctrl.status == models.ControlStatus.implemented
+        ):
+            risk.status = models.RiskStatus.mitigated
+        # If risk was just identified -> move to assessed
+        elif risk.status == models.RiskStatus.identified:
+            risk.status = models.RiskStatus.assessed
+
+    await db.commit()
+    await db.refresh(mapping)
+
+    return schemas.RiskControlMappingOut(
         id=str(mapping.id),
         risk_id=str(mapping.risk_id),
         control_id=str(mapping.control_id),

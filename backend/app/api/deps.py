@@ -191,7 +191,12 @@ async def get_current_user(
                 onboarding_completed=True
             )
             db.add(platform_org)
-            await db.flush()
+            try:
+                await db.flush()
+            except Exception:
+                await db.rollback()
+                platform_org_res = await db.execute(select(models.Organization).where(models.Organization.name == "Platform Team"))
+                platform_org = platform_org_res.scalar_one_or_none()
 
         if not user_orm:
             new_user = models.User(
@@ -213,8 +218,13 @@ async def get_current_user(
                 logger.info(f"Auto-provisioned override user: {email} with org: Platform Team")
             except Exception as e:
                 await db.rollback()
-                logger.error(f"Error auto-provisioning override user: {e}")
-                raise HTTPException(status_code=500, detail="Error creating override user profile")
+                # Check if a concurrent request already created the user
+                user_res = await db.execute(select(models.User).where(models.User.email == email))
+                user_orm = user_res.scalar_one_or_none()
+                if not user_orm:
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    raise HTTPException(status_code=500, detail=f"Error creating override user profile: {str(e)}")
         elif not user_orm.organization_id:
             # Fix existing platform user missing org
             user_orm.organization_id = platform_org.id
@@ -232,11 +242,7 @@ async def get_current_user(
     
     # Associate Supabase ID with existing allowed email if first login
     if user_by_email and not user_orm and user_by_email.id != user_id:
-        user_by_email.id = user_id # Align IDs (might need handling based on current schema constraints, but usually Supabase matches or overrides id)
-        # Instead of replacing ID directly, let's just use the email matched user.
-        # Ideally, invitation creates the user with a temporary ID or matches email during OAuth
-        # Since Supabase handles the actual UUID creation during auth/signup, 
-        # let's assume the DB record ID needs to be synchronized or we look it up by email.
+        user_by_email.id = user_id # Align IDs
     
     # We will strictly look up by email for the invitation system to ensure we catch invited users.
     if not user_orm and user_by_email:

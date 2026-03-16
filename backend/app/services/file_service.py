@@ -116,10 +116,70 @@ class S3StorageBackend(FileStorageBackend):
         return True
 
 
+class SupabaseStorageBackend(FileStorageBackend):
+    """Stores files in Supabase Storage."""
+
+    def __init__(self):
+        self.url = f"{settings.SUPABASE_URL}/storage/v1"
+        self.key = settings.SUPABASE_SERVICE_KEY
+        self.bucket = settings.SUPABASE_BUCKET_NAME
+        self.headers = {
+            "Authorization": f"Bearer {self.key}",
+            "apikey": self.key,
+        }
+        logger.info(f"Supabase storage initialized: bucket={self.bucket}")
+
+    async def upload(self, file_bytes: bytes, filename: str, content_type: str = "application/octet-stream") -> str:
+        import httpx
+        ext = Path(filename).suffix
+        file_key = f"{uuid.uuid4().hex}{ext}"
+        
+        upload_url = f"{self.url}/object/{self.bucket}/{file_key}"
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                upload_url,
+                content=file_bytes,
+                headers={**self.headers, "Content-Type": content_type}
+            )
+            if resp.status_code != 200:
+                logger.error(f"Supabase upload failed: {resp.status_code} {resp.text}")
+                raise RuntimeError(f"Supabase upload failed: {resp.text}")
+
+        logger.info(f"File uploaded to Supabase: {file_key} ({len(file_bytes)} bytes)")
+        return file_key
+
+    async def get_download_url(self, file_key: str) -> str:
+        # Supabase allows public URLs or signed URLs. 
+        # For now, we return the public URL if the bucket is public, or a signed one.
+        # This implementation returns the public URL format.
+        return f"{self.url}/object/public/{self.bucket}/{file_key}"
+
+    async def delete(self, file_key: str) -> bool:
+        import httpx
+        delete_url = f"{self.url}/object/{self.bucket}"
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.request(
+                "DELETE",
+                delete_url,
+                json={"prefixes": [file_key]},
+                headers=self.headers
+            )
+            if resp.status_code != 200:
+                logger.error(f"Supabase delete failed: {resp.status_code} {resp.text}")
+                return False
+        
+        logger.info(f"File deleted from Supabase: {file_key}")
+        return True
+
+
 def _create_storage() -> FileStorageBackend:
     """Factory that returns the configured storage backend."""
     if settings.FILE_STORAGE_BACKEND == "s3":
         return S3StorageBackend()
+    if settings.FILE_STORAGE_BACKEND == "supabase":
+        return SupabaseStorageBackend()
     return LocalStorageBackend(settings.UPLOAD_DIR)
 
 

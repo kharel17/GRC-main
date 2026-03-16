@@ -65,20 +65,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (error) {
           console.error('[Auth] Error getting session:', error.message);
         } else if (initialSession && mounted) {
-          console.log('[Auth] Initial session found, fetching profile...');
+          console.log('[Auth] Initial session found. Unblocking render using standard metadata...');
           setSession(initialSession);
           
-          // Fetch real profile from backend to get the correct role
-          try {
-            console.log('[Auth] Calling backend /auth/me...');
-            const profile = await fetchCurrentUserProfile();
-            console.log('[Auth] Backend profile received:', profile);
+          // Optimistically set the user to unblock the Next.js UI render immediately
+          setUser(mapSupabaseUser(initialSession.user));
+          
+          // Release the loading lock so the screen stops spinning
+          setIsLoading(false);
+
+          // Fetch real profile from backend in the background to get the true role and handle access checks
+          fetchCurrentUserProfile().then((profile) => {
+            if (!mounted) return;
+            console.log('[Auth] Background backend profile received:', profile);
             setUser({
               id: profile.id,
               email: profile.email,
               role: profile.role,
             });
-          } catch (profileErr: any) {
+          }).catch((profileErr: any) => {
+            if (!mounted) return;
             // Check for invitation system errors
             if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
               const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
@@ -91,16 +97,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 return;
               }
             }
-            console.warn('[Auth] Backend profile fetch failed:', profileErr);
-            setUser(mapSupabaseUser(initialSession.user));
-          }
+            console.warn('[Auth] Background backend profile fetch failed, continuing with metadata:', profileErr);
+          });
         } else {
           console.log('[Auth] No initial session found');
         }
       } catch (e) {
         console.error('[Auth] Failed to initialize session', e);
       } finally {
-        if (mounted) setIsLoading(false);
+        if (mounted && isLoading) {
+            setIsLoading(false);
+        }
       }
     }
 
@@ -123,23 +130,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         setSession(currentSession);
         if (currentSession?.user) {
-          console.log('[Auth] Setting user:', {
-            id: currentSession.user.id,
-            email: currentSession.user.email,
-          });
+          console.log('[Auth] Setting optimistic user from Auth State Event');
           
-          // Prefer backend profile for correct roles
-          try {
-            const profile = await fetchCurrentUserProfile();
+          // Optimistically set the user to unblock the Next.js UI render instantly on login
+          setUser(mapSupabaseUser(currentSession.user));
+          setIsLoading(false); // Immediate visual unblock
+
+          // Fetch backend profile silently in the background
+          fetchCurrentUserProfile().then((profile) => {
+            if (!mounted) return;
             setUser({
               id: profile.id,
               email: profile.email,
               role: profile.role,
             });
-          } catch (profileErr: any) {
+          }).catch((profileErr: any) => {
+            if (!mounted) return;
             // Ignore Supabase lock race conditions in React Strict Mode
             if (profileErr instanceof Error && profileErr.name === 'AbortError') {
-              console.log('[Auth] Lock race condition ignored');
+              console.log('[Auth] Lock race condition ignored during Auth Event');
               return;
             }
 
@@ -155,9 +164,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 return;
               }
             }
-            console.warn('[Auth] Auth change profile fetch failed, using metadata', profileErr);
-            setUser(mapSupabaseUser(currentSession.user));
-          }
+            console.warn('[Auth] Auth change profile fetch failed in background:', profileErr);
+          });
         } else {
           console.log('[Auth] Clearing user');
           setUser(null);

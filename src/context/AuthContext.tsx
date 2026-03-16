@@ -64,9 +64,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (error) {
           console.error('[Auth] Error getting session:', error.message);
+          if (mounted) setIsLoading(false);
         } else if (initialSession && mounted) {
           console.log('[Auth] Initial session found. Unblocking render using standard metadata...');
           setSession(initialSession);
+          // Set user from supabase metadata immediately so dashboard can render
+          setUser(mapSupabaseUser(initialSession.user));
+          // Stop loading now so the dashboard shell appears
+          setIsLoading(false);
           
           // Optimistically set the user to unblock the Next.js UI render immediately
           setUser(mapSupabaseUser(initialSession.user));
@@ -101,13 +106,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
           });
         } else {
           console.log('[Auth] No initial session found');
+          if (mounted) setIsLoading(false);
         }
       } catch (e) {
         console.error('[Auth] Failed to initialize session', e);
+<<<<<<< HEAD
       } finally {
         if (mounted && isLoading) {
             setIsLoading(false);
         }
+=======
+        if (mounted) setIsLoading(false);
+>>>>>>> 7fa62240afd72cc5e755aaa2050dfedb8bbb7018
       }
     }
 
@@ -121,14 +131,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log(`[Auth] State changed: ${event}`, {
           has_session: !!currentSession,
           user_id: currentSession?.user.id,
-          event_details: event,
         });
 
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          console.log('[Auth] User authenticated, setting session');
-        }
-
         setSession(currentSession);
+        
         if (currentSession?.user) {
           console.log('[Auth] Setting optimistic user from Auth State Event');
           
@@ -167,10 +173,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
             console.warn('[Auth] Auth change profile fetch failed in background:', profileErr);
           });
         } else {
-          console.log('[Auth] Clearing user');
           setUser(null);
+          setIsLoading(false);
         }
-        setIsLoading(false);
       }
     );
 
@@ -179,6 +184,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Separate effect for "enriching" user profile from backend
+  useEffect(() => {
+    let mounted = true;
+    
+    if (session?.user && (!user || user.id !== session.user.id || !user.role)) {
+      const enrichProfile = async () => {
+        try {
+          console.log('[Auth] Enriching user profile from backend...');
+          const profile = await fetchCurrentUserProfile();
+          if (mounted) {
+            setUser({
+              id: profile.id,
+              email: profile.email,
+              role: profile.role,
+            });
+          }
+        } catch (profileErr: any) {
+          if (!mounted) return;
+          
+          // Check for critical auth status errors
+          if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
+            const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
+            if (detail?.code === 'NOT_INVITED') {
+              window.location.href = '/not-invited';
+              return;
+            }
+            if (detail?.code === 'ACCOUNT_DEACTIVATED') {
+              window.location.href = '/deactivated';
+              return;
+            }
+          }
+          console.warn('[Auth] Async profile enrichment failed:', profileErr);
+        }
+      };
+      
+      enrichProfile();
+    }
+    
+    return () => { mounted = false; };
+  }, [session, user?.id]);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);

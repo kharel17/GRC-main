@@ -17,5 +17,5 @@ RUN mkdir -p /app/uploads
 
 EXPOSE 8000
 
-# Run migrations before starting the app
-CMD sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+# Run migrations before starting the app (non-fatal: server starts even if migrations fail)
+CMD sh -c "alembic upgrade head || echo 'WARNING: Migration failed, starting server anyway'; uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"

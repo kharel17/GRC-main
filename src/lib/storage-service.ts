@@ -1,6 +1,8 @@
 
 import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats } from '@/types';
 import { api } from './api-client';
+import isoData from '@/data/iso27001-controls.json';
+
 
 let isUsingFallback = false;
 export const getIsUsingFallback = () => isUsingFallback;
@@ -38,9 +40,23 @@ export class LocalStorageAdapter implements StorageService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      if (!localStorage.getItem(this.CONTROLS_KEY)) {
-        localStorage.setItem(this.CONTROLS_KEY, '[]');
+      // Only seed if truly empty — never overwrite existing data
+      const existingControls = localStorage.getItem(this.CONTROLS_KEY);
+      const isEmpty = !existingControls || JSON.parse(existingControls).length === 0;
+
+      if (isEmpty) {
+        // Map controls from the JSON to the ISOControl format
+        const allControls = isoData.controls.map((control: any) => ({
+          ...control,
+          status: control.status || 'not_started',
+          evidenceIds: [],
+          riskIds: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+        localStorage.setItem(this.CONTROLS_KEY, JSON.stringify(allControls));
       }
+
       if (!localStorage.getItem(this.EVIDENCE_KEY)) {
         localStorage.setItem(this.EVIDENCE_KEY, '[]');
       }
@@ -164,7 +180,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getControlById(id: string): Promise<ISOControl | null> {
     try {
-      return await api.get<ISOControl>(`/controls/${id}`);
+      return await api.get<ISOControl>(`/controls/${id}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getControlById failed, falling back', err);
       return this.fallback.getControlById(id);
@@ -182,7 +198,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async updateControl(control: ISOControl): Promise<ISOControl> {
     try {
-      return await api.put<ISOControl>(`/controls/${control.id}`, control);
+      return await api.put<ISOControl>(`/controls/${control.id}/`, control);
     } catch (err) {
       console.warn('[ApiStorageAdapter] updateControl failed, falling back', err);
       return this.fallback.updateControl(control);
@@ -191,7 +207,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getEvidence(controlId: string): Promise<ISOEvidence[]> {
     try {
-      return await api.get<ISOEvidence[]>(`/evidence?control_id=${controlId}`);
+      return await api.get<ISOEvidence[]>(`/evidence/?control_id=${controlId}`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getEvidence failed, falling back', err);
       return this.fallback.getEvidence(controlId);
@@ -200,7 +216,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getAllEvidence(): Promise<ISOEvidence[]> {
     try {
-      return await api.get<ISOEvidence[]>('/evidence');
+      return await api.get<ISOEvidence[]>('/evidence/');
     } catch (err) {
       console.warn('[ApiStorageAdapter] getAllEvidence failed, falling back', err);
       return this.fallback.getAllEvidence();
@@ -209,7 +225,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async uploadEvidence(evidence: ISOEvidence): Promise<ISOEvidence> {
     try {
-      return await api.post<ISOEvidence>('/evidence', evidence);
+      return await api.post<ISOEvidence>('/evidence/', evidence);
     } catch (err) {
       console.warn('[ApiStorageAdapter] uploadEvidence failed, falling back', err);
       return this.fallback.uploadEvidence(evidence);
@@ -218,7 +234,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async deleteEvidence(id: string): Promise<void> {
     try {
-      return await api.delete(`/evidence/${id}`);
+      return await api.delete(`/evidence/${id}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] deleteEvidence failed, falling back', err);
       return this.fallback.deleteEvidence(id);
@@ -228,7 +244,7 @@ export class ApiStorageAdapter implements StorageService {
   async getAuditLogs(entityId?: string): Promise<ISOAuditLog[]> {
     try {
       const query = entityId ? `?entity_id=${entityId}` : '';
-      return await api.get<ISOAuditLog[]>(`/audit-logs/${query}`);
+      return await api.get<ISOAuditLog[]>(`/audit-logs/${query}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getAuditLogs failed, falling back', err);
       return this.fallback.getAuditLogs(entityId);

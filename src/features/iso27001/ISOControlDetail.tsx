@@ -22,7 +22,9 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { ISOEvidenceManager } from "./ISOEvidenceManager";
 import { RiskMapping } from "./RiskMapping";
-import { mockUsers } from "@/lib/mock-data";
+import { fetchUsers } from "@/lib";
+import { useApiData } from "@/hooks";
+// import { mockUsers } from "@/lib/mock-data";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EvidenceDropzone } from "@/components/evidence/EvidenceDropzone";
 import { EvidenceList } from "@/components/evidence/EvidenceList";
@@ -36,6 +38,9 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
   const [ownerId, setOwnerId] = useState("");
   const [saving, setSaving] = useState(false);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
+
+  const { data: usersData } = useApiData(fetchUsers);
+  const users = usersData ?? [];
 
   useEffect(() => {
     loadControl();
@@ -71,7 +76,7 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
 
       // Update owner if changed
       if (ownerId !== (control.ownerId || "")) {
-        const owner = mockUsers.find(u => u.id === ownerId);
+        const owner = users.find(u => u.id === ownerId);
         if (owner) {
           await isoService.assignOwner(control.id, ownerId, owner.fullName || owner.full_name || '', {
             id: user.id, name: user.email, role: user.role
@@ -177,8 +182,8 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {mockUsers.map(u => (
-                            <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>
+                          {users.map(u => (
+                            <SelectItem key={u.id} value={u.id}>{u.fullName || u.full_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

@@ -1,3 +1,12 @@
+/**
+ * MOCK DATA FILE - DISABLED
+ * 
+ * This file is temporarily commented out to ensure the application 
+ * strictly uses real backend data. To re-enable, remove the block
+ * comments and restore imports in data-service.ts.
+ */
+
+/*
 import { 
   UserProfile,
   Risk,
@@ -78,11 +87,11 @@ export const mockDocumentAnalyses: DocumentAnalysis[] = [
     fileName: 'security-policy-2024.pdf',
     status: 'completed',
     documentCategory: 'Security Policy',
-    implementedControls: [
+    implemented_controls: [
       { annex: 'A.5.1.1', title: 'Policies for information security' },
       { annex: 'A.8.1.1', title: 'Inventory of assets' },
     ],
-    missingControls: [
+    missing_controls: [
       { annex: 'A.12.4.1', title: 'Event logging' },
     ],
     createdAt: '2024-01-20',
@@ -840,3 +849,4 @@ export const mockTickets: Ticket[] = [
     ],
   },
 ];
+*/

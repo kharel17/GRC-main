@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from 'react';
-import { mockUsers } from '@/lib';
+import { fetchCurrentUserProfile } from '@/lib/data-service';
+import { useAuth, useApiData } from '@/hooks';
+import { UserProfile } from '@/types';
 
-// Use first mock user as current user
-const mockCurrentUser = mockUsers[0];
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  User,
+  User as UserIcon,
   Shield,
   Bell,
   Settings,
@@ -21,11 +21,32 @@ import {
   Mail,
   Globe,
   Palette,
+  Loader2,
 } from 'lucide-react';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
+  const { user: authUser, isLoading: authLoading } = useAuth();
+  const { data: profile, loading: profileLoading } = useApiData<UserProfile>(fetchCurrentUserProfile);
+
+  const loading = authLoading || profileLoading;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (!authUser || !profile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <p className="text-muted-foreground">Please log in to view settings.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -40,7 +61,7 @@ export default function SettingsPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1 gap-1">
           <TabsTrigger value="profile" className="gap-2 py-2">
-            <User className="h-4 w-4" />
+            <UserIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
           </TabsTrigger>
           <TabsTrigger value="preferences" className="gap-2 py-2">
@@ -62,7 +83,7 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <User className="h-5 w-5" />
+                <UserIcon className="h-5 w-5" />
                 Profile Information
               </CardTitle>
               <CardDescription>
@@ -73,22 +94,22 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" defaultValue={mockCurrentUser.fullName} />
+                  <Input id="fullName" defaultValue={profile.full_name || profile.fullName || profile.email.split('@')[0]} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue={mockCurrentUser.email} />
+                  <Input id="email" type="email" defaultValue={profile.email} disabled />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="department">Department</Label>
-                  <Input id="department" defaultValue={mockCurrentUser.department} />
+                  <Input id="department" defaultValue={profile.department || "General"} />
                 </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
                   <div className="h-10 flex items-center">
-                    <Badge className="capitalize">{mockCurrentUser.role}</Badge>
+                    <Badge className="capitalize">{profile.role}</Badge>
                   </div>
                 </div>
               </div>

@@ -166,21 +166,21 @@ export function ISOEvidenceManager({ controlId }: { controlId: string }) {
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-500" />
                       <div className="flex flex-col">
-                        <span className="font-medium text-sm text-foreground">{item.fileName}</span>
+                        <span className="font-medium text-sm text-foreground">{item.file_name}</span>
                         {item.description && <span className="text-xs text-muted-foreground">{item.description}</span>}
                       </div>
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-foreground">
-                    {item.uploadedByName || item.uploadedBy}
+                    {item.uploaded_by}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {new Date(item.uploadedAt).toLocaleDateString()}
+                    {new Date(item.uploaded_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1 justify-end">
                       <Button variant="ghost" size="icon" asChild className="hover:bg-muted">
-                        <a href={item.fileUrl} target="_blank" rel="noopener noreferrer" download>
+                        <a href={item.file_url} target="_blank" rel="noopener noreferrer" download>
                           <Download className="h-4 w-4" />
                         </a>
                       </Button>

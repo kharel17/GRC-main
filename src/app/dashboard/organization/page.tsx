@@ -2,18 +2,32 @@
 
 import { useState } from "react";
 import { useApiData } from "@/hooks/use-api-data";
-import { fetchOrganization, updateOrganization } from "@/lib/data-service";
+import { fetchOrganization, updateOrganization, createOrganization } from "@/lib/data-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Globe, Users, FileCheck, Loader2, Edit2, Save, X, Calendar } from "lucide-react";
+import { Building2, Globe, Users, FileCheck, Loader2, Edit2, Save, X, Calendar, CheckCircle2, Shield } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Organization } from "@/types";
+
+const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Retail", "Manufacturing", "Education", "Government", "Other"];
+const EMPLOYEE_RANGES = ["1-50", "51-200", "201-1000", "1000+"];
+const INFRASTRUCTURE_OPTIONS = ["AWS", "Azure", "GCP", "On-premise", "Hybrid"];
+const DATA_TYPES = ["PII", "PHI", "PCI", "Financial Data", "IP"];
+const FRAMEWORKS = ["ISO 27001", "SOC2", "HIPAA", "GDPR", "NIST"];
 
 export default function OrganizationPage() {
   const { data: org, loading, refetch } = useApiData(fetchOrganization);
@@ -50,6 +64,41 @@ export default function OrganizationPage() {
     }
   };
 
+  const handleCreate = async () => {
+    if (!formData.name) {
+      toast.error("Company Name is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      // Prepare data (convert arrays to comma-separated strings if needed)
+      const payload = {
+        ...formData,
+        infrastructure: formData.infrastructure.join(','),
+        data_types: formData.data_types.join(','),
+        complianceFrameworks: formData.complianceFrameworks, // This one is already string[] in types
+        onboarding_completed: true,
+      };
+      await createOrganization(payload);
+      toast.success("Organization profile created!");
+      refetch();
+    } catch (error) {
+      toast.error("Failed to create organization");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleMultiSelect = (field: string, value: string) => {
+    setFormData((prev: any) => {
+      const current = prev[field] || [];
+      const updated = current.includes(value)
+        ? current.filter((v: string) => v !== value)
+        : [...current, value];
+      return { ...prev, [field]: updated };
+    });
+  };
+
   if (loading && !org) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -59,11 +108,165 @@ export default function OrganizationPage() {
     );
   }
 
+  // ONBOARDING FORM
   if (!org) {
+    if (!formData) {
+      setFormData({
+        name: "",
+        industry: "",
+        employee_count: "",
+        infrastructure: [],
+        data_types: [],
+        complianceFrameworks: [],
+        description: "",
+      });
+      return null;
+    }
+
     return (
-      <div className="p-8 text-center border-2 border-dashed rounded-lg">
-        <h2 className="text-xl font-semibold mb-2">No Organization Found</h2>
-        <p className="text-muted-foreground">Please set up your organization profile.</p>
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-full mb-4">
+            <Building2 className="h-8 w-8 text-primary" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">Organization Profile</h1>
+          <p className="text-muted-foreground mt-2">Create your organization record to get started with GRC management.</p>
+        </div>
+
+        <Card className="border-2">
+          <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b">
+            <CardTitle>Initial Setup</CardTitle>
+            <CardDescription>Complete these details to calibrate the AI risk engine.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-8 space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Basic Info */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="create-name">Company Name <span className="text-red-500">*</span></Label>
+                  <Input 
+                    id="create-name" 
+                    placeholder="Acme Corp" 
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Industry</Label>
+                  <Select 
+                    value={formData.industry} 
+                    onValueChange={(val) => setFormData({...formData, industry: val})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select industry..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDUSTRIES.map(i => (
+                        <SelectItem key={i} value={i}>{i}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Number of Employees</Label>
+                  <Select 
+                    value={formData.employee_count} 
+                    onValueChange={(val) => setFormData({...formData, employee_count: val})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select size..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMPLOYEE_RANGES.map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Infrastructure & Data */}
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <Label className="text-sm font-bold uppercase text-slate-500 tracking-wider">Infrastructure</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {INFRASTRUCTURE_OPTIONS.map(opt => (
+                      <div key={opt} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`infra-${opt}`} 
+                          checked={formData.infrastructure.includes(opt)}
+                          onCheckedChange={() => toggleMultiSelect('infrastructure', opt)}
+                        />
+                        <label htmlFor={`infra-${opt}`} className="text-sm cursor-pointer">{opt}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-bold uppercase text-slate-500 tracking-wider">Data Types Handled</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {DATA_TYPES.map(dt => (
+                      <div key={dt} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`data-${dt}`} 
+                          checked={formData.data_types.includes(dt)}
+                          onCheckedChange={() => toggleMultiSelect('data_types', dt)}
+                        />
+                        <label htmlFor={`data-${dt}`} className="text-sm cursor-pointer">{dt}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Frameworks */}
+            <div className="space-y-4">
+              <Label className="text-sm font-bold uppercase text-slate-500 tracking-wider flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Security Frameworks
+              </Label>
+              <div className="flex flex-wrap gap-4">
+                {FRAMEWORKS.map(f => (
+                  <div key={f} className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-900 px-3 py-2 rounded-lg border">
+                    <Checkbox 
+                      id={`fw-${f}`} 
+                      checked={formData.complianceFrameworks.includes(f)}
+                      onCheckedChange={() => toggleMultiSelect('complianceFrameworks', f)}
+                    />
+                    <label htmlFor={`fw-${f}`} className="text-sm font-medium cursor-pointer">{f}</label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="create-desc">Brief Company Description</Label>
+              <Textarea 
+                id="create-desc" 
+                placeholder="What does your company do?" 
+                rows={3}
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+              />
+            </div>
+          </CardContent>
+          <CardFooter className="bg-slate-50 dark:bg-slate-900 border-t py-4 flex justify-between items-center">
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              You can update these details anytime later
+            </p>
+            <Button onClick={handleCreate} disabled={saving} className="min-w-[150px]">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Save and Continue
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }

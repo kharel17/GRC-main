@@ -51,12 +51,14 @@ export function OverdueItems({ complianceItems }: OverdueItemsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8">
-            <CheckCircle2 className="h-8 w-8 text-green-400 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">
-              No upcoming or overdue items
+          <div className="text-center py-12 px-6">
+            <div className="w-16 h-16 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-100 dark:border-green-900/30">
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1 leading-tight">All Operations Clear</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              No upcoming or overdue compliance tasks identified.
             </p>
-            <p className="text-xs text-muted-foreground mt-1">All compliance items are on track</p>
           </div>
         </CardContent>
       </Card>
@@ -82,7 +84,7 @@ export function OverdueItems({ complianceItems }: OverdueItemsProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2.5">
+        <div className="space-y-3">
           {allItems.map((item) => {
             const isOverdue = new Date(item.dueDate!) < today;
             const daysText = getDaysText(item.dueDate!, today);
@@ -90,35 +92,42 @@ export function OverdueItems({ complianceItems }: OverdueItemsProps) {
             return (
               <div 
                 key={item.id} 
-                className={`flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg transition-colors ${
+                className={`flex items-center gap-4 p-3.5 rounded-xl border transition-all hover:shadow-sm group ${
                   isOverdue 
-                    ? 'bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30' 
-                    : 'bg-muted/50 hover:bg-muted'
+                    ? 'bg-red-50/50 border-red-100 dark:bg-red-950/10 dark:border-red-900/30 hover:bg-red-100/50' 
+                    : 'bg-white dark:bg-slate-950 border-slate-100 dark:border-slate-800 hover:border-primary/30'
                 }`}
               >
+                <div className={`p-2.5 rounded-lg shrink-0 ${
+                  isOverdue ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-600 dark:bg-slate-800'
+                }`}>
+                  <Clock className="h-4 w-4" />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-sm text-foreground truncate">{item.title}</p>
-                    {isOverdue && <AlertTriangle className="h-3.5 w-3.5 text-red-600 dark:text-red-400 flex-shrink-0" />}
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate group-hover:text-primary transition-colors">
+                      {item.title}
+                    </p>
+                    {isOverdue && <AlertTriangle className="h-3.5 w-3.5 text-red-600 animate-pulse" />}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                    <span className="font-medium">{item.framework}</span>
-                    <span>•</span>
-                    <span>{item.requirementId}</span>
-                    <span className="hidden sm:inline">•</span>
-                    <span className={`hidden sm:inline ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>
-                      <Calendar className="h-3 w-3 inline mr-1" />
-                      {daysText}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Badge variant="outline" className="text-[9px] font-bold uppercase tracking-tight py-0 h-4 border-slate-200">
+                      {item.requirementId || 'G-001'}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground font-medium truncate">
+                      {item.framework}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                  <Badge 
-                    variant={isOverdue ? 'destructive' : 'secondary'} 
-                    className="flex-shrink-0 text-xs"
-                  >
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className={`text-[10px] font-black uppercase tracking-tighter ${
+                    isOverdue ? 'text-red-600' : 'text-slate-500'
+                  }`}>
                     {daysText}
-                  </Badge>
+                  </span>
+                  <div className={`h-1.5 w-12 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800`}>
+                    <div className={`h-full ${isOverdue ? 'bg-red-500' : 'bg-amber-500'}`} style={{ width: isOverdue ? '100%' : '30%' }} />
+                  </div>
                 </div>
               </div>
             );

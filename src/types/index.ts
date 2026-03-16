@@ -174,6 +174,8 @@ export interface Evidence {
   uploadedByName?: string // alias
   uploaded_at: string
   confidence_score: number
+  ai_summary?: string
+  matched_iso_clause?: string
   status: EvidenceStatus
   valid_until?: string
   verified?: boolean
@@ -341,9 +343,23 @@ export interface DocumentAnalysis {
   analyzedAt?: string
   iso_clauses?: string[]
   confidence_score?: number
-  findings?: string[]
-  implementedControls?: any[]
-  missingControls?: any[]
+  findings?: Array<{
+    clause: string
+    finding: string
+    action: string
+    severity: 'high' | 'medium' | 'low'
+  }>
+  implemented_controls?: Array<{
+    annex: string
+    title: string
+    evidence_found?: string
+  }>
+  missing_controls?: Array<{
+    annex: string
+    title: string
+    reason?: string
+  }>
+  summary?: string
   created_at?: string
   createdAt?: string // alias
 }

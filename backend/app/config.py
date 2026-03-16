@@ -87,10 +87,6 @@ class Settings(BaseSettings):
     # ALLOWED HOSTS
     ALLOWED_HOSTS: List[str] = ["*"]
 
-    # AI (Gemini)
-    GEMINI_API_KEY: Optional[str] = None
-
-
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod
     def assemble_allowed_hosts(cls, v: Union[str, List[str]]) -> List[str]:

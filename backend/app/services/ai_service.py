@@ -198,17 +198,28 @@ class AIService:
     def initialize(self) -> None:
         """Load models and pre-compute control embeddings. Call once at startup."""
         logger.info("AI Service: Loading ISO 27001 controls...")
-        self._load_controls()
+        try:
+            self._load_controls()
+        except Exception as e:
+            logger.error(f"AI Service: Failed to load controls ({e})")
+            return
 
-        # --- Always load local model for embeddings ---
-        self._init_local_model()
-
-        # --- Try Gemini for generation ---
+        # --- Try Gemini first (Lightweight) ---
         self._init_gemini()
 
-        self._is_ready = True
-        engine = "Hybrid (Gemini generation + NLP embeddings)" if self._gemini_available else "Local NLP only"
-        logger.info(f"AI Service: Ready ✓  Engine: {engine}")
+        # --- Load local model for embeddings ---
+        # Note: Even if Gemini is available for generation, we still use local embeddings
+        # for semantic matching and gap analysis tasks.
+        self._init_local_model()
+
+        if self._gemini_available or self._local_model is not None:
+            self._is_ready = True
+            engines = []
+            if self._gemini_available: engines.append("Gemini (Generation)")
+            if self._local_model: engines.append("Local NLP (Embeddings)")
+            logger.info(f"AI Service: Ready ✓  Engines: {', '.join(engines)}")
+        else:
+            logger.error("AI Service: Initialization failed. No AI engines available.")
 
     def _load_controls(self) -> None:
         """Load and parse the ISO 27001 controls JSON."""

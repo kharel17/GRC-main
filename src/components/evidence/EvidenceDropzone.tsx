@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { api } from '@/lib/api-client';
 import { Upload, CheckCircle2, AlertCircle, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
@@ -92,7 +91,7 @@ export function EvidenceDropzone({ relatedTo, relatedId, onUploadSuccess }: Evid
 
     const handleClear = () => {
         setSelectedFile(null);
-        setUploadState({ status: 'idle', progress: 0 });
+        setUploadState({ status: 'idle' });
     };
 
     // ── Render ──────────────────────────────────────────────

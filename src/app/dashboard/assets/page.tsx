@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import type { Asset, AssetType, AssetCriticality, AssetClassification, TicketActivity } from "@/types";
 import { Ticket } from "@/types"; // Just in case, ensuring they are exported from index.ts
 
@@ -207,8 +208,18 @@ export default function AssetsPage() {
               ))}
               {(!assets || assets.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                    No assets found in the register.
+                  <TableCell colSpan={8} className="text-center py-20">
+                    <Boxes className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">No assets registered</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                      Register hardware, software, and data assets to assess their risk
+                    </p>
+                    <RoleGuard allowedRoles={['admin', 'analyst']}>
+                      <Button onClick={() => toast.info("Asset registration logic coming in next update")} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Register First Asset
+                      </Button>
+                    </RoleGuard>
                   </TableCell>
                 </TableRow>
               )}

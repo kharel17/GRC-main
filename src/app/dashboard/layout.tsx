@@ -31,10 +31,13 @@ export default function DashboardLayout({
         setOnboardingChecked(true);
         return;
       }
+      
+      const isOnOrganizationPage = window.location.pathname === '/dashboard/organization';
+      
       try {
         const status = await api.get<{ completed: boolean }>("/onboarding/status");
-        if (!status.completed) {
-          router.push("/onboarding");
+        if (!status.completed && !isOnOrganizationPage) {
+          router.push("/dashboard/organization");
           return;
         }
       } catch {

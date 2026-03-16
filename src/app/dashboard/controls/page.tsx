@@ -74,6 +74,8 @@ export default function ControlsPage() {
     return true;
   });
 
+  const hasActiveFilters = statusFilter !== 'all' || typeFilter !== 'all';
+
   const typeButtons: { label: string; value: ControlType; count: number }[] = [
     { label: 'All', value: 'all', count: allControls.length },
     { label: 'Preventive', value: 'preventive', count: allControls.filter(c => c.type === 'preventive' || c.controlType === 'preventive').length },
@@ -161,10 +163,26 @@ export default function ControlsPage() {
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <Shield className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">No controls found</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Try adjusting your filters to see more results.
+            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
+              {hasActiveFilters ? 'No controls found' : 'No controls defined yet'}
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              {hasActiveFilters
+                ? 'Try adjusting your filters to see more results.'
+                : 'Add controls to start tracking your ISO 27001 compliance'}
             </p>
+            {hasActiveFilters ? (
+              <Button variant="outline" size="sm" onClick={() => { setStatusFilter('all'); setTypeFilter('all'); }}>
+                Clear Filters
+              </Button>
+            ) : (
+              <RoleGuard allowedRoles={['admin', 'analyst']}>
+                <Button onClick={() => setNewControlOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add First Control
+                </Button>
+              </RoleGuard>
+            )}
           </CardContent>
         </Card>
       ) : (

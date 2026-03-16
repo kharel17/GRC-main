@@ -109,7 +109,7 @@ export default function ISOEvidencePage() {
                   </TableCell>
                   <TableCell className="text-sm">{item.uploadedByName || item.uploadedBy}</TableCell>
                   <TableCell className="text-sm text-slate-500">
-                    {new Date(item.uploadedAt).toLocaleDateString()}
+                    {item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString() : "N/A"}
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end">

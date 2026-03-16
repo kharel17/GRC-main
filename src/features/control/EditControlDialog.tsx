@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { updateControl } from '@/lib/data-service';
+import { updateControl, fetchUsers } from '@/lib/data-service';
+import { useApiData } from '@/hooks';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
 import { Control } from '@/types';
@@ -33,8 +34,11 @@ interface EditControlDialogProps {
 }
 
 export function EditControlDialog({ open, onOpenChange, control, onSuccess }: EditControlDialogProps) {
+    const { data: users, loading: loadingUsers } = useApiData(fetchUsers);
+    
     const [title, setTitle] = useState(control.title || '');
     const [description, setDescription] = useState(control.description || '');
+    const [ownerId, setOwnerId] = useState<string>(control.owner_id || '');
     const [controlType, setControlType] = useState<'preventive' | 'detective' | 'corrective'>((control.type || 'preventive') as any);
     const [effectiveness, setEffectiveness] = useState<'high' | 'medium' | 'low'>((control.effectiveness || 'medium') as any);
     const [status, setStatus] = useState<string>(control.status || 'planned');
@@ -46,6 +50,7 @@ export function EditControlDialog({ open, onOpenChange, control, onSuccess }: Ed
         if (open && control) {
             setTitle(control.title || '');
             setDescription(control.description || '');
+            setOwnerId(control.owner_id || '');
             setControlType((control.type || 'preventive') as any);
             setEffectiveness((control.effectiveness || 'medium') as any);
             setStatus(control.status || 'planned');
@@ -83,6 +88,7 @@ export function EditControlDialog({ open, onOpenChange, control, onSuccess }: Ed
                 control_type: controlType,
                 effectiveness,
                 status,
+                owner_id: ownerId,
             } as any);
 
             toast.success('Control updated successfully!');
@@ -132,6 +138,7 @@ export function EditControlDialog({ open, onOpenChange, control, onSuccess }: Ed
                             rows={3}
                             className={errors.description && attempted ? "border-red-500 focus-visible:ring-red-500" : ""}
                         />
+                        {attempted && errors.description && <p className="text-xs text-red-500">{errors.description}</p>}
                         <div className="flex justify-between mt-1">
                             {attempted && errors.description ? (
                                 <p className="text-xs text-red-500">{errors.description}</p>
@@ -140,6 +147,25 @@ export function EditControlDialog({ open, onOpenChange, control, onSuccess }: Ed
                             )}
                             <p className="text-xs text-muted-foreground">{description.length} chars</p>
                         </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Assigned Owner *</Label>
+                        <Select value={ownerId} onValueChange={setOwnerId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select owner..."} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {users?.filter(u => ['admin', 'manager', 'analyst'].includes(u.role)).map((u) => (
+                                    <SelectItem key={u.id} value={u.id}>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium">{u.full_name || u.email}</span>
+                                            <span className="text-[10px] text-muted-foreground uppercase">{u.role}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="space-y-2">

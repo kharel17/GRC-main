@@ -110,14 +110,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } catch (e) {
         console.error('[Auth] Failed to initialize session', e);
-<<<<<<< HEAD
       } finally {
         if (mounted && isLoading) {
             setIsLoading(false);
         }
-=======
-        if (mounted) setIsLoading(false);
->>>>>>> 7fa62240afd72cc5e755aaa2050dfedb8bbb7018
       }
     }
 

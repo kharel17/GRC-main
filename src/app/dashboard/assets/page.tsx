@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { NewAssetDialog } from "@/features/asset/NewAssetDialog";
 import type { Asset, AssetType, AssetCriticality, AssetClassification, TicketActivity } from "@/types";
 import { Ticket } from "@/types"; // Just in case, ensuring they are exported from index.ts
 
@@ -43,6 +44,7 @@ export default function AssetsPage() {
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedRiskId, setSelectedRiskId] = useState<string>("");
   const [linking, setLinking] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const handleLinkRisk = async () => {
     if (!selectedAssetId || !selectedRiskId) return;
@@ -85,6 +87,12 @@ export default function AssetsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Asset Identification</h1>
           <p className="text-muted-foreground text-sm">Inventory of all critical organizational assets and their classifications.</p>
         </div>
+        <RoleGuard allowedRoles={['admin', 'analyst']}>
+          <Button onClick={() => setIsRegistering(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Register Asset
+          </Button>
+        </RoleGuard>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -215,7 +223,7 @@ export default function AssetsPage() {
                       Register hardware, software, and data assets to assess their risk
                     </p>
                     <RoleGuard allowedRoles={['admin', 'analyst']}>
-                      <Button onClick={() => toast.info("Asset registration logic coming in next update")} className="gap-2">
+                      <Button onClick={() => setIsRegistering(true)} className="gap-2">
                         <Plus className="h-4 w-4" />
                         Register First Asset
                       </Button>
@@ -268,6 +276,12 @@ export default function AssetsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewAssetDialog 
+        open={isRegistering} 
+        onOpenChange={setIsRegistering} 
+        onSuccess={refetchAssets} 
+      />
     </div>
   );
 }

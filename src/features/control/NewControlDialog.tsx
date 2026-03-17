@@ -103,8 +103,15 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
         }
     };
 
+    const handleOpenChange = (newOpen: boolean) => {
+        if (!newOpen) {
+            resetForm();
+        }
+        onOpenChange(newOpen);
+    };
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Create New Control</DialogTitle>

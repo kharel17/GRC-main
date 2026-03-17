@@ -18,6 +18,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 1, re
   try {
     return await fetch(url, {
       ...options,
+      credentials: 'include',
       signal: AbortSignal.timeout(60000), // 60s timeout for Render cold starts
     });
   } catch (error) {

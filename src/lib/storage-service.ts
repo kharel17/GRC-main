@@ -169,6 +169,31 @@ export class ApiStorageAdapter implements StorageService {
     this.fallback = fallback;
   }
 
+  private isIsoAnnexId(id: string): boolean {
+    return /^\d+\.\d+$/.test(id) || id.startsWith('A.');
+  }
+
+  private mapCAToControl(ca: any): ISOControl {
+    // Merge with static data to get title/description if missing
+    const staticInfo = isoData.controls.find(c => c.id === ca.control_annex);
+    return {
+      id: ca.control_annex, // Keep annex as ID for frontend consistency
+      realId: ca.id,        // Store real UUID
+      title: staticInfo?.title || `Control ${ca.control_annex}`,
+      description: staticInfo?.description || "",
+      status: ca.status || 'not_started',
+      ownerId: ca.responsible_id || "",
+      notes: ca.notes || "",
+      isApplicable: ca.is_applicable,
+      justification: ca.justification,
+      iso_clause: ca.control_annex,
+      type: 'Technical', // Default
+      effectiveness: 'medium',
+      createdAt: ca.created_at,
+      updatedAt: ca.updated_at,
+    } as any;
+  }
+
   async getControls(): Promise<ISOControl[]> {
     try {
       return await api.get<ISOControl[]>('/controls/');
@@ -180,6 +205,10 @@ export class ApiStorageAdapter implements StorageService {
 
   async getControlById(id: string): Promise<ISOControl | null> {
     try {
+      if (this.isIsoAnnexId(id)) {
+        const ca = await api.get<any>(`/control-applicability/annex/${id}`);
+        return this.mapCAToControl(ca);
+      }
       return await api.get<ISOControl>(`/controls/${id}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getControlById failed, falling back', err);
@@ -198,6 +227,17 @@ export class ApiStorageAdapter implements StorageService {
 
   async updateControl(control: ISOControl): Promise<ISOControl> {
     try {
+      if (this.isIsoAnnexId(control.id)) {
+        // Find existing CA record to get its UUID
+        const ca = await api.get<any>(`/control-applicability/annex/${control.id}`);
+        const updateData = {
+          status: control.status,
+          notes: control.notes,
+          responsible_id: control.ownerId === 'unassigned' ? null : control.ownerId,
+        };
+        const updated = await api.put<any>(`/control-applicability/${ca.id}/`, updateData);
+        return this.mapCAToControl(updated);
+      }
       return await api.put<ISOControl>(`/controls/${control.id}/`, control);
     } catch (err) {
       console.warn('[ApiStorageAdapter] updateControl failed, falling back', err);

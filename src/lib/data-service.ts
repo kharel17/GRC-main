@@ -70,8 +70,13 @@ export async function mapControlToRisk(riskId: string, controlId: string): Promi
 }
 
 export function getRiskCategories(): RiskCategory[] {
-  // Categories will be moved to backend in Step 3. For now, returning empty to reveal need.
-  return [];
+  return [
+    { id: '1', name: 'Strategic', color: '#EF4444' },
+    { id: '2', name: 'Financial', color: '#F59E0B' },
+    { id: '3', name: 'Operational', color: '#10B981' },
+    { id: '4', name: 'Compliance', color: '#3B82F6' },
+    { id: '5', name: 'Technological', color: '#8B5CF6' }
+  ];
 }
 
 // -- Controls --──────
@@ -162,21 +167,30 @@ export async function requestEvidence(id: string, comment: string): Promise<Tick
 }
 
 // -- Notifications --────────
-export async function fetchNotifications(): Promise<any[]> {
-  return fetchOrFallback<any[]>('/notifications/', []);
+export async function fetchNotifications(params?: { unread_only?: boolean; type?: string; limit?: number }): Promise<any[]> {
+  const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
+  return fetchOrFallback<any[]>(`/notifications/${query}`, []);
 }
 
 export async function fetchUnreadCount(): Promise<number> {
   try {
-    const res = await api.get<{ count: number }>('/notifications/unread-count/');
+    const res = await api.get<{ count: number }>('/notifications/unread-count');
     return res.count;
   } catch (err) {
     return 0;
   }
 }
 
+export async function markAsRead(id: string): Promise<void> {
+  await api.patch(`/notifications/${id}/read`);
+}
+
 export async function markAllRead(): Promise<void> {
-  await api.post('/notifications/mark-all-read/');
+  await api.patch('/notifications/mark-all-read');
+}
+
+export async function deleteNotification(id: string): Promise<void> {
+  await api.delete(`/notifications/${id}`);
 }
 
 // -- Users --────────

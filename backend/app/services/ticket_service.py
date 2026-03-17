@@ -7,6 +7,7 @@ from app import models, schemas
 from app.models.ticket import TicketStatus, TicketPriority
 from app.models.ticket_activity import TicketActivityType
 from app.services.notification_service import NotificationService
+from app.utils.notifications import notify
 import uuid
 
 class TicketService:
@@ -181,12 +182,15 @@ class TicketService:
         
         # Notify assignee
         if ticket.assigned_to_id:
-            await NotificationService.create_notification(
+            await notify(
                 db=db,
                 user_id=ticket.assigned_to_id,
+                title="New ticket assigned",
                 message=f"New ticket assigned: {ticket.title}",
-                type="ASSIGNMENT",
-                ticket_id=ticket.id
+                entity_type="ticket",
+                entity_id=ticket.id,
+                link_url=f"/dashboard/tickets/{ticket.id}",
+                notification_type="ASSIGNMENT"
             )
             
         return ticket
@@ -302,12 +306,15 @@ class TicketService:
         await db.refresh(ticket)
 
         # Notify assignee of evidence request
-        await NotificationService.create_notification(
+        await notify(
             db=db,
             user_id=ticket.assigned_to_id,
-            message=f"Action Required: Evidence requested for ticket {ticket.id}",
-            type="EVIDENCE_REQUEST",
-            ticket_id=ticket.id
+            title="Evidence requested",
+            message=f"📎 Evidence requested: {ticket.title} - {comment_text}",
+            entity_type="ticket",
+            entity_id=ticket.id,
+            link_url=f"/dashboard/tickets/{ticket.id}",
+            notification_type="EVIDENCE_REQUEST"
         )
 
         return ticket
@@ -426,12 +433,15 @@ class TicketService:
         await db.refresh(ticket)
         
         # Notify new assignee
-        await NotificationService.create_notification(
+        await notify(
             db=db,
             user_id=escalated_to_id,
-            message=f"Ticket Escalated: You have been assigned ticket {ticket.id}",
-            type="ESCALATION",
-            ticket_id=ticket.id
+            title="Ticket escalated to you",
+            message=f"Ticket escalated to you: {ticket.title} - requires immediate attention",
+            entity_type="ticket",
+            entity_id=ticket.id,
+            link_url=f"/dashboard/tickets/{ticket.id}",
+            notification_type="ESCALATION"
         )
         
         return ticket
@@ -563,12 +573,15 @@ class TicketService:
                     db.add(sla_activity)
                     
                     # Notify Admin for Hard Stop
-                    await NotificationService.create_notification(
+                    await notify(
                         db=db,
                         user_id=assignee.id,
-                        message=f"Critical: Ticket {ticket.id} is OVERDUE at L1 level.",
-                        type="OVERDUE_CRITICAL",
-                        ticket_id=ticket.id
+                        title="OVERDUE",
+                        message=f"🚨 OVERDUE: {ticket.title} - Requires your immediate action",
+                        entity_type="ticket",
+                        entity_id=ticket.id,
+                        link_url=f"/dashboard/tickets/{ticket.id}",
+                        notification_type="OVERDUE_CRITICAL"
                     )
                     continue
 

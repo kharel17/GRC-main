@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from app import schemas, models
 from app.api import deps
+from app.utils.notifications import notify
 
 router = APIRouter()
 
@@ -163,6 +164,47 @@ async def update_control_applicability(
     db.add(ca)
     await db.commit()
     await db.refresh(ca)
+
+    # ── Notifications & Audit (New) ───────────────────────────
+    if "responsible_id" in update_data and update_data["responsible_id"]:
+        await notify(
+            db=db,
+            user_id=update_data["responsible_id"],
+            title="ISO Control Assigned",
+            message=f"You have been assigned as owner for ISO Control: {ca.control_annex}",
+            entity_type="control_applicability",
+            entity_id=ca.id,
+            link_url=f"/dashboard/iso27001/controls/{ca.control_annex}",
+            notification_type="CONTROL_ASSIGNMENT"
+        )
+    
+    return ca
+
+
+# ── GET /control-applicability/annex/{annex} ───────────────
+@router.get("/annex/{annex}", response_model=schemas.ControlApplicabilityResponse)
+async def get_control_applicability_by_annex(
+    annex: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Get applicability record by annex ID (e.g. '5.1')."""
+    # Get organization (assume first org for now as per dashboard logic)
+    org_result = await db.execute(select(models.Organization).limit(1))
+    org = org_result.scalars().first()
+    if not org:
+        raise HTTPException(status_code=404, detail="No organization configured")
+
+    result = await db.execute(
+        select(models.ControlApplicability)
+        .where(models.ControlApplicability.organization_id == org.id)
+        .where(models.ControlApplicability.control_annex == annex)
+    )
+    ca = result.scalars().first()
+    if not ca:
+        # If not found, it might need initialization, but for now we 404
+        raise HTTPException(status_code=404, detail=f"Control applicability for annex {annex} not found")
+    
     return ca
 
 

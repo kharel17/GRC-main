@@ -15,6 +15,7 @@ from app import models
 from app.config import settings
 from app.database import get_db
 from app.api.deps import get_current_user
+from app.utils.notifications import notify
 import logging
 import uuid
 
@@ -167,6 +168,20 @@ async def invite_admin(
     )
 
     await db.commit()
+
+    # 4. Notifications
+    # Notify New Admin (Welcome)
+    await notify(
+        db=db,
+        user_id=new_user.id,
+        title="Welcome to the platform",
+        message=f"Welcome! You have been invited as admin to {body.organization_name}",
+        entity_type="user",
+        entity_id=new_user.id,
+        link_url="/dashboard",
+        notification_type="WELCOME"
+    )
+
     return InvitationResponse(success=True, message=f"Invitation sent to {body.email}")
 
 
@@ -252,6 +267,40 @@ async def invite_user(
     )
 
     await db.commit()
+
+    # 4. Notifications
+    # Notify New User (Welcome)
+    await notify(
+        db=db,
+        user_id=new_user.id,
+        title="Welcome to the platform",
+        message=f"Welcome! You have been invited as {body.role} to {org_name}",
+        entity_type="user",
+        entity_id=new_user.id,
+        link_url="/dashboard",
+        notification_type="WELCOME"
+    )
+
+    # Notify Admin (New team member joined)
+    admin_res = await db.execute(
+        select(models.User).where(
+            models.User.organization_id == current_user.organization_id, 
+            models.User.role == models.UserRole.admin
+        )
+    )
+    admins = admin_res.scalars().all()
+    for admin in admins:
+        await notify(
+            db=db,
+            user_id=admin.id,
+            title="New team member joined",
+            message=f"👋 {body.full_name} joined as {body.role}",
+            entity_type="user",
+            entity_id=new_user.id,
+            link_url="/dashboard/users",
+            notification_type="USER_JOINED"
+        )
+
     return InvitationResponse(success=True, message=f"Invitation sent to {body.email}")
 
 

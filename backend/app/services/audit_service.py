@@ -36,6 +36,22 @@ def _get_client_ip(request: Optional[Request] = None) -> Optional[str]:
     return None
 
 
+def serialize_data(data: Any) -> Any:
+    """Recursively convert non-serializable objects (UUIDs, Enums, datetimes) to JSON-safe formats."""
+    if isinstance(data, dict):
+        return {k: serialize_data(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [serialize_data(i) for i in data]
+    elif isinstance(data, UUID):
+        return str(data)
+    elif isinstance(data, datetime):
+        return data.isoformat()
+    elif hasattr(data, "value") and not isinstance(data, (str, int, float, bool, type(None))):
+        # Handle Enum members by taking their .value
+        return data.value
+    return data
+
+
 async def log_action(
     db: AsyncSession,
     user: models.User,
@@ -69,14 +85,18 @@ async def log_action(
     """
     resolved_ip = ip_address or _get_client_ip(request)
 
+    # Convert potentially non-serializable objects to strings/primitives
+    safe_old_values = serialize_data(old_values) if old_values else None
+    safe_new_values = serialize_data(new_values) if new_values else None
+
     audit_log = models.AuditLog(
         user_id=user.id,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
         entity_name=entity_name,
-        old_values=old_values,
-        new_values=new_values,
+        old_values=safe_old_values,
+        new_values=safe_new_values,
         description=description,
         ip_address=resolved_ip,
     )

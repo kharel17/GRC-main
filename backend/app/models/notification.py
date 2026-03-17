@@ -11,7 +11,11 @@ class Notification(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     ticket_id = Column(UUID(as_uuid=True), ForeignKey("tickets.id"), nullable=True)
+    title = Column(String, nullable=True)
     message = Column(String, nullable=False)
+    link_url = Column(String, nullable=True)
+    entity_type = Column(String, nullable=True) # ticket, risk, control, evidence, user
+    entity_id = Column(UUID(as_uuid=True), nullable=True)
     type = Column(String, nullable=False) # e.g., 'escalation', 'deadline', 'mention'
     is_read = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)

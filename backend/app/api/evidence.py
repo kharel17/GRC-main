@@ -20,6 +20,7 @@ from app.models.evidence import EvidenceStatus, EvidenceRelatedTo
 from app.config import settings
 
 from app.services.ai_service import ai_service
+from app.utils.notifications import notify
 import httpx
 import logging
 
@@ -99,6 +100,75 @@ async def analyze_evidence_background(
                         evidence.status = models.evidence.EvidenceStatus.rejected
             
             await db.commit()
+            await db.refresh(evidence)
+
+            # ── Notifications ──────────────────────────────────────────────────
+            if analysis and analysis.matched_controls:
+                top_match = analysis.matched_controls[0]
+                confidence = top_match.confidence # 0-100 range from ai_service
+                iso_clause = top_match.clause_id
+                
+                if confidence >= 80:
+                    # Verified
+                    await notify(
+                        db=db,
+                        user_id=evidence.uploaded_by,
+                        title="Evidence verified",
+                        message=f"✅ Evidence verified: {evidence.file_name} scored {confidence}% for {iso_clause}",
+                        entity_type="evidence",
+                        entity_id=evidence.id,
+                        link_url="/dashboard/evidence",
+                        notification_type="EVIDENCE_VERIFIED"
+                    )
+                elif confidence < 50:
+                    # Rejected
+                    await notify(
+                        db=db,
+                        user_id=evidence.uploaded_by,
+                        title="Evidence rejected",
+                        message=f"❌ Evidence rejected: {evidence.file_name} only scored {confidence}% Please upload better proof",
+                        entity_type="evidence",
+                        entity_id=evidence.id,
+                        link_url="/dashboard/evidence",
+                        notification_type="EVIDENCE_REJECTED"
+                    )
+                else:
+                    # Needs review (50-80%)
+                    # 1. Notify Control Owner
+                    if evidence.related_to == models.evidence.EvidenceRelatedTo.control:
+                        ctrl_res = await db.execute(
+                            select(models.Control).where(models.Control.id == evidence.related_id)
+                        )
+                        control = ctrl_res.scalar_one_or_none()
+                        if control and control.owner_id:
+                            # Notify Control Owner
+                            await notify(
+                                db=db,
+                                user_id=control.owner_id,
+                                title="Evidence needs review",
+                                message=f"⚠️ Evidence needs review: {evidence.file_name} scored {confidence}% Manual review required",
+                                entity_type="evidence",
+                                entity_id=evidence.id,
+                                link_url="/dashboard/evidence",
+                                notification_type="EVIDENCE_REVIEW_REQUIRED"
+                            )
+                            
+                            # Notify Manager
+                            owner_res = await db.execute(
+                                select(models.User).where(models.User.id == control.owner_id)
+                            )
+                            owner = owner_res.scalar_one_or_none()
+                            if owner and owner.manager_id:
+                                await notify(
+                                    db=db,
+                                    user_id=owner.manager_id,
+                                    title="Evidence needs review",
+                                    message=f"⚠️ Evidence needs review: {evidence.file_name} scored {confidence}% Manual review required",
+                                    entity_type="evidence",
+                                    entity_id=evidence.id,
+                                    link_url="/dashboard/evidence",
+                                    notification_type="EVIDENCE_REVIEW_REQUIRED"
+                                )
             
         except Exception as e:
             logger.error(f"AI analysis failed for evidence {evidence_id}: {e}")

@@ -1,5 +1,6 @@
-from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Any, List, Optional
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
@@ -7,6 +8,7 @@ from app import schemas, models
 from app.api import deps
 from app.services import audit_service
 from app.models.audit_log import AuditAction, AuditEntityType
+from app.utils.notifications import notify
 
 router = APIRouter()
 
@@ -41,10 +43,26 @@ async def create_risk(
     """
     # 1. Build risk object
     risk_data = risk_in.model_dump()
-    risk_data['owner_id'] = risk_data.get('owner_id') or current_user.id
+    
+    # Explicitly convert strings to UUID objects and handle defaults
+    owner_id = risk_data.get('owner_id')
+    category_id = risk_data.get('category_id')
+    asset_id = risk_data.get('asset_id')
+
+    # Convert to UUID if present and a string
+    risk_data['owner_id'] = UUID(owner_id) if isinstance(owner_id, str) and owner_id else (owner_id or current_user.id)
+    risk_data['category_id'] = UUID(category_id) if isinstance(category_id, str) and category_id else None
+    risk_data['asset_id'] = UUID(asset_id) if isinstance(asset_id, str) and asset_id else None
+    
+    # Double check likelihood/impact for risk_score calculation safety
+    likelihood = risk_data.get('likelihood', 1)
+    impact = risk_data.get('impact', 1)
+    risk_data['risk_score'] = likelihood * impact
+
     risk = models.Risk(
         **risk_data,
-        created_by=current_user.id
+        created_by=current_user.id,
+        organization_id=current_user.organization_id
     )
     db.add(risk)
     
@@ -63,15 +81,54 @@ async def create_risk(
         description=f"Risk created: {risk.title}"
     )
     
-    # 4. ONE single commit for everything
-    await db.commit()
+    # 4. Flush to DB
+    await db.flush()
+    await db.refresh(risk)
+
+    # 5. Notifications
+    # Notify owner
+    if risk.owner_id:
+        await notify(
+            db=db,
+            user_id=str(risk.owner_id),
+            title="New risk assigned to you",
+            message=f"New risk assigned to you: {risk.title} Score: {risk.risk_score}",
+            entity_type="risk",
+            entity_id=str(risk.id),
+            link_url=f"/dashboard/risks/{risk.id}",
+            notification_type="RISK_ASSIGNMENT"
+        )
     
-    # 5. Refresh after commit
+    # Notify admins and managers if high risk (score > 15)
+    score = (risk.likelihood or 0) * (risk.impact or 0)
+    if score >= 15:
+        # Get all admins and managers
+        users_res = await db.execute(
+            select(models.User).where(models.User.role.in_([models.UserRole.admin, models.UserRole.manager]))
+        )
+        admins_managers = users_res.scalars().all()
+        for user in admins_managers:
+            # Don't notify the owner again if they are already notified above
+            if user.id == risk.owner_id:
+                continue
+            await notify(
+                db=db,
+                user_id=str(user.id),
+                title="High risk identified",
+                message=f"⚠️ High risk identified: {risk.title} Score: {score}/25",
+                entity_type="risk",
+                entity_id=str(risk.id),
+                link_url=f"/dashboard/risks/{risk.id}",
+                notification_type="HIGH_RISK_ALERT"
+            )
+    
+    # Final Commit
+    await db.commit()
     await db.refresh(risk)
     
     return risk
 
-@router.get("/{id}", response_model=schemas.Risk)
+@router.get("/{id}/", response_model=schemas.Risk)
 async def read_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -92,7 +149,7 @@ async def read_risk(
         raise HTTPException(status_code=404, detail="Risk not found")
     return risk
 
-@router.put("/{id}", response_model=schemas.Risk)
+@router.put("/{id}/", response_model=schemas.Risk)
 async def update_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -114,6 +171,15 @@ async def update_risk(
 
     old_values = {}
     update_data = risk_in.model_dump(exclude_unset=True)
+    
+    # Handle empty strings from frontend
+    if 'category_id' in update_data and not update_data['category_id']:
+        update_data['category_id'] = None
+    if 'owner_id' in update_data and not update_data['owner_id']:
+        update_data['owner_id'] = None
+    if 'asset_id' in update_data and not update_data['asset_id']:
+        update_data['asset_id'] = None
+
     for field, value in update_data.items():
         old_values[field] = getattr(risk, field)
         setattr(risk, field, value)
@@ -150,7 +216,7 @@ async def update_risk(
 
 from app.models.control import RiskControlMapping, Control
 
-@router.get("/{id}/controls", response_model=list[schemas.RiskControlMappingOut])
+@router.get("/{id}/controls/", response_model=list[schemas.RiskControlMappingOut])
 async def get_risk_controls(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -181,7 +247,7 @@ async def get_risk_controls(
         ))
     return out
 
-@router.post("/{id}/controls", response_model=schemas.RiskControlMappingOut)
+@router.post("/{id}/controls/", response_model=schemas.RiskControlMappingOut)
 async def map_control_to_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),

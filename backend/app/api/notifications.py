@@ -20,8 +20,12 @@ class NotificationResponse(BaseModel):
     id: UUID
     user_id: UUID
     ticket_id: Optional[UUID] = None
+    title: Optional[str] = None
     message: str
-    type: str
+    link_url: Optional[str] = None
+    entity_type: Optional[str] = None
+    entity_id: Optional[UUID] = None
+    type: str # notification_type
     is_read: int
     created_at: Optional[datetime] = None
 
@@ -30,7 +34,7 @@ class NotificationResponse(BaseModel):
 
 
 class UnreadCountResponse(BaseModel):
-    unread_count: int
+    count: int
 
 
 class MarkReadRequest(BaseModel):
@@ -39,7 +43,7 @@ class MarkReadRequest(BaseModel):
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 
-@router.get("/unread-count", response_model=UnreadCountResponse)
+@router.get("/unread-count/", response_model=UnreadCountResponse)
 async def get_unread_count(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -52,50 +56,66 @@ async def get_unread_count(
         )
     )
     count = result.scalar() or 0
-    return UnreadCountResponse(unread_count=count)
+    return UnreadCountResponse(count=count)
 
 
 @router.get("/", response_model=List[NotificationResponse])
 async def list_notifications(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
     unread_only: bool = Query(False),
+    type: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List notifications for the current user, newest first."""
+    skip = (page - 1) * size
     query = select(Notification).where(
         Notification.user_id == current_user.id
     )
     if unread_only:
         query = query.where(Notification.is_read == 0)
+    
+    if type:
+        query = query.where(Notification.entity_type == type)
 
-    query = query.order_by(Notification.created_at.desc()).offset(skip).limit(limit)
+    query = query.order_by(Notification.created_at.desc()).offset(skip).limit(size)
     result = await db.execute(query)
     return result.scalars().all()
 
 
-@router.patch("/mark-read", response_model=dict)
-async def mark_notifications_read(
-    body: MarkReadRequest,
+@router.patch("/{id}/read/", response_model=dict)
+async def mark_single_read(
+    id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Mark specific notifications (or all) as read for current user."""
-    query = (
+    """Mark a single notification as read."""
+    await db.execute(
         update(Notification)
-        .where(Notification.user_id == current_user.id)
+        .where(Notification.id == id, Notification.user_id == current_user.id)
         .values(is_read=1)
     )
-    if body.notification_ids:
-        query = query.where(Notification.id.in_(body.notification_ids))
-
-    await db.execute(query)
     await db.commit()
-    return {"success": True, "message": "Notifications marked as read"}
+    return {"success": True}
 
 
-@router.delete("/{notification_id}", response_model=dict)
+@router.patch("/mark-all-read/", response_model=dict)
+async def mark_all_read(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark all notifications as read for current user."""
+    result = await db.execute(
+        update(Notification)
+        .where(Notification.user_id == current_user.id, Notification.is_read == 0)
+        .values(is_read=1)
+    )
+    await db.commit()
+    return {"marked": result.rowcount}
+
+
+@router.delete("/{notification_id}/", response_model=dict)
 async def delete_notification(
     notification_id: UUID,
     current_user: User = Depends(get_current_user),

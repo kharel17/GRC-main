@@ -22,7 +22,8 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { ISOEvidenceManager } from "./ISOEvidenceManager";
 import { RiskMapping } from "./RiskMapping";
-import { mockUsers } from "@/lib/mock-data";
+import { fetchUsers } from "@/lib/data-service";
+import { UserProfile } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EvidenceDropzone } from "@/components/evidence/EvidenceDropzone";
 import { EvidenceList } from "@/components/evidence/EvidenceList";
@@ -34,12 +35,23 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
   const [status, setStatus] = useState<ISOControlStatus>("not_started");
   const [notes, setNotes] = useState("");
   const [ownerId, setOwnerId] = useState("");
+  const [users_list, setUsersList] = useState<UserProfile[]>([]);
   const [saving, setSaving] = useState(false);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
 
   useEffect(() => {
     loadControl();
+    loadUsers();
   }, [controlId]);
+
+  const loadUsers = async () => {
+    try {
+      const data = await fetchUsers();
+      setUsersList(data as any);
+    } catch (err) {
+      console.warn("Failed to load users", err);
+    }
+  };
 
   const loadControl = async () => {
     try {
@@ -71,12 +83,11 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
 
       // Update owner if changed
       if (ownerId !== (control.ownerId || "")) {
-        const owner = mockUsers.find(u => u.id === ownerId);
-        if (owner) {
-          await isoService.assignOwner(control.id, ownerId, owner.fullName || owner.full_name || '', {
-            id: user.id, name: user.email, role: user.role
-          });
-        }
+        const owner = users_list.find(u => u.id === ownerId);
+        const ownerName = owner?.fullName || owner?.full_name || 'Unknown User';
+        await isoService.assignOwner(control.id, ownerId, ownerName, {
+          id: user.id, name: user.email, role: user.role
+        });
       }
 
       toast.success("Control updated successfully");
@@ -177,8 +188,8 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {mockUsers.map(u => (
-                            <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>
+                          {users_list.map(u => (
+                            <SelectItem key={u.id} value={u.id}>{u.fullName || u.full_name || u.email}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

@@ -6,6 +6,7 @@ from app import schemas, models
 from app.api import deps
 from app.services import audit_service
 from app.models.audit_log import AuditAction, AuditEntityType
+from app.utils.notifications import notify
 
 router = APIRouter()
 
@@ -31,11 +32,13 @@ async def create_control(
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
 ) -> Any:
     # 1. Build control object
-    control_data = control_in.model_dump()
-    control_data['owner_id'] = control_data.get('owner_id') or current_user.id
-    
     control = models.Control(
-        **control_data,
+        title=control_in.title,
+        description=control_in.description,
+        control_type=control_in.control_type,
+        effectiveness=control_in.effectiveness,
+        status=control_in.status,
+        owner_id=control_in.owner_id or current_user.id,
         created_by=current_user.id
     )
     db.add(control)
@@ -56,6 +59,38 @@ async def create_control(
     # 3. Final commit
     await db.commit()
     await db.refresh(control)
+    
+    # 4. Notifications
+    # Notify owner
+    if control.owner_id:
+        await notify(
+            db=db,
+            user_id=control.owner_id,
+            title="New control assigned to you",
+            message=f"New control assigned to you: {control.title}",
+            entity_type="control",
+            entity_id=control.id,
+            link_url=f"/dashboard/controls/{control.id}",
+            notification_type="CONTROL_ASSIGNMENT"
+        )
+    
+    # Notify admin if implemented
+    if control.status == models.ControlStatus.implemented:
+        admin_res = await db.execute(
+            select(models.User).where(models.User.role == models.UserRole.admin)
+        )
+        admins = admin_res.scalars().all()
+        for admin in admins:
+            await notify(
+                db=db,
+                user_id=admin.id,
+                title="Control implemented",
+                message=f"✅ Control implemented: {control.title}",
+                entity_type="control",
+                entity_id=control.id,
+                link_url=f"/dashboard/controls/{control.id}",
+                notification_type="CONTROL_IMPLEMENTED"
+            )
     
     return control
 
@@ -98,6 +133,7 @@ async def update_control(
     await db.commit()
     await db.refresh(control)
 
+    # Audit log
     await audit_service.log_action(
         db=db,
         user=current_user,
@@ -110,5 +146,27 @@ async def update_control(
         description=f"Control updated: {control.title}"
     )
     await db.commit()
+
+    # 4. Notifications for status change to implemented
+    if (
+        "status" in update_data 
+        and update_data["status"] == models.ControlStatus.implemented 
+        and old_values.get("status") != models.ControlStatus.implemented
+    ):
+        admin_res = await db.execute(
+            select(models.User).where(models.User.role == models.UserRole.admin)
+        )
+        admins = admin_res.scalars().all()
+        for admin in admins:
+            await notify(
+                db=db,
+                user_id=admin.id,
+                title="Control implemented",
+                message=f"✅ Control implemented: {control.title}",
+                entity_type="control",
+                entity_id=control.id,
+                link_url=f"/dashboard/controls/{control.id}",
+                notification_type="CONTROL_IMPLEMENTED"
+            )
 
     return control

@@ -32,7 +32,7 @@ async def list_assets(
     return result.scalars().all()
 
 
-@router.post("/", response_model=schemas.AssetResponse)
+@router.post("/", response_model=schemas.AssetResponse, status_code=200)
 async def create_asset(
     *,
     db: AsyncSession = Depends(deps.get_db),

@@ -29,7 +29,7 @@ async def read_controls(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/", response_model=schemas.Control)
+@router.post("/", response_model=schemas.Control, status_code=200)
 async def create_control(
     *,
     db: AsyncSession = Depends(deps.get_db),

@@ -41,7 +41,7 @@ async def read_risks(
     )
     return result.scalars().all()
 
-@router.post("/", response_model=schemas.Risk)
+@router.post("/", response_model=schemas.Risk, status_code=200)
 async def create_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -51,8 +51,28 @@ async def create_risk(
     """
     Create new risk.
     """
+    # Check for duplicate in last 10 seconds (catches retry duplicates)
+    from datetime import datetime, timedelta
+    import logging
+    logger = logging.getLogger("app.api.risks")
+    
+    recent_cutoff = datetime.utcnow() - timedelta(seconds=10)
+    
+    # Check if a risk with same title and owner was created very recently
+    result = await db.execute(
+        select(models.Risk).where(
+            models.Risk.title == risk_in.title,
+            models.Risk.created_by == current_user.id,
+            models.Risk.created_at >= recent_cutoff
+        )
+    )
+    duplicate = result.scalars().first()
+    
+    if duplicate:
+        logger.warning(f"Duplicate risk creation prevented: {risk_in.title}")
+        return duplicate
+
     # 1. Build risk object
-    print("DEBUG: create_risk payload:", risk_in.model_dump())
     risk_data = risk_in.model_dump()
     risk_data['owner_id'] = risk_data.get('owner_id') or current_user.id
     risk = models.Risk(

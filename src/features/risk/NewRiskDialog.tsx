@@ -96,6 +96,9 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
     };
 
     const handleSubmit = async () => {
+        // Guard against double submission
+        if (submitting) return;
+
         setAttempted(true);
         if (!validateForm()) return;
 
@@ -112,14 +115,24 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                 owner_id: ownerId,
             } as any;
 
-            await createRisk(payload);
+            const result = await createRisk(payload);
 
             toast.success('Risk created successfully!');
             resetForm();
             onSuccess();
             onOpenChange(false);
         } catch (err: unknown) {
-            toast.error(handleApiError(err));
+            // Log the full error details
+            console.error('Risk creation error:', {
+                err,
+                type: typeof err,
+                message: err instanceof Error ? err.message : String(err),
+                status: (err as any)?.status,
+                detail: (err as any)?.detail,
+            });
+
+            const errorMessage = (err as any)?.detail || (err as any)?.message || 'Failed to create risk. Please try again.';
+            toast.error(errorMessage);
         } finally {
             setSubmitting(false);
         }

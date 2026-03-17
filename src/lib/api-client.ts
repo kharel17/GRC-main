@@ -14,26 +14,52 @@ import { toast } from 'sonner';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = 1, retryDelay = 1000): Promise<Response> {
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: AbortSignal.timeout(60000), // 60s timeout for Render cold starts
-    });
-  } catch (error) {
-    // Don't retry AbortErrors (timeouts or Supabase lock race conditions)
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw error;
+const fetchWithRetry = async (
+  url: string,
+  options: RequestInit,
+  retries: number = 1
+): Promise<Response> => {
+  
+  // CRITICAL: Never retry mutations
+  // POST, PATCH, PUT, DELETE should only be attempted ONCE
+  const method = options.method?.toUpperCase() || 'GET';
+  
+  const shouldRetry = method === 'GET';
+  const maxRetries = shouldRetry ? retries : 0;
+  
+  let lastError: Error;
+  
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(60000), // 60s timeout for Render cold starts
+      });
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      
+      // Don't retry AbortErrors (timeouts or Supabase lock race conditions)
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error;
+      }
+      
+      // Don't retry mutations
+      if (!shouldRetry) {
+        throw error;
+      }
+      
+      // Don't retry if not last attempt
+      if (i < maxRetries) {
+        await new Promise(resolve => 
+          setTimeout(resolve, 1000)
+        );
+      }
     }
-    
-    if (retries > 0 && error instanceof Error) {
-      toast.info('Connection slow, retrying...');
-      await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      return fetchWithRetry(url, options, retries - 1, retryDelay);
-    }
-    throw error;
   }
-}
+  
+  throw lastError!;
+};
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
 export class ApiError extends Error {

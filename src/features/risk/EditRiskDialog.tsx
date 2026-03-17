@@ -100,6 +100,9 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
     };
 
     const handleSubmit = async () => {
+        // Guard against double submission
+        if (submitting) return;
+
         setAttempted(true);
         if (!validateForm()) return;
 
@@ -120,7 +123,17 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
             onSuccess();
             onOpenChange(false);
         } catch (err: unknown) {
-            toast.error(handleApiError(err));
+            // Log the full error details
+            console.error('Risk update error:', {
+                err,
+                type: typeof err,
+                message: err instanceof Error ? err.message : String(err),
+                status: (err as any)?.status,
+                detail: (err as any)?.detail,
+            });
+
+            const errorMessage = (err as any)?.detail || (err as any)?.message || 'Failed to update risk. Please try again.';
+            toast.error(errorMessage);
         } finally {
             setSubmitting(false);
         }

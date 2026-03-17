@@ -58,7 +58,7 @@ async def create_risk(
     
     recent_cutoff = datetime.utcnow() - timedelta(seconds=10)
     
-    # Check if a risk with same title and owner was created very recently
+    # Check if a risk with same title and creator was created very recently
     result = await db.execute(
         select(models.Risk).where(
             models.Risk.title == risk_in.title,
@@ -99,8 +99,15 @@ async def create_risk(
     # 4. ONE single commit for everything
     await db.commit()
     
-    # 5. Refresh after commit
-    await db.refresh(risk)
+    # 5. Refresh and load relationships for serialization
+    # We must eagerly load category because schemas.Risk expects it
+    # and lazy-loading will fail after commit/refresh on an async session
+    result = await db.execute(
+        select(models.Risk)
+        .options(selectinload(models.Risk.category))
+        .where(models.Risk.id == risk.id)
+    )
+    risk = result.scalar_one()
     
     return risk
 
@@ -297,20 +304,17 @@ async def delete_risk(
     Delete a risk.
     Only strictly for Admin and Manager.
     """
-    result = await db.execute(select(models.Risk).where(models.Risk.id == id))
+    result = await db.execute(
+        select(models.Risk)
+        .where(models.Risk.id == id)
+        .options(selectinload(models.Risk.category))
+    )
     risk = result.scalars().first()
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
     
-    # 1. Unlink mapped controls before deletion (Bug 1)
-    await db.execute(
-        update(models.Control)
-        .where(models.Control.linked_risk_id == id)
-        .values(linked_risk_id=None)
-    )
-    
-    await db.delete(risk)
-    
+    # 1. Audit log BEFORE deletion
+    # Once deleted, we can't reliably load relationships for validation
     await audit_service.log_action(
         db=db,
         user=current_user,
@@ -321,5 +325,22 @@ async def delete_risk(
         old_values=schemas.Risk.model_validate(risk).model_dump(mode='json'),
         description=f"Risk deleted: {risk.title}"
     )
+
+    # 2. Delete many-to-many mappings (RiskControlMapping)
+    from sqlalchemy import delete
+    await db.execute(
+        delete(RiskControlMapping).where(RiskControlMapping.risk_id == id)
+    )
+
+    # 3. Unlink direct control associations (if any)
+    await db.execute(
+        update(models.Control)
+        .where(models.Control.linked_risk_id == id)
+        .values(linked_risk_id=None)
+    )
+    
+    # 4. Delete the risk itself
+    await db.delete(risk)
     
     await db.commit()
+    return None

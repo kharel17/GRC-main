@@ -15,7 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, LayoutGrid, List, AlertTriangle, Filter, Loader2 } from "lucide-react";
+import { Plus, LayoutGrid, List, AlertTriangle, Filter, Loader2, Trash2 } from "lucide-react";
+import { api } from "@/lib/api-client";
+import { toast } from "sonner";
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { NewRiskDialog } from "@/features/risk/NewRiskDialog";
@@ -211,51 +213,74 @@ export default function RisksPage() {
           </CardContent>
         </Card>
       ) : viewMode === 'table' ? (
-        <RiskList risks={filteredRisks} />
+        <RiskList risks={filteredRisks} onRefresh={() => refetch()} />
       ) : (
         /* Card View */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRisks.map((risk) => (
-            <Link key={risk.id} href={`/dashboard/risks/${risk.id}`}>
-              <Card className="h-full hover:shadow-md transition-shadow cursor-pointer group">
-                <CardContent className="pt-6 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                      {risk.title}
-                    </h3>
-                    <Badge className={`${getScoreStyles(risk.riskScore || risk.score)} font-semibold shrink-0`}>
-                      {risk.riskScore || risk.score}
-                    </Badge>
-                  </div>
+            <div key={risk.id} className="relative group">
+              <Link href={`/dashboard/risks/${risk.id}`}>
+                <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
+                  <CardContent className="pt-6 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                        {risk.title}
+                      </h3>
+                      <Badge className={`${getScoreStyles(risk.riskScore || risk.score)} font-semibold shrink-0`}>
+                        {risk.riskScore || risk.score}
+                      </Badge>
+                    </div>
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                    {risk.description}
-                  </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                      {risk.description}
+                    </p>
 
-                  <div className="flex flex-wrap gap-2">
-                    {risk.category && (
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full font-medium"
-                        style={{
-                          backgroundColor: risk.category.color + '15',
-                          color: risk.category.color,
-                        }}
-                      >
-                        {risk.category.name}
-                      </span>
-                    )}
-                    <Badge variant="outline" className={`text-xs ${getStatusStyles(risk.status)}`}>
-                      {risk.status}
-                    </Badge>
-                  </div>
+                    <div className="flex flex-wrap gap-2">
+                      {risk.category && (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{
+                            backgroundColor: risk.category.color + '15',
+                            color: risk.category.color,
+                          }}
+                        >
+                          {risk.category.name}
+                        </span>
+                      )}
+                      <Badge variant="outline" className={`text-xs ${getStatusStyles(risk.status)}`}>
+                        {risk.status}
+                      </Badge>
+                    </div>
 
-                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t">
-                    <span>L:{risk.likelihood} × I:{risk.impact}</span>
-                    <span>{risk.ownerName || 'Unassigned'}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t">
+                      <span>L:{risk.likelihood} × I:{risk.impact}</span>
+                      <span>{risk.ownerName || 'Unassigned'}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+              <RoleGuard allowedRoles={['admin', 'manager']}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute bottom-2 right-2 h-7 w-7 text-slate-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100 z-10"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!confirm(`Are you sure you want to delete risk: ${risk.title}?`)) return;
+                    try {
+                      await api.delete(`/risks/${risk.id}`);
+                      toast.success('Risk deleted successfully');
+                      refetch();
+                    } catch (err) {
+                      toast.error('Failed to delete risk');
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </RoleGuard>
+            </div>
           ))}
         </div>
       )}

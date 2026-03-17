@@ -25,7 +25,7 @@ class RiskCategory(RiskCategoryBase):
 class RiskBase(BaseModel):
     title: str
     description: str
-    category_id: Optional[str] = None
+    category_id: Optional[UUID] = None
     asset_id: Optional[UUID] = None
     threat: Optional[str] = None
     vulnerability: Optional[str] = None
@@ -49,7 +49,7 @@ class RiskUpdate(BaseModel):
     risk_score: Optional[int] = None
     status: Optional[RiskStatus] = None
     owner_id: Optional[UUID] = None
-    category_id: Optional[str] = None
+    category_id: Optional[UUID] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -59,8 +59,12 @@ class RiskInDBBase(RiskBase):
     created_at: datetime
     updated_at: datetime
     organization_id: UUID
-    category_id: Optional[str] = None
+    category_id: Optional[UUID] = None
     owner_id: Optional[UUID] = None
+    category_name: Optional[str] = None
+    category: Optional[RiskCategory] = None
+    score: Optional[int] = None
+    owner_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 

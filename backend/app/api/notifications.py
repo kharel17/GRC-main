@@ -25,7 +25,7 @@ class NotificationResponse(BaseModel):
     link_url: Optional[str] = None
     entity_type: Optional[str] = None
     entity_id: Optional[UUID] = None
-    type: str # notification_type
+    type: Optional[str] = None  # notification_type
     is_read: int
     created_at: Optional[datetime] = None
 
@@ -62,24 +62,28 @@ async def get_unread_count(
 @router.get("/", response_model=List[NotificationResponse])
 async def list_notifications(
     page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100, alias="limit"),
     size: int = Query(20, ge=1, le=100),
     unread_only: bool = Query(False),
-    type: Optional[str] = Query(None),
+    notification_type: Optional[str] = Query(None, alias="type"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List notifications for the current user, newest first."""
-    skip = (page - 1) * size
+    # Use limit if provided (frontend sends ?limit=20), otherwise use size
+    effective_size = limit or size
+    skip = (page - 1) * effective_size
     query = select(Notification).where(
         Notification.user_id == current_user.id
     )
     if unread_only:
         query = query.where(Notification.is_read == 0)
     
-    if type:
-        query = query.where(Notification.entity_type == type)
+    if notification_type:
+        # Filter by entity_type (e.g. "ticket", "risk", "control")
+        query = query.where(Notification.entity_type == notification_type)
 
-    query = query.order_by(Notification.created_at.desc()).offset(skip).limit(size)
+    query = query.order_by(Notification.created_at.desc()).offset(skip).limit(effective_size)
     result = await db.execute(query)
     return result.scalars().all()
 

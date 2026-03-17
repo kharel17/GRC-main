@@ -75,20 +75,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Global Exception Handler ──────────────────────────────
+# Ensures CORS headers are present even on unhandled 500 errors.
+# Without this, the browser blocks 500 responses as CORS violations,
+# causing "Failed to fetch" instead of showing the actual error.
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    origin = request.headers.get("origin", "")
+    headers = {}
+    cors_origins = settings.BACKEND_CORS_ORIGINS or allowed_origins
+    if origin in cors_origins or "*" in cors_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"},
+        headers=headers,
+    )
+
 # ── AI Service Initialization ─────────────────────────────
 from app.services.ai_service import ai_service
 
+import threading
+
 @app.on_event("startup")
 async def startup_ai_service():
-    """Initialize the AI semantic engine on server startup."""
-    try:
-        ai_service.initialize()
-        logger.info("AI Service initialized successfully")
-    except Exception as e:
-        logger.warning(f"AI Service failed to initialize: {e}. AI endpoints will return 503.")
+    """Initialize the AI semantic engine on server startup in background."""
+    def run_init():
+        try:
+            ai_service.initialize()
+            logger.info("AI Service initialized successfully in background")
+        except Exception as e:
+            logger.warning(f"AI Service background initialization failed: {e}. AI endpoints will return 503.")
+    
+    # Run in a separate thread so it doesn't block the FastAPI startup event
+    # and prevents ERR_CONNECTION_REFUSED while the model downloads/loads.
+    threading.Thread(target=run_init, daemon=True).start()
+    logger.info("AI Service initialization triggered in background thread")
+
+import asyncio
 
 # ── Platform Team Role Fix ─────────────────────────────────
 @app.on_event("startup")
+async def platform_role_fix_startup():
+    """Wrapper to run role fix in background to avoid blocking server startup."""
+    asyncio.create_task(fix_platform_team_roles())
+    logger.info("Platform team role fix scheduled in background")
+
 async def fix_platform_team_roles():
     """Ensure platform team accounts always have correct admin roles."""
     from sqlalchemy import select

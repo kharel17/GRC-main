@@ -199,7 +199,7 @@ export const isoService = {
     // Update control
     const control = await storageService.getControlById(controlId);
     if (control && control.evidenceIds) {
-      const evidenceIds = control.evidenceIds.filter(eid => eid !== id);
+      const evidenceIds = control.evidenceIds.filter((eid: string) => eid !== id);
       await storageService.updateControl({ ...control, evidenceIds });
     }
 

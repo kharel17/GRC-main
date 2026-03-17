@@ -22,6 +22,8 @@ export interface ISOControl {
   nextReviewDate?: string;
   notes?: string;
   evidenceCount?: number;
+  evidenceIds?: string[];
+  riskIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -70,7 +72,7 @@ export interface ISOAuditLog {
   details: string;
   changes?: {
     field: string;
-    oldValue: any;
-    newValue: any;
+    oldValue: unknown;
+    newValue: unknown;
   }[];
 }

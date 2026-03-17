@@ -211,8 +211,8 @@ export interface AuditLog {
   description?: string
   userName?: string
   timestamp?: string
-  oldValues?: any
-  newValues?: any
+  oldValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
   ipAddress?: string
   created_at?: string
   createdAt?: string // alias

@@ -1,6 +1,7 @@
 
 "use client";
 
+import { UserProfile } from "@/types";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,7 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
   const loadUsers = async () => {
     try {
       const data = await fetchUsers();
-      setUsersList(data as any);
+      setUsersList(data as UserProfile[]);
     } catch (err) {
       console.warn("Failed to load users", err);
     }
@@ -152,8 +153,8 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
           <Tabs defaultValue="details" className="w-full">
             <TabsList className="w-full justify-start grid grid-cols-3 lg:w-auto">
               <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="evidence">Evidence ({control.evidenceIds?.length || 0})</TabsTrigger>
-              <TabsTrigger value="risks">Risks ({control.riskIds?.length || 0})</TabsTrigger>
+              <TabsTrigger value="evidence">Evidence ({control.evidenceIds?.length ?? 0})</TabsTrigger>
+              <TabsTrigger value="risks">Risks ({control.riskIds?.length ?? 0})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="mt-4 space-y-6">

@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app import schemas, models
 from app.api import deps
-from app.services import audit_service, compliance_service
+from app.services import audit_service
+from app.services.compliance_service import compliance_service
 from app.models.audit_log import AuditAction, AuditEntityType
 
 router = APIRouter()

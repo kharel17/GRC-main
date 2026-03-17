@@ -37,7 +37,7 @@ async def read_risks(
     # Use selectinload to eagerly load the category relationship
     result = await db.execute(
         select(models.Risk)
-        .options(selectinload(models.Risk.category))
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
         .offset(skip)
         .limit(limit)
     )
@@ -82,10 +82,10 @@ async def create_risk(
     category_id = risk_data.get('category_id')
     asset_id = risk_data.get('asset_id')
 
-    # Convert to UUID if present and a string
+    # Convert to UUID if present and a string, otherwise preserve the Pydantic-parsed UUID object
     risk_data['owner_id'] = UUID(owner_id) if isinstance(owner_id, str) and owner_id else (owner_id or current_user.id)
-    risk_data['category_id'] = UUID(category_id) if isinstance(category_id, str) and category_id else None
-    risk_data['asset_id'] = UUID(asset_id) if isinstance(asset_id, str) and asset_id else None
+    risk_data['category_id'] = UUID(category_id) if isinstance(category_id, str) and category_id else category_id
+    risk_data['asset_id'] = UUID(asset_id) if isinstance(asset_id, str) and asset_id else asset_id
     
     # Double check likelihood/impact for risk_score calculation safety
     likelihood = risk_data.get('likelihood', 1)
@@ -135,9 +135,11 @@ async def create_risk(
     # 5. Refresh and load relationships for serialization
     # We must eagerly load category because schemas.Risk expects it
     # and lazy-loading will fail after commit/refresh on an async session
+    await db.commit()
+
     result = await db.execute(
         select(models.Risk)
-        .options(selectinload(models.Risk.category))
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
         .where(models.Risk.id == risk.id)
     )
     risk = result.scalar_one()
@@ -158,7 +160,7 @@ async def read_risk(
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
-        .options(selectinload(models.Risk.category))
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
     )
     risk = result.scalars().first()
     if not risk:
@@ -179,7 +181,7 @@ async def update_risk(
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
-        .options(selectinload(models.Risk.category))
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
     )
     risk = result.scalars().first()
     if not risk:
@@ -349,7 +351,7 @@ async def delete_risk(
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
-        .options(selectinload(models.Risk.category))
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
     )
     risk = result.scalars().first()
     if not risk:
@@ -369,7 +371,7 @@ async def delete_risk(
     )
 
     # 2. Delete many-to-many mappings (RiskControlMapping)
-    from sqlalchemy import delete
+    from sqlalchemy import delete, update
     await db.execute(
         delete(RiskControlMapping).where(RiskControlMapping.risk_id == id)
     )

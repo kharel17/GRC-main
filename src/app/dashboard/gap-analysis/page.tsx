@@ -1,7 +1,7 @@
 "use client";
 
 import { useApiData } from "@/hooks/use-api-data";
-import { fetchComplianceItems } from "@/lib/data-service";
+import { fetchComplianceItems,fetchGapReport } from "@/lib/data-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -252,18 +252,18 @@ export default function GapAnalysisPage() {
                 </CardHeader>
                 <CardContent className="pb-4 space-y-3">
                   {priorityActions.map((action, idx) => (
-                    <div key={action.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border shadow-sm group hover:border-primary transition-colors cursor-pointer">
+                    <div key={action.control_annex} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border shadow-sm group hover:border-primary transition-colors cursor-pointer">
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold">
                           {idx + 1}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold truncate max-w-[300px]">{action.title}</p>
-                          <p className="text-[10px] text-muted-foreground">{action.requirementId || 'Unmapped'}</p>
+                          <p className="text-sm font-semibold truncate max-w-[300px]">{action.control_title}</p>
+                          <p className="text-[10px] text-muted-foreground">{action.control_annex || 'Unmapped'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {getPriorityBadge(action.priority)}
+                        {getPriorityBadge(action.severity)}
                         <LinkIcon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary" />
                       </div>
                     </div>

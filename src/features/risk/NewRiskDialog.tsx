@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { createRisk, getRiskCategories, fetchUsers } from '@/lib/data-service';
+import { useState, useEffect } from 'react';
+import { createRisk, fetchRiskCategories, fetchUsers } from '@/lib/data-service';
 import { useAuth, useApiData } from '@/hooks';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
@@ -33,12 +33,12 @@ interface NewRiskDialogProps {
 
 export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogProps) {
     const { user } = useAuth();
-    const categories = getRiskCategories();
 
     const { data: users, loading: loadingUsers } = useApiData(fetchUsers);
     
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [categories, setCategories] = useState<any[]>([]);
     const [categoryId, setCategoryId] = useState('');
     const [ownerId, setOwnerId] = useState<string>(user?.id || '');
     const [likelihood, setLikelihood] = useState('3');
@@ -61,6 +61,18 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
         setErrors({});
         setAttempted(false);
     };
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const data = await fetchRiskCategories();
+                setCategories(data);
+            } catch (err) {
+                console.error('Failed to load categories:', err);
+            }
+        };
+        loadCategories();
+    }, []);
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
@@ -100,12 +112,7 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                 owner_id: ownerId,
             } as any;
 
-            // Remove category_id from what gets sent to API
-            // TODO: CATEGORY_INTEGRATION — category_id is currently display-only.
-            // Real category endpoint needed before sending to API.
-            const { category_id, ...payloadWithoutCategory } = payload;
-            
-            await createRisk(payloadWithoutCategory);
+            await createRisk(payload);
 
             toast.success('Risk created successfully!');
             resetForm();
@@ -185,9 +192,9 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                                 {categories.map((cat) => (
                                     <SelectItem key={cat.id} value={cat.id}>
                                         <span className="flex items-center gap-2">
-                                            <span
-                                                className="w-2.5 h-2.5 rounded-full inline-block"
-                                                style={{ backgroundColor: cat.color }}
+                                            <span 
+                                                className="w-2 h-2 rounded-full" 
+                                                style={{ backgroundColor: cat.color }} 
                                             />
                                             {cat.name}
                                         </span>

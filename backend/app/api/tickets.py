@@ -121,7 +121,7 @@ async def update_ticket(
     db: AsyncSession = Depends(deps.get_db),
     id: UUID,
     ticket_in: schemas.TicketUpdate,
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
     Update a ticket.
@@ -184,7 +184,7 @@ async def request_evidence(
     db: AsyncSession = Depends(deps.get_db),
     id: UUID,
     evidence_in: schemas.EvidenceRequest,
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
     Request evidence for a ticket (Sets status to PENDING_EVIDENCE).

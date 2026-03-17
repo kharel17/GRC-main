@@ -66,7 +66,7 @@ async def get_document_analysis(
 @router.post("/upload", response_model=schemas.DocumentAnalysisResponse)
 async def upload_and_analyze_document(
     file: UploadFile = File(...),
-    organization_id: str = Form(...),
+    organization_id: str = Form(None),
     link_as_evidence: bool = Form(False),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),

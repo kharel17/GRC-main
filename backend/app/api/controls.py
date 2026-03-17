@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app import schemas, models
 from app.api import deps
+from app.services.risk_service import recheck_risk_status
 from app.services import audit_service
 from app.models.audit_log import AuditAction, AuditEntityType
 
@@ -16,21 +17,27 @@ async def read_controls(
     limit: int = 100,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    result = await db.execute(
-        select(models.Control)
-        .offset(skip)
-        .limit(limit)
-    )
-    return result.scalars().all()
+    try:
+        result = await db.execute(
+            select(models.Control)
+            .offset(skip)
+            .limit(limit)
+        )
+        return result.scalars().all()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/", response_model=schemas.Control)
 async def create_control(
     *,
     db: AsyncSession = Depends(deps.get_db),
     control_in: schemas.ControlCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     # 1. Build control object
+    print("DEBUG: create_control payload:", control_in.model_dump())
     control_data = control_in.model_dump()
     control_data['owner_id'] = control_data.get('owner_id') or current_user.id
     
@@ -80,7 +87,7 @@ async def update_control(
     db: AsyncSession = Depends(deps.get_db),
     id: str,
     control_in: schemas.ControlUpdate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     result = await db.execute(
         select(models.Control).where(models.Control.id == id)
@@ -112,3 +119,51 @@ async def update_control(
     await db.commit()
 
     return control
+
+
+@router.delete("/{id}", status_code=204)
+async def delete_control(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: str,
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+):
+    """
+    Delete a control.
+    Only strictly for Admin and Manager.
+    """
+    result = await db.execute(select(models.Control).where(models.Control.id == id))
+    control = result.scalars().first()
+    if not control:
+        raise HTTPException(status_code=404, detail="Control not found")
+    
+    # Capture linked risks before deletion (Bug 2)
+    risk_mapping_result = await db.execute(
+        select(models.RiskControlMapping.risk_id).where(models.RiskControlMapping.control_id == id)
+    )
+    linked_risk_ids = risk_mapping_result.scalars().all()
+    
+    # 1. Delete mappings first
+    await db.execute(
+        models.RiskControlMapping.__table__.delete().where(models.RiskControlMapping.control_id == id)
+    )
+    
+    # 2. Delete control
+    await db.delete(control)
+    
+    await audit_service.log_action(
+        db=db,
+        user=current_user,
+        action=AuditAction.deleted,
+        entity_type=AuditEntityType.control,
+        entity_id=control.id,
+        entity_name=control.title,
+        old_values=schemas.Control.model_validate(control).model_dump(mode='json'),
+        description=f"Control deleted: {control.title}"
+    )
+    
+    await db.commit()
+
+    # 3. Recheck risks (Bug 2)
+    for r_id in linked_risk_ids:
+        await recheck_risk_status(str(r_id), db)

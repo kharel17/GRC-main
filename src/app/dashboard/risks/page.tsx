@@ -107,7 +107,7 @@ export default function RisksPage() {
             Manage and assess organizational risks
           </p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'analyst']}>
+        <RoleGuard allowedRoles={['admin', 'manager']}>
           <Button className="gap-2 w-full sm:w-auto" onClick={() => setNewRiskOpen(true)}>
             <Plus className="h-4 w-4" />
             New Risk
@@ -201,7 +201,7 @@ export default function RisksPage() {
                 Clear Filters
               </Button>
             ) : (
-              <RoleGuard allowedRoles={['admin', 'analyst']}>
+              <RoleGuard allowedRoles={['admin', 'manager']}>
                 <Button onClick={() => setNewRiskOpen(true)} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add First Risk

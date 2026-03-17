@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,7 +55,7 @@ async def create_compliance_item(
     *,
     db: AsyncSession = Depends(deps.get_db),
     item_in: schemas.ComplianceItemCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     item = models.ComplianceItem(
         **item_in.model_dump()
@@ -70,8 +71,31 @@ async def create_compliance_item(
         entity_type=AuditEntityType.compliance_item,
         entity_id=item.id,
         entity_name=item.title,
-        new_values=item_in.model_dump(mode='json', exclude={'due_date'}), # date serialization handled by pydantic json mode usually
+        new_values=item_in.model_dump(mode='json', exclude={'due_date'}),
         description=f"Compliance item created: {item.title}"
     )
     await db.commit()
     return item
+
+@router.post("/recalculate")
+async def recalculate_compliance(
+    current_user: models.User = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    """
+    Recalculate compliance score based on current verified evidence.
+    Available to all authenticated users.
+    """
+    try:
+        stats = await compliance_service.get_compliance_score(db, current_user.organization_id)
+        
+        return {
+            "score": stats["score"],
+            "total_controls": stats["total_controls"],
+            "verified_controls": stats["implemented"],
+            "recalculated_at": datetime.utcnow()
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

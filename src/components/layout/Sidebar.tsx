@@ -98,7 +98,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/dashboard/audit-preparation', 
     label: 'Audit Prep', 
     icon: ClipboardCheck, 
-    roles: ['admin', 'manager'] 
+    roles: ['admin', 'manager', 'analyst'] 
   },
   { 
     href: '/dashboard/tickets', 

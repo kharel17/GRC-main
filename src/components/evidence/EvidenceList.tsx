@@ -98,7 +98,7 @@ export function EvidenceList({
     const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
 
-    const canReview = hasRole(['admin', 'manager', 'compliance_officer']);
+    const canReview = hasRole(['admin', 'manager']);
 
     const items = externalItems || internalItems;
 

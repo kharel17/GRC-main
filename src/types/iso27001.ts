@@ -21,8 +21,7 @@ export interface ISOControl {
   lastReviewDate?: string;
   nextReviewDate?: string;
   notes?: string;
-  evidenceIds?: string[];
-  riskIds?: string[];
+  evidenceCount?: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -68,7 +68,7 @@ export function NotificationPopover() {
     }
     
     return () => clearInterval(interval);
-  }, [unreadCount, filter]); // Added unreadCount to track changes
+  }, [filter]); // Filter stays as dependency, but unreadCount removed to prevent loop
 
   useEffect(() => {
     if (isOpen) {

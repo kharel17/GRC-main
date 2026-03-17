@@ -2,6 +2,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { isoService } from "@/lib/iso-service";
 import { ISOControl } from "@/types/iso27001";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,7 @@ const ComplianceScoring = dynamic(
 );
 
 export default function ISOReportsPage() {
+  const router = useRouter();
   const [controls, setControls] = useState<ISOControl[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,6 +62,15 @@ export default function ISOReportsPage() {
 
   return (
     <div className="space-y-6">
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={() => router.push("/dashboard/iso27001")}
+        className="gap-2 text-slate-600 -ml-2"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to ISO 27001
+      </Button>
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Compliance Reports</h1>

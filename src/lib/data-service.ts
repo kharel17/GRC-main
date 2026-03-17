@@ -71,11 +71,14 @@ export async function mapControlToRisk(riskId: string, controlId: string): Promi
 
 export function getRiskCategories(): RiskCategory[] {
   return [
-    { id: '1', name: 'Strategic', color: '#EF4444' },
-    { id: '2', name: 'Financial', color: '#F59E0B' },
-    { id: '3', name: 'Operational', color: '#10B981' },
-    { id: '4', name: 'Compliance', color: '#3B82F6' },
-    { id: '5', name: 'Technological', color: '#8B5CF6' }
+    { id: 'tech', name: 'Technology', color: '#3B82F6' },
+    { id: 'compl', name: 'Compliance', color: '#10B981' },
+    { id: 'oper', name: 'Operational', color: '#F59E0B' },
+    { id: 'fin', name: 'Financial', color: '#EF4444' },
+    { id: 'phys', name: 'Physical', color: '#6B7280' },
+    { id: 'hr', name: 'Human Resources', color: '#EC4899' },
+    { id: '3rd', name: 'Third Party', color: '#8B5CF6' },
+    { id: 'env', name: 'Environmental', color: '#06B6D4' }
   ];
 }
 
@@ -98,7 +101,42 @@ export async function fetchControl(id: string): Promise<Control | undefined> {
 }
 
 export async function updateControl(id: string, data: Partial<Control>): Promise<Control> {
-  return api.put<Control>(`/controls/${id}/`, data);
+  return api.patch<Control>(`/controls/${id}/`, data);
+}
+
+// -- Gap Analysis --────────
+export interface GapReport {
+  total_controls: number;
+  applicable_controls: number;
+  implemented: number;
+  partially_implemented: number;
+  missing: number;
+  total_gaps: number;
+  compliance_percentage: number;
+  gaps: Array<{
+    control_annex: string;
+    control_title: string;
+    clause_id: string;
+    severity: 'critical' | 'high' | 'medium' | 'low';
+    reason: string;
+    current_status: string;
+    best_evidence_score: number;
+  }>;
+  summary: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+}
+
+export async function fetchGapReport(): Promise<GapReport | undefined> {
+  try {
+    return await api.get<GapReport>('/gap-analysis/');
+  } catch (err) {
+    console.error(`[DataService] GET /gap-analysis/ failed:`, err);
+    return undefined;
+  }
 }
 
 // -- Evidence --──────
@@ -147,7 +185,7 @@ export async function createTicket(data: Partial<Ticket>): Promise<Ticket> {
 }
 
 export async function updateTicket(id: string, data: Partial<Ticket>): Promise<Ticket> {
-  return api.put<Ticket>(`/tickets/${id}/`, data);
+  return api.patch<Ticket>(`/tickets/${id}/`, data);
 }
 
 export async function escalateTicket(id: string, escalatedToId: string): Promise<Ticket> {
@@ -169,12 +207,12 @@ export async function requestEvidence(id: string, comment: string): Promise<Tick
 // -- Notifications --────────
 export async function fetchNotifications(params?: { unread_only?: boolean; type?: string; limit?: number }): Promise<any[]> {
   const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
-  return fetchOrFallback<any[]>(`/notifications/${query}`, []);
+  return fetchOrFallback<any[]>('/notifications/' + query, []);
 }
 
 export async function fetchUnreadCount(): Promise<number> {
   try {
-    const res = await api.get<{ count: number }>('/notifications/unread-count');
+    const res = await api.get<{ count: number }>('/notifications/unread-count/');
     return res.count;
   } catch (err) {
     return 0;
@@ -182,15 +220,15 @@ export async function fetchUnreadCount(): Promise<number> {
 }
 
 export async function markAsRead(id: string): Promise<void> {
-  await api.patch(`/notifications/${id}/read`);
+  await api.patch(`/notifications/${id}/read/`);
 }
 
 export async function markAllRead(): Promise<void> {
-  await api.patch('/notifications/mark-all-read');
+  await api.patch('/notifications/mark-all-read/');
 }
 
 export async function deleteNotification(id: string): Promise<void> {
-  await api.delete(`/notifications/${id}`);
+  await api.delete(`/notifications/${id}/`);
 }
 
 // -- Users --────────
@@ -213,14 +251,12 @@ export async function createUser(data: {
   password: string;
   role?: string;
   department?: string;
-  manager_id?: string;
-  is_acting_admin?: number;
 }): Promise<any> {
-  return api.post<any>('/users/', data);
+    return api.post<any>('/users/', data);
 }
 
-export async function removeUser(userId: string): Promise<void> {
-  await api.delete(`/users/${userId}/`);
+export async function deleteUser(userId: string): Promise<void> {
+    await api.delete(`/users/${userId}`);
 }
 
 // -- Invitations --────────

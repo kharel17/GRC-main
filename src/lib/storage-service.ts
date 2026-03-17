@@ -1,5 +1,5 @@
 
-import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats } from '@/types';
+import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats, ISOControlStatus } from '@/types';
 import { api } from './api-client';
 import isoData from '@/data/iso27001-controls.json';
 
@@ -173,12 +173,30 @@ export class ApiStorageAdapter implements StorageService {
     return /^\d+\.\d+$/.test(id) || id.startsWith('A.');
   }
 
+  private mapSoAEntryToControl(entry: any): ISOControl {
+    return {
+      id: entry.control_annex,
+      clauseId: entry.clause_id,
+      annex: entry.control_annex,
+      title: entry.control_title,
+      description: entry.control_description,
+      status: entry.status as ISOControlStatus,
+      ownerId: entry.responsible_id || "",
+      ownerName: entry.responsible_name || "",
+      evidenceCount: entry.evidence_count || 0,
+      isApplicable: entry.is_applicable,
+      notes: entry.notes || "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+  }
+
   private mapCAToControl(ca: any): ISOControl {
     // Merge with static data to get title/description if missing
     const staticInfo = isoData.controls.find(c => c.id === ca.control_annex);
     return {
-      id: ca.control_annex, // Keep annex as ID for frontend consistency
-      realId: ca.id,        // Store real UUID
+      id: ca.control_annex, 
+      realId: ca.id,        
       title: staticInfo?.title || `Control ${ca.control_annex}`,
       description: staticInfo?.description || "",
       status: ca.status || 'not_started',
@@ -187,16 +205,15 @@ export class ApiStorageAdapter implements StorageService {
       isApplicable: ca.is_applicable,
       justification: ca.justification,
       iso_clause: ca.control_annex,
-      type: 'Technical', // Default
-      effectiveness: 'medium',
-      createdAt: ca.created_at,
-      updatedAt: ca.updated_at,
+      createdAt: ca.created_at || new Date().toISOString(),
+      updatedAt: ca.updated_at || new Date().toISOString(),
     } as any;
   }
 
   async getControls(): Promise<ISOControl[]> {
     try {
-      return await api.get<ISOControl[]>('/controls/');
+      const response = await api.get<{ entries: any[] }>('/control-applicability/soa');
+      return response.entries.map(entry => this.mapSoAEntryToControl(entry));
     } catch (err) {
       console.warn('[ApiStorageAdapter] getControls failed, falling back', err);
       return this.fallback.getControls();

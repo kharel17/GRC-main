@@ -2,6 +2,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 
 export default function ISOEvidencePage() {
+  const router = useRouter();
   const [evidence, setEvidence] = useState<ISOEvidence[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,14 +48,25 @@ export default function ISOEvidencePage() {
   );
 
   if (loading) {
-    return <div className="space-y-4">
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-20 w-full" />
-    </div>;
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-20 w-full" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={() => router.push("/dashboard/iso27001")}
+        className="gap-2 text-slate-600 -ml-2"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to ISO 27001
+      </Button>
       <div>
         <h1 className="text-2xl font-bold text-slate-900 mb-1">Evidence Repository</h1>
         <p className="text-sm text-slate-600">

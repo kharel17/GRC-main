@@ -100,12 +100,7 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                 owner_id: ownerId,
             } as any;
 
-            // Remove category_id from what gets sent to API
-            // TODO: CATEGORY_INTEGRATION — category_id is currently display-only.
-            // Real category endpoint needed before sending to API.
-            const { category_id, ...payloadWithoutCategory } = payload;
-            
-            await createRisk(payloadWithoutCategory);
+            await createRisk(payload);
 
             toast.success('Risk created successfully!');
             resetForm();

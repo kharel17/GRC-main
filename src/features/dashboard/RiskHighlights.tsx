@@ -123,8 +123,8 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
                       </div>
                     </div>
                   </div>
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-xl border-2 font-black text-sm shrink-0 shadow-sm ${getScoreStyles(risk.score)}`}>
-                    {risk.score}
+                  <div className={`flex items-center justify-center px-2 py-1 rounded-md border font-bold text-xs shrink-0 shadow-sm ${getScoreStyles(risk.score)}`}>
+                    Score: {risk.score}
                   </div>
                 </div>
               </Link>

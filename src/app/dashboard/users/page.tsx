@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useApiData, useAuth } from "@/hooks";
-import { fetchUsers, inviteUser } from "@/lib";
+import { fetchUsers, inviteUser, deleteUser } from "@/lib";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -42,6 +43,7 @@ export default function UsersPage() {
     // Remove user state
     const [removingUserId, setRemovingUserId] = useState<string | null>(null);
     const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+    const [confirmRemoveName, setConfirmRemoveName] = useState<string | null>(null);
 
     const resetInviteForm = () => {
         setInviteEmail("");
@@ -81,17 +83,24 @@ export default function UsersPage() {
     }, [inviteEmail, inviteFullName, inviteRole, inviteManagerId, refetch]);
 
     const handleRemoveUser = useCallback(async (userId: string) => {
+        if (userId === currentUser?.id) {
+            toast.error("You cannot delete your own account");
+            return;
+        }
+
         setRemovingUserId(userId);
         try {
-            await api.delete(`/users/${userId}/`);
+            await deleteUser(userId);
+            toast.success("User deleted");
             refetch();
         } catch (err: any) {
-            alert(err?.message || "Failed to remove user.");
+            toast.error(err?.message || "Failed to remove user.");
         } finally {
             setRemovingUserId(null);
             setConfirmRemoveId(null);
+            setConfirmRemoveName(null);
         }
-    }, [refetch]);
+    }, [refetch, currentUser?.id]);
 
     if (loading) {
         return (
@@ -274,10 +283,12 @@ export default function UsersPage() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-2 sm:py-4 sm:text-right">
-                                            {user.id !== currentUser?.id && (
-                                                confirmRemoveId === user.id ? (
+                                            {confirmRemoveId === user.id ? (
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <span className="text-xs font-medium text-red-600">
+                                                        Are you sure you want to delete {user.full_name || user.email}? This cannot be undone.
+                                                    </span>
                                                     <div className="flex items-center justify-end gap-2">
-                                                        <span className="text-xs text-slate-500">Are you sure?</span>
                                                         <Button
                                                             variant="destructive"
                                                             size="sm"
@@ -287,27 +298,37 @@ export default function UsersPage() {
                                                             {removingUserId === user.id ? (
                                                                 <Loader2 className="h-3 w-3 animate-spin" />
                                                             ) : (
-                                                                "Yes, Remove"
+                                                                "Delete"
                                                             )}
                                                         </Button>
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
-                                                            onClick={() => setConfirmRemoveId(null)}
+                                                            onClick={() => {
+                                                                setConfirmRemoveId(null);
+                                                                setConfirmRemoveName(null);
+                                                            }}
                                                         >
                                                             Cancel
                                                         </Button>
                                                     </div>
-                                                ) : (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                        onClick={() => setConfirmRemoveId(user.id)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                )
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    onClick={() => {
+                                                        if (user.id === currentUser?.id) {
+                                                            toast.error("You cannot delete your own account");
+                                                            return;
+                                                        }
+                                                        setConfirmRemoveId(user.id);
+                                                        setConfirmRemoveName(user.full_name || user.email);
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
                                             )}
                                         </td>
                                     </tr>

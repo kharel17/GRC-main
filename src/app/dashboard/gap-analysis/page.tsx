@@ -42,40 +42,36 @@ import {
 import { ComplianceItem } from "@/types";
 
 export default function GapAnalysisPage() {
-  const { data: compliance, loading } = useApiData(fetchComplianceItems);
+  const { data: report, loading } = useApiData(fetchGapReport);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const stats = useMemo(() => ({
-    compliant: compliance?.filter(i => i.status === 'compliant').length || 0,
-    inProgress: compliance?.filter(i => i.status === 'in_progress').length || 0,
-    nonCompliant: compliance?.filter(i => i.status === 'non_compliant').length || 0,
-    notStarted: compliance?.filter(i => i.status === 'not_started').length || 0,
-  }), [compliance]);
+    compliant: report?.implemented || 0,
+    inProgress: report?.partially_implemented || 0,
+    nonCompliant: report?.summary?.critical || 0, // Maps to critical gaps
+    notStarted: report?.missing || 0,
+  }), [report]);
 
-  const total = (stats.compliant + stats.inProgress + stats.nonCompliant + stats.notStarted) || 1;
-  const compliantPercentage = Math.round((stats.compliant / total) * 100);
+  const total = report?.applicable_controls || 1;
+  const compliantPercentage = report?.compliance_percentage || 0;
 
   const filteredItems = useMemo(() => {
-    if (!compliance) return [];
-    return compliance.filter(item => {
-      const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-      const matchesSearch = item.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           item.requirementId?.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!report?.gaps) return [];
+    return report.gaps.filter(item => {
+      const matchesStatus = statusFilter === 'all' || item.current_status === statusFilter;
+      const matchesSearch = item.control_title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           item.control_annex?.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesStatus && matchesSearch;
     });
-  }, [compliance, statusFilter, searchQuery]);
+  }, [report, statusFilter, searchQuery]);
 
   const priorityActions = useMemo(() => {
-    if (!compliance) return [];
-    return compliance
-      .filter(i => i.status === 'non_compliant' || i.status === 'not_started')
-      .sort((a, b) => {
-        const priorityScore: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-        return (priorityScore[b.priority || 'low'] || 0) - (priorityScore[a.priority || 'low'] || 0);
-      })
+    if (!report?.gaps) return [];
+    return report.gaps
+      .filter(i => i.severity === 'critical' || i.severity === 'high')
       .slice(0, 3);
-  }, [compliance]);
+  }, [report]);
 
   if (loading) {
     return (
@@ -89,15 +85,15 @@ export default function GapAnalysisPage() {
   const chartData = [
     { name: 'Compliant', value: stats.compliant, color: '#22c55e' },
     { name: 'In Progress', value: stats.inProgress, color: '#eab308' },
-    { name: 'Non Compliant', value: stats.nonCompliant, color: '#ef4444' },
+    { name: 'Gap (Critical)', value: stats.nonCompliant, color: '#ef4444' },
     { name: 'Not Started', value: stats.notStarted, color: '#94a3b8' },
   ].filter(d => d.value > 0);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'compliant': return <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none">Compliant</Badge>;
+      case 'implemented': return <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none">Compliant</Badge>;
       case 'in_progress': return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-none">In Progress</Badge>;
-      case 'non_compliant': return <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-none">Gap</Badge>;
+      case 'not_started': return <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-none">Gap</Badge>;
       default: return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-200 border-none">Not Started</Badge>;
     }
   };
@@ -124,11 +120,11 @@ export default function GapAnalysisPage() {
         </Button>
       </div>
 
-      {(!compliance || compliance.length === 0) ? (
+      {(!report || report.applicable_controls === 0) ? (
         <Card className="border-dashed">
           <CardContent className="py-24 text-center">
             <PieChartIcon className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">No data for Gap Analysis</h3>
+            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Create controls first to see gap analysis</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
               Link controls to your risks to see implementation gaps
             </p>
@@ -311,26 +307,23 @@ export default function GapAnalysisPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredItems.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                    <TableRow key={item.control_annex} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                       <TableCell className="font-mono text-xs text-primary font-bold">
-                        {item.requirementId || item.iso_clause || 'G-001'}
+                        {item.control_annex}
                       </TableCell>
                       <TableCell className="max-w-[300px]">
-                        <p className="font-bold text-sm leading-none mb-1">{item.title || 'Untitled Requirement'}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-1">{item.description || 'No description provided.'}</p>
+                        <p className="font-bold text-sm leading-none mb-1">{item.control_title}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{item.reason}</p>
                       </TableCell>
                       <TableCell className="text-center">
-                        {getPriorityBadge(item.priority)}
+                        {getPriorityBadge(item.severity)}
                       </TableCell>
                       <TableCell className="text-center">
-                        {getStatusBadge(item.status)}
+                        {getStatusBadge(item.current_status)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-[10px] font-bold text-blue-700 dark:text-blue-400">
-                            {(item.ownerName || 'U')[0]}
-                          </div>
-                          <span className="text-xs font-medium">{item.ownerName || 'Unassigned'}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
+                           AI Score: {(item.best_evidence_score || 0).toFixed(0)}%
                         </div>
                       </TableCell>
                     </TableRow>

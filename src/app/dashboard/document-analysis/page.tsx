@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useApiData } from "@/hooks";
-import { fetchDocumentAnalyses, submitDocumentForAnalysis } from "@/lib/data-service";
+import { fetchDocumentAnalyses, submitDocumentForAnalysis, fetchOrganization } from "@/lib/data-service";
 import { DocumentAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { FileUp, Search, CheckCircle2, AlertCircle, FileText, Loader2, Microscop
 import { Progress } from "@/components/ui/progress";
 import { DocumentAnalysisDetailsDialog } from "@/components/document-analysis/DocumentAnalysisDetailsDialog";
 import { format } from 'date-fns';
+import { RoleGuard } from "@/components/auth/RoleGuard";
 
 export default function DocumentAnalysisPage() {
   const { data: analyses, loading, refetch } = useApiData<DocumentAnalysis[]>(fetchDocumentAnalyses);
@@ -20,16 +21,25 @@ export default function DocumentAnalysisPage() {
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    console.log('[DocAnalysis] File selected:', file?.name);
     if (!file) return;
 
     setIsUploading(true);
     try {
-      await submitDocumentForAnalysis(file);
+      console.log('[DocAnalysis] Fetching organization context (optional)...');
+      const org = await fetchOrganization();
+      console.log('[DocAnalysis] Organization ID:', org?.id);
+      
+      console.log('[DocAnalysis] Submitting file for analysis...');
+      await submitDocumentForAnalysis(file, org?.id);
+      console.log('[DocAnalysis] Analysis submitted successfully');
       await refetch();
     } catch (error) {
-      console.error("Upload failed:", error);
+      console.error("[DocAnalysis] Upload failed:", error);
     } finally {
       setIsUploading(false);
+      // Clear the input so the same file can be selected again
+      event.target.value = '';
     }
   };
 
@@ -66,26 +76,28 @@ export default function DocumentAnalysisPage() {
           accept=".pdf,.docx"
           onChange={handleFileChange}
         />
-        <Card className="md:col-span-1 border-dashed border-2 hover:border-primary transition-colors cursor-pointer group" onClick={triggerUpload}>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            {isUploading ? (
-              <div className="space-y-4 w-full px-8">
-                <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
-                <p className="text-sm font-medium">Analyzing document...</p>
-                <Progress value={65} className="h-1" />
-              </div>
-            ) : (
-              <>
-                <div className="p-4 bg-primary/10 rounded-full mb-4 group-hover:bg-primary/20 transition-colors">
-                  <FileUp className="h-8 w-8 text-primary" />
+        <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
+          <Card className="md:col-span-1 border-dashed border-2 hover:border-primary transition-colors cursor-pointer group" onClick={triggerUpload}>
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+              {isUploading ? (
+                <div className="space-y-4 w-full px-8">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
+                  <p className="text-sm font-medium">Analyzing document...</p>
+                  <Progress value={65} className="h-1" />
                 </div>
-                <h3 className="font-semibold text-lg">Upload Document</h3>
-                <p className="text-sm text-muted-foreground mt-1 px-4">Drag and drop your PDF or Word document here to start analysis</p>
-                <Button variant="outline" className="mt-6" onClick={(e) => { e.stopPropagation(); triggerUpload(); }}>Select File</Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+              ) : (
+                <>
+                  <div className="p-4 bg-primary/10 rounded-full mb-4 group-hover:bg-primary/20 transition-colors">
+                    <FileUp className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg">Upload Document</h3>
+                  <p className="text-sm text-muted-foreground mt-1 px-4">Drag and drop your PDF or Word document here to start analysis</p>
+                  <Button variant="outline" className="mt-6" onClick={(e) => { e.stopPropagation(); triggerUpload(); }}>Select File</Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </RoleGuard>
 
         <div className="md:col-span-2 space-y-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -200,10 +212,12 @@ export default function DocumentAnalysisPage() {
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
                 Upload policies to see how they align with ISO 27001
               </p>
-              <Button onClick={triggerUpload} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Upload for Analysis
-              </Button>
+              <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
+                <Button onClick={triggerUpload} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Upload for Analysis
+                </Button>
+              </RoleGuard>
             </div>
           )}
         </div>

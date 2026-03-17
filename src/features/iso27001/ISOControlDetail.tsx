@@ -22,8 +22,9 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { ISOEvidenceManager } from "./ISOEvidenceManager";
 import { RiskMapping } from "./RiskMapping";
-import { fetchUsers } from "@/lib/data-service";
-import { UserProfile } from "@/types";
+import { fetchUsers } from "@/lib";
+import { useApiData } from "@/hooks";
+// import { mockUsers } from "@/lib/mock-data";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EvidenceDropzone } from "@/components/evidence/EvidenceDropzone";
 import { EvidenceList } from "@/components/evidence/EvidenceList";
@@ -38,6 +39,9 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
   const [users_list, setUsersList] = useState<UserProfile[]>([]);
   const [saving, setSaving] = useState(false);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
+
+  const { data: usersData } = useApiData(fetchUsers);
+  const users = usersData ?? [];
 
   useEffect(() => {
     loadControl();
@@ -83,11 +87,12 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
 
       // Update owner if changed
       if (ownerId !== (control.ownerId || "")) {
-        const owner = users_list.find(u => u.id === ownerId);
-        const ownerName = owner?.fullName || owner?.full_name || 'Unknown User';
-        await isoService.assignOwner(control.id, ownerId, ownerName, {
-          id: user.id, name: user.email, role: user.role
-        });
+        const owner = users.find(u => u.id === ownerId);
+        if (owner) {
+          await isoService.assignOwner(control.id, ownerId, owner.fullName || owner.full_name || '', {
+            id: user.id, name: user.email, role: user.role
+          });
+        }
       }
 
       toast.success("Control updated successfully");
@@ -188,8 +193,8 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {users_list.map(u => (
-                            <SelectItem key={u.id} value={u.id}>{u.fullName || u.full_name || u.email}</SelectItem>
+                          {users.map(u => (
+                            <SelectItem key={u.id} value={u.id}>{u.fullName || u.full_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

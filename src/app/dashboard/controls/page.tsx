@@ -14,7 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Shield, Filter, Loader2 } from 'lucide-react';
+import { Plus, Shield, Filter, Loader2, Trash2 } from 'lucide-react';
+import { api } from '@/lib/api-client';
+import { toast } from 'sonner';
 import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { NewControlDialog } from '@/features/control/NewControlDialog';
@@ -66,6 +68,17 @@ export default function ControlsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [newControlOpen, setNewControlOpen] = useState(false);
 
+  const handleDeleteControl = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete control: ${title}?`)) return;
+    try {
+      await api.delete(`/controls/${id}`);
+      toast.success('Control deleted successfully');
+      refetch();
+    } catch (err) {
+      toast.error('Failed to delete control');
+    }
+  };
+
   const allControls = controls ?? [];
 
   const filteredControls = allControls.filter((control) => {
@@ -110,7 +123,7 @@ export default function ControlsPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">Controls</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400">Manage risk mitigation controls</p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'analyst']}>
+        <RoleGuard allowedRoles={['admin', 'manager']}>
           <Button className="gap-2 w-full sm:w-auto" onClick={() => setNewControlOpen(true)}>
             <Plus className="h-4 w-4" />
             New Control
@@ -176,7 +189,7 @@ export default function ControlsPage() {
                 Clear Filters
               </Button>
             ) : (
-              <RoleGuard allowedRoles={['admin', 'analyst']}>
+              <RoleGuard allowedRoles={['admin', 'manager']}>
                 <Button onClick={() => setNewControlOpen(true)} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add First Control
@@ -210,6 +223,20 @@ export default function ControlsPage() {
                   </div>
                   <div className="pt-2 border-t text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
                     <span>Owner: {control.ownerName}</span>
+                    <RoleGuard allowedRoles={['admin', 'manager']}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-slate-400 hover:text-red-600 transition-colors"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDeleteControl(control.id, control.title);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </RoleGuard>
                   </div>
                 </CardContent>
               </Card>

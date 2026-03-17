@@ -36,12 +36,12 @@ async def list_assets(
     return result.scalars().all()
 
 
-@router.post("/", response_model=schemas.AssetResponse)
+@router.post("/", response_model=schemas.AssetResponse, status_code=200)
 async def create_asset(
     *,
     db: AsyncSession = Depends(deps.get_db),
     asset_in: schemas.AssetCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """Create a new asset."""
     asset = models.Asset(
@@ -135,7 +135,7 @@ async def link_risks_to_asset(
     asset_id: str,
     link_in: schemas.AssetRiskLinkRequest,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """Link one or more risks to an asset."""
     from app.models.asset_risk import AssetRiskMapping
@@ -167,7 +167,7 @@ async def unlink_risk_from_asset(
     asset_id: str,
     risk_id: str,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """Unlink a risk from an asset."""
     from app.models.asset_risk import AssetRiskMapping

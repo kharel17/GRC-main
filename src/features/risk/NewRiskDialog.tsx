@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { createRisk, getRiskCategories, fetchUsers } from '@/lib/data-service';
+import { useState, useEffect } from 'react';
+import { createRisk, fetchRiskCategories, fetchUsers } from '@/lib/data-service';
 import { useAuth, useApiData } from '@/hooks';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
@@ -33,12 +33,12 @@ interface NewRiskDialogProps {
 
 export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogProps) {
     const { user } = useAuth();
-    const categories = getRiskCategories();
 
     const { data: users, loading: loadingUsers } = useApiData(fetchUsers);
     
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [categories, setCategories] = useState<any[]>([]);
     const [categoryId, setCategoryId] = useState('');
     const [ownerId, setOwnerId] = useState<string>(user?.id || '');
     const [likelihood, setLikelihood] = useState('3');
@@ -62,6 +62,18 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
         setAttempted(false);
     };
 
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const data = await fetchRiskCategories();
+                setCategories(data);
+            } catch (err) {
+                console.error('Failed to load categories:', err);
+            }
+        };
+        loadCategories();
+    }, []);
+
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
         
@@ -84,6 +96,9 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
     };
 
     const handleSubmit = async () => {
+        // Guard against double submission
+        if (submitting) return;
+
         setAttempted(true);
         if (!validateForm()) return;
 
@@ -100,14 +115,24 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                 owner_id: ownerId,
             } as any;
 
-            await createRisk(payload);
+            const result = await createRisk(payload);
 
             toast.success('Risk created successfully!');
             resetForm();
             onSuccess();
             onOpenChange(false);
         } catch (err: unknown) {
-            toast.error(handleApiError(err));
+            // Log the full error details
+            console.error('Risk creation error:', {
+                err,
+                type: typeof err,
+                message: err instanceof Error ? err.message : String(err),
+                status: (err as any)?.status,
+                detail: (err as any)?.detail,
+            });
+
+            const errorMessage = (err as any)?.detail || (err as any)?.message || 'Failed to create risk. Please try again.';
+            toast.error(errorMessage);
         } finally {
             setSubmitting(false);
         }
@@ -180,9 +205,9 @@ export function NewRiskDialog({ open, onOpenChange, onSuccess }: NewRiskDialogPr
                                 {categories.map((cat) => (
                                     <SelectItem key={cat.id} value={cat.id}>
                                         <span className="flex items-center gap-2">
-                                            <span
-                                                className="w-2.5 h-2.5 rounded-full inline-block"
-                                                style={{ backgroundColor: cat.color }}
+                                            <span 
+                                                className="w-2 h-2 rounded-full" 
+                                                style={{ backgroundColor: cat.color }} 
                                             />
                                             {cat.name}
                                         </span>

@@ -6,9 +6,21 @@
  *
  * Every page should use the functions here instead of direct API calls.
  */
-
 import { api } from './api-client';
 import { supabase } from './supabase';
+
+// import {
+//   mockRisks,
+//   mockRiskCategories,
+//   mockControls,
+//   mockComplianceItems,
+//   mockEvidence,
+//   mockAuditLogs,
+//   mockTickets,
+//   mockOrganization,
+//   mockAssets,
+//   mockDocumentAnalyses,
+// } from './mock-data';
 import { 
   Risk, 
   RiskCategory, 
@@ -23,6 +35,7 @@ import {
 } from '@/types';
 
 // -- Helper --────────
+
 async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
   // Mock mode is strictly disabled in this version to enforce real data usage.
   try {
@@ -69,17 +82,13 @@ export async function mapControlToRisk(riskId: string, controlId: string): Promi
   return api.post<any>(`/risks/${riskId}/controls`, { control_id: controlId });
 }
 
+export async function fetchRiskCategories(): Promise<RiskCategory[]> {
+  return api.get<RiskCategory[]>('/risks/categories/');
+}
+
 export function getRiskCategories(): RiskCategory[] {
-  return [
-    { id: 'tech', name: 'Technology', color: '#3B82F6' },
-    { id: 'compl', name: 'Compliance', color: '#10B981' },
-    { id: 'oper', name: 'Operational', color: '#F59E0B' },
-    { id: 'fin', name: 'Financial', color: '#EF4444' },
-    { id: 'phys', name: 'Physical', color: '#6B7280' },
-    { id: 'hr', name: 'Human Resources', color: '#EC4899' },
-    { id: '3rd', name: 'Third Party', color: '#8B5CF6' },
-    { id: 'env', name: 'Environmental', color: '#06B6D4' }
-  ];
+  // Legacy sync function, should be replaced by fetchRiskCategories in components
+  return [];
 }
 
 // -- Controls --──────
@@ -164,6 +173,10 @@ export async function fetchAuditLogs(): Promise<AuditLog[]> {
 // -- Compliance --────────
 export async function fetchComplianceItems(): Promise<ComplianceItem[]> {
   return fetchOrFallback<ComplianceItem[]>('/compliance/', []);
+}
+
+export async function recalculateCompliance(): Promise<any> {
+  return api.post('/compliance/recalculate');
 }
 
 // -- Tickets --──────
@@ -376,8 +389,11 @@ export async function fetchDocumentAnalyses(): Promise<DocumentAnalysis[]> {
   return fetchOrFallback<DocumentAnalysis[]>('/document-analysis/', []);
 }
 
-export async function submitDocumentForAnalysis(file: File): Promise<DocumentAnalysis> {
-  return api.upload<DocumentAnalysis>('/document-analysis/upload/', file);
+export async function submitDocumentForAnalysis(file: File, organizationId?: string): Promise<DocumentAnalysis> {
+  return api.upload<DocumentAnalysis>('/document-analysis/upload/', file, { 
+    ...(organizationId && { organization_id: organizationId }),
+    link_as_evidence: 'false'
+  });
 }
 // -- Dashboard --────────
 export interface DashboardSummary {

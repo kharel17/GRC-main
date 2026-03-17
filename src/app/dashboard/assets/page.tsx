@@ -222,8 +222,8 @@ export default function AssetsPage() {
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
                       Register hardware, software, and data assets to assess their risk
                     </p>
-                    <RoleGuard allowedRoles={['admin', 'analyst']}>
-                      <Button onClick={() => setIsRegistering(true)} className="gap-2">
+                    <RoleGuard allowedRoles={['admin', 'manager']}>
+                      <Button onClick={() => toast.info("Asset registration logic coming in next update")} className="gap-2">
                         <Plus className="h-4 w-4" />
                         Register First Asset
                       </Button>

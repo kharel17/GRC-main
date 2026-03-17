@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { updateRisk, getRiskCategories, fetchUsers } from '@/lib/data-service';
+import { updateRisk, fetchRiskCategories, fetchUsers } from '@/lib/data-service';
 import { useApiData } from '@/hooks';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
@@ -34,7 +34,7 @@ interface EditRiskDialogProps {
 }
 
 export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRiskDialogProps) {
-    const categories = getRiskCategories();
+    const [categories, setCategories] = useState<any[]>([]);
 
     const { data: users, loading: loadingUsers } = useApiData(fetchUsers);
     
@@ -48,6 +48,18 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [attempted, setAttempted] = useState(false);
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const data = await fetchRiskCategories();
+                setCategories(data);
+            } catch (err) {
+                console.error('Failed to load categories:', err);
+            }
+        };
+        loadCategories();
+    }, []);
 
     // Re-sync form when opening with a different risk
     useEffect(() => {
@@ -88,6 +100,9 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
     };
 
     const handleSubmit = async () => {
+        // Guard against double submission
+        if (submitting) return;
+
         setAttempted(true);
         if (!validateForm()) return;
 
@@ -108,7 +123,17 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
             onSuccess();
             onOpenChange(false);
         } catch (err: unknown) {
-            toast.error(handleApiError(err));
+            // Log the full error details
+            console.error('Risk update error:', {
+                err,
+                type: typeof err,
+                message: err instanceof Error ? err.message : String(err),
+                status: (err as any)?.status,
+                detail: (err as any)?.detail,
+            });
+
+            const errorMessage = (err as any)?.detail || (err as any)?.message || 'Failed to update risk. Please try again.';
+            toast.error(errorMessage);
         } finally {
             setSubmitting(false);
         }

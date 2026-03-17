@@ -4,6 +4,7 @@ import { useApiData } from "@/hooks/use-api-data";
 import { fetchComplianceItems } from "@/lib/data-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { 
   PieChart as PieChartIcon, 
@@ -19,6 +20,7 @@ import {
   Loader2,
   Plus
 } from "lucide-react";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { Progress } from "@/components/ui/progress";
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
@@ -114,10 +116,24 @@ export default function GapAnalysisPage() {
           <h1 className="text-2xl font-bold tracking-tight">Gap Analysis</h1>
           <p className="text-muted-foreground text-sm">Real-time breakdown of control implementation gaps across compliance frameworks.</p>
         </div>
-        <Button className="gap-2">
-          <ZapIcon className="h-4 w-4" />
-          Regenerate Report
-        </Button>
+        <RoleGuard allowedRoles={['admin', 'manager']}>
+          <Button 
+            className="gap-2" 
+            onClick={async () => {
+              try {
+                const toastId = toast.loading("Recalculating compliance...");
+                await (await import('@/lib/data-service')).recalculateCompliance();
+                toast.success("Compliance recalculated successfully", { id: toastId });
+                window.location.reload(); // Refresh to see updated data
+              } catch (err) {
+                toast.error("Failed to recalculate compliance");
+              }
+            }}
+          >
+            <ZapIcon className="h-4 w-4" />
+            Regenerate Report
+          </Button>
+        </RoleGuard>
       </div>
 
       {(!report || report.applicable_controls === 0) ? (

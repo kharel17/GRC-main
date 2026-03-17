@@ -10,6 +10,7 @@ class ControlBase(BaseModel):
     control_type: ControlType
     effectiveness: ControlEffectiveness
     status: ControlStatus = ControlStatus.planned
+    linked_risk_id: Optional[UUID] = None
     owner_id: Optional[UUID] = None
 
 class ControlCreate(ControlBase):
@@ -21,6 +22,7 @@ class ControlUpdate(BaseModel):
     control_type: Optional[ControlType] = None
     effectiveness: Optional[ControlEffectiveness] = None
     status: Optional[ControlStatus] = None
+    linked_risk_id: Optional[UUID] = None
     owner_id: Optional[UUID] = None
 
 class ControlInDBBase(ControlBase):

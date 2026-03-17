@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import Link from "next/link";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 
 export default function AuditPreparationPage() {
   const { data: compliance, loading: compLoading } = useApiData(fetchComplianceItems);
@@ -80,34 +81,36 @@ export default function AuditPreparationPage() {
           <p className="text-muted-foreground text-sm">Inventory of evidence and control status for external audit readiness.</p>
         </div>
         <div className="flex flex-col items-end gap-3">
-          <div className="flex gap-2">
-            <Button 
-                onClick={() => handleDownload('soa')} 
-                variant="outline"
-                disabled={!!downloading || !org}
-                className="gap-2"
-              >
-                {downloading === 'soa' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />}
-                Download SoA
-              </Button>
+          <RoleGuard allowedRoles={['admin', 'manager']}>
+            <div className="flex gap-2">
               <Button 
-                onClick={() => handleDownload('risks')} 
-                variant="outline"
+                  onClick={() => handleDownload('soa')} 
+                  variant="outline"
+                  disabled={!!downloading || !org}
+                  className="gap-2"
+                >
+                  {downloading === 'soa' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />}
+                  Download SoA
+                </Button>
+                <Button 
+                  onClick={() => handleDownload('risks')} 
+                  variant="outline"
+                  disabled={!!downloading || !org}
+                  className="gap-2"
+                >
+                  {downloading === 'risks' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart className="h-4 w-4" />}
+                  Risk Register
+                </Button>
+              <Button 
+                onClick={() => handleDownload('audit')} 
                 disabled={!!downloading || !org}
                 className="gap-2"
               >
-                {downloading === 'risks' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart className="h-4 w-4" />}
-                Risk Register
+                {downloading === 'audit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Full Readiness Report
               </Button>
-            <Button 
-              onClick={() => handleDownload('audit')} 
-              disabled={!!downloading || !org}
-              className="gap-2"
-            >
-              {downloading === 'audit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Full Readiness Report
-            </Button>
-          </div>
+            </div>
+          </RoleGuard>
           <div className="text-right hidden md:block">
             <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Audit Readiness</p>
             <div className="flex items-center gap-3">
@@ -178,12 +181,14 @@ export default function AuditPreparationPage() {
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
                       Upload evidence to your controls to prepare for audit
                     </p>
-                    <Button asChild className="gap-2">
-                      <a href="/dashboard/evidence">
-                        <Plus className="h-4 w-4" />
-                        Go to Evidence
-                      </a>
-                    </Button>
+                    <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
+                      <Button asChild className="gap-2">
+                        <a href="/dashboard/evidence">
+                          <Plus className="h-4 w-4" />
+                          Go to Evidence
+                        </a>
+                      </Button>
+                    </RoleGuard>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -226,12 +231,14 @@ export default function AuditPreparationPage() {
                             Ready
                           </Badge>
                         ) : (
-                          <Button asChild size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase tracking-tight gap-1.5 text-primary hover:bg-primary/5">
-                            <Link href={`/dashboard/evidence?controlId=${item.id}`}>
-                              <Plus className="h-3 w-3" />
-                              Add Evidence
-                            </Link>
-                          </Button>
+                          <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
+                            <Button asChild size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase tracking-tight gap-1.5 text-primary hover:bg-primary/5">
+                              <Link href={`/dashboard/evidence?controlId=${item.id}`}>
+                                <Plus className="h-3 w-3" />
+                                Add Evidence
+                              </Link>
+                            </Button>
+                          </RoleGuard>
                         )}
                       </div>
                     </TableCell>

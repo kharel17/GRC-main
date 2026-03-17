@@ -72,7 +72,7 @@ export default function EvidencePage() {
             Supporting documentation for risks and controls
           </p>
         </div>
-        <RoleGuard allowedRoles={['admin', 'analyst', 'manager']}>
+        <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
           <Button className="gap-2 w-full sm:w-auto" onClick={() => setUploadDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Upload Evidence
@@ -131,7 +131,7 @@ export default function EvidencePage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
             Upload documents to prove your controls are working
           </p>
-          <RoleGuard allowedRoles={['admin', 'analyst', 'manager']}>
+          <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
             <Button onClick={() => setUploadDialogOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" />
               Upload Evidence

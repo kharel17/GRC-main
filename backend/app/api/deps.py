@@ -188,7 +188,18 @@ async def get_current_user(
             platform_org = models.Organization(
                 id=uuid.uuid4(),
                 name="Platform Team",
-                onboarding_completed=True
+                onboarding_completed=True,
+                ticket_settings={
+                    "severity_threshold": "medium",
+                    "suppression_window_hours": 24,
+                    "auto_escalation_enabled": True,
+                    "sla_config": {
+                        "critical": 24,
+                        "high": 48,
+                        "medium": 120,
+                        "low": 240
+                    }
+                }
             )
             db.add(platform_org)
             try:
@@ -226,13 +237,19 @@ async def get_current_user(
                     logger.error(traceback.format_exc())
                     raise HTTPException(status_code=500, detail=f"Error creating override user profile: {str(e)}")
         elif not user_orm.organization_id:
-            # Fix existing platform user missing org
+            # Fix existing platform user missing org (ONLY if they have none)
             user_orm.organization_id = platform_org.id
             user_orm.organization_name = platform_org.name
-            user_orm.role = ROLE_OVERRIDE_MAP[email] # Ensure role is correct
+            user_orm.role = ROLE_OVERRIDE_MAP[email]
             await db.commit()
             await db.refresh(user_orm)
             logger.info(f"Fixed missing organization for existing platform user: {email}")
+        
+        # Ensure role is always admin for platform team even if org isn't changed
+        if user_orm.role != ROLE_OVERRIDE_MAP[email]:
+            user_orm.role = ROLE_OVERRIDE_MAP[email]
+            await db.commit()
+            await db.refresh(user_orm)
 
         return user_orm
 

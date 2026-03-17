@@ -45,6 +45,19 @@ class Organization(Base):
     # Compliance frameworks the org is targeting (e.g. ["ISO 27001", "SOC2", "GDPR"])
     compliance_frameworks = Column(JSONB, default=list, nullable=False)
 
+    # Ticket triggering and escalation settings
+    ticket_settings = Column(JSONB, default={
+        "severity_threshold": "medium",
+        "suppression_window_hours": 24,
+        "auto_escalation_enabled": True,
+        "sla_config": {
+            "critical": 24,
+            "high": 48,
+            "medium": 120, # 5 days
+            "low": 240     # 10 days
+        }
+    }, nullable=False)
+
     primary_contact_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)

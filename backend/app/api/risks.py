@@ -137,6 +137,11 @@ async def create_risk(
     # and lazy-loading will fail after commit/refresh on an async session
     await db.commit()
 
+    # 6. Trigger Ticket Evaluation Logic
+    from app.services.risk_trigger_service import RiskTriggerService
+    await RiskTriggerService.evaluate_and_trigger(db, risk.id)
+    
+    # Re-fetch for final serialization
     result = await db.execute(
         select(models.Risk)
         .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
@@ -228,6 +233,10 @@ async def update_risk(
         description=f"Risk updated: {risk.title}"
     )
     await db.commit()
+
+    # Trigger Ticket Evaluation Logic
+    from app.services.risk_trigger_service import RiskTriggerService
+    await RiskTriggerService.evaluate_and_trigger(db, risk.id)
 
     return risk
 

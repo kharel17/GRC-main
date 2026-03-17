@@ -178,13 +178,13 @@ async def fix_platform_team_roles():
                         needs_update = True
                         logger.info(f"Startup check: Activated user {email}")
                     
-                    # Associate platform users with organization
+                    # Associate platform users with organization ONLY if they have none
                     if email in ["bcolorc17@gmail.com", "grchelios@gmail.com"]:
-                        if user.organization_id != platform_org.id:
+                        if not user.organization_id:
                             user.organization_id = platform_org.id
                             user.organization_name = platform_org.name
                             needs_update = True
-                            logger.info(f"Startup check: Associated {email} with Platform Team")
+                            logger.info(f"Startup check: Associated {email} with Platform Team (was missing org)")
 
                     if needs_update:
                         await db.flush()

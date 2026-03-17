@@ -3,8 +3,8 @@ from typing import Optional, List
 from pydantic import BaseModel
 from uuid import UUID
 from app.models.risk import RiskStatus
+from pydantic import BaseModel, ConfigDict, computed_field
 from pydantic.alias_generators import to_camel
-from pydantic import ConfigDict
 
 # Risk Category
 class RiskCategoryBase(BaseModel):
@@ -60,11 +60,20 @@ class RiskInDBBase(RiskBase):
     updated_at: datetime
     organization_id: UUID
     category_id: Optional[UUID] = None
-    owner_id: Optional[UUID] = None
-    category_name: Optional[str] = None
     category: Optional[RiskCategory] = None
-    score: Optional[int] = None
-    owner_name: Optional[str] = None
+
+    @computed_field
+    def category_name(self) -> Optional[str]:
+        return self.category.name if self.category else "Uncategorized"
+
+    @computed_field
+    def owner_name(self) -> str:
+        owner = getattr(self, "owner", None)
+        return owner.full_name if owner else "Unassigned"
+
+    @computed_field
+    def score(self) -> int:
+        return self.risk_score
 
     model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 

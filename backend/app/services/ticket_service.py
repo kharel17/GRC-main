@@ -112,27 +112,43 @@ class TicketService:
                 assigned_to = l2_manager
                 sla_hours = 72
 
-        # 5. Create the Ticket
-        ticket_create = schemas.TicketCreate(
-            title=f"AI Finding: {iso_clause} - {'REPEAT' if is_repeat else 'NEW'}",
-            description=finding_text,
-            priority=priority,
-            category=models.ticket.TicketCategory.security_incident,
-            source_audit_log_id=source_audit_log_id or uuid.uuid4(),
-            assigned_to_id=assigned_to.id if assigned_to else current_user_id,
-            assigned_to_role=assigned_to.role.value if assigned_to else "analyst",
-            due_date=datetime.utcnow() + timedelta(hours=sla_hours),
-            status_updated_at=datetime.utcnow(),
-            is_repeat_finding=is_repeat,
-            iso_clause=iso_clause,
-            risk_score=risk_score,
-            previous_ticket_id=previous_ticket_id
-        )
-
-        ticket = await TicketService.create_ticket(db, ticket_create, current_user_id)
+        # 5. Create/Update the Risk (Triggers Evaluation)
+        from app.services.risk_trigger_service import RiskTriggerService
         
-        # 6. Audit Repeat Finding if applicable
-        if is_repeat:
+        # Check if risk already exists for this control
+        risk_query = await db.execute(
+            select(models.Risk).where(models.Risk.asset_id == (risk_id or control_id)) # Simple mapping for now
+        )
+        risk = risk_query.scalars().first()
+        
+        if not risk:
+            # Create Risk first
+            risk = models.Risk(
+                title=f"AI Identified Risk: {iso_clause}",
+                description=finding_text,
+                likelihood=max(1, risk_score // 20),
+                impact=max(1, risk_score // 20),
+                risk_score=risk_score,
+                status=models.RiskStatus.identified,
+                organization_id=None, # Should be fetched from user
+                asset_id=risk_id or control_id, # Fallback to related entity for now
+                created_by=current_user_id,
+                owner_id=current_user_id
+            )
+            db.add(risk)
+            await db.flush()
+        else:
+            # Update Risk
+            risk.risk_score = risk_score
+            risk.description = finding_text
+            db.add(risk)
+            await db.flush()
+
+        # 6. Trigger Ticket Evaluation (Centralized Logic)
+        ticket = await RiskTriggerService.evaluate_and_trigger(db, risk.id)
+        
+        # 7. Audit Repeat Finding if applicable
+        if is_repeat and ticket:
             activity = models.TicketActivity(
                 ticket_id=ticket.id,
                 user_id=None, # System
@@ -399,11 +415,13 @@ class TicketService:
 
         # Manual Escalation Guards (Spec Section 4) - Bypass for System Auto-Escalation
         if current_user_id is not None:
+             # Rule: Must disable auto-escalation toggle first
              if ticket.is_auto_escalation_enabled:
-                  raise ValueError("Disable auto-escalation toggle first")
+                  raise ValueError("Disable auto-escalation toggle first. (Prevents system from re-evaluating manually escalated tickets)")
              
+             # Rule: Reason is mandatory and >= 10 chars
              if not reason or len(reason) < 10:
-                  raise ValueError("Reason must be at least 10 characters")
+                  raise ValueError("Reason for manual escalation must be at least 10 characters")
              
         # Check if assignee is already L1
         assignee_role = ticket.assigned_to_role

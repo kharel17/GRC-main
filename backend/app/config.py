@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     SUPABASE_JWT_SECRET: str
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
-    SUPABASE_SERVICE_KEY: Optional[str] = None
+    SUPABASE_SERVICE_KEY: str
     FRONTEND_URL: str = "http://localhost:3000"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
@@ -18,10 +18,13 @@ class Settings(BaseSettings):
     
     # DATABASE
     POSTGRES_SERVER: str
+    POSTGRES_PORT: int = 5432
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
-    POSTGRES_PORT: int = 5432
+    # AI Config
+    GEMINI_API_KEY: Optional[str] = None
+
     SQLALCHEMY_DATABASE_URI: Union[str, None] = None
 
     @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
@@ -64,8 +67,11 @@ class Settings(BaseSettings):
         return []
 
     # FILE STORAGE
-    FILE_STORAGE_BACKEND: str = "local"  # "local" or "s3"
+    FILE_STORAGE_BACKEND: str = "local"  # "local", "s3", or "supabase"
     UPLOAD_DIR: str = "/app/uploads"
+    
+    # Supabase Storage (only needed when FILE_STORAGE_BACKEND=supabase)
+    SUPABASE_BUCKET_NAME: str = "evidence"
     
     # S3 (only needed when FILE_STORAGE_BACKEND=s3)
     AWS_ACCESS_KEY_ID: Optional[str] = None
@@ -80,7 +86,6 @@ class Settings(BaseSettings):
 
     # ALLOWED HOSTS
     ALLOWED_HOSTS: List[str] = ["*"]
-
 
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod

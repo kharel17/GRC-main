@@ -12,6 +12,10 @@ router = APIRouter()
 
 @router.get("/", response_model=List[schemas.AssetResponse])
 async def list_assets(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    skip: int = 0,
+    limit: int = 100,
     type: Optional[str] = Query(None, description="Filter by asset type"),
     classification: Optional[str] = Query(None, description="Filter by classification"),
     criticality: Optional[str] = Query(None, description="Filter by criticality"),
@@ -32,15 +36,27 @@ async def list_assets(
     return result.scalars().all()
 
 
-@router.post("/", response_model=schemas.AssetResponse)
+@router.post("/", response_model=schemas.AssetResponse, status_code=200)
 async def create_asset(
     *,
     db: AsyncSession = Depends(deps.get_db),
     asset_in: schemas.AssetCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """Create a new asset."""
-    asset = models.Asset(**asset_in.model_dump())
+    asset = models.Asset(
+        name=asset_in.name,
+        description=asset_in.description,
+        type=asset_in.type,
+        classification=asset_in.classification,
+        criticality=asset_in.criticality,
+        location=asset_in.location,
+        confidentiality=asset_in.confidentiality,
+        integrity=asset_in.integrity,
+        availability=asset_in.availability,
+        owner_id=asset_in.owner_id or current_user.id,
+        organization_id=asset_in.organization_id or current_user.organization_id
+    )
     db.add(asset)
     await db.commit()
     await db.refresh(asset)
@@ -49,10 +65,10 @@ async def create_asset(
         db=db,
         user=current_user,
         action=AuditAction.created,
-        entity_type=AuditEntityType.control,  # Using 'control' as closest fit; can extend enum later
+        entity_type=AuditEntityType.asset,
         entity_id=asset.id,
         entity_name=asset.name,
-        description=f"Asset created: {asset.name} ({asset.type.value})"
+        description=f"Asset created: {asset.name} ({asset.type.value if hasattr(asset.type, 'value') else asset.type})"
     )
     await db.commit()
     return asset
@@ -119,7 +135,7 @@ async def link_risks_to_asset(
     asset_id: str,
     link_in: schemas.AssetRiskLinkRequest,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """Link one or more risks to an asset."""
     from app.models.asset_risk import AssetRiskMapping
@@ -151,7 +167,7 @@ async def unlink_risk_from_asset(
     asset_id: str,
     risk_id: str,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """Unlink a risk from an asset."""
     from app.models.asset_risk import AssetRiskMapping

@@ -12,15 +12,32 @@ import {
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { sortRisksByPriority, getStatusColor, getScoreBadgeColor } from './risk.logic';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
+import { RoleGuard } from '@/components/auth/RoleGuard';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { api } from '@/lib/api-client';
 
 interface RiskListProps {
   risks: Risk[];
   showCategory?: boolean;
+  onRefresh?: () => void;
 }
 
-export function RiskList({ risks, showCategory = true }: RiskListProps) {
+export function RiskList({ risks, showCategory = true, onRefresh }: RiskListProps) {
   const sorted = sortRisksByPriority(risks);
+
+  const handleDelete = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete risk: ${title}?`)) return;
+    
+    try {
+      await api.delete(`/risks/${id}`);
+      toast.success('Risk deleted successfully');
+      onRefresh?.();
+    } catch (err) {
+      toast.error('Failed to delete risk');
+    }
+  };
 
   if (sorted.length === 0) {
     return (
@@ -41,6 +58,7 @@ export function RiskList({ risks, showCategory = true }: RiskListProps) {
             <TableHead className="text-center">L/I</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Owner</TableHead>
+            <TableHead className="w-[80px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -80,6 +98,18 @@ export function RiskList({ risks, showCategory = true }: RiskListProps) {
                 </Badge>
               </TableCell>
               <TableCell className="text-sm text-slate-600">{risk.ownerName || '-'}</TableCell>
+              <TableCell>
+                <RoleGuard allowedRoles={['admin', 'manager']}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-slate-400 hover:text-red-600 transition-colors"
+                    onClick={() => handleDelete(risk.id, risk.title)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </RoleGuard>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

@@ -294,7 +294,7 @@ async def get_compliance_report(
     )
 
 
-@router.get("/soa/export")
+@router.get("/soa/export/")
 async def export_soa(
     format: str = Query("pdf", description="Export format (pdf or csv)"),
     db: AsyncSession = Depends(deps.get_db),
@@ -314,11 +314,11 @@ async def export_soa(
     return Response(
         content=report_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
 
-@router.get("/risk-register/export")
+@router.get("/risk-register/export/")
 async def export_risks(
     format: str = Query("pdf", description="Export format (pdf or csv)"),
     db: AsyncSession = Depends(deps.get_db),
@@ -338,7 +338,7 @@ async def export_risks(
     return Response(
         content=report_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
 
@@ -357,7 +357,7 @@ async def get_readiness(
     return await audit_service.get_readiness_score(db, org.id)
 
 
-@router.get("/export")
+@router.get("/export/")
 async def export_report(
     format: str = Query("pdf", description="Export format (pdf or csv)"),
     db: AsyncSession = Depends(deps.get_db),
@@ -377,5 +377,5 @@ async def export_report(
     return Response(
         content=report_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )

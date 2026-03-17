@@ -1,206 +1,65 @@
 import { UserRole } from '@/types';
 
-// =============================================================================
-// Role Display Configuration
-// =============================================================================
-
-export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
-  superadmin: 'Super Administrator',
-  admin: 'Administrator',
-  analyst: 'Risk Analyst',
-  control_owner: 'Control Owner',
-  risk_owner: 'Risk Owner',
-  compliance_officer: 'Compliance Officer',
-  department_manager: 'Department Manager',
-  manager: 'Manager',
-  executive: 'Executive (CISO/CTO)',
-  auditor: 'Auditor',
+export const PERMISSIONS: Record<string, UserRole[]> = {
+  // Assets
+  CREATE_ASSET: ['admin', 'manager'],
+  EDIT_ASSET: ['admin', 'manager'],
+  DELETE_ASSET: ['admin'],
+  VIEW_ASSETS: ['admin', 'manager', 'analyst'],
+  
+  // Risks
+  CREATE_RISK: ['admin', 'manager'],
+  EDIT_RISK: ['admin', 'manager'],
+  DELETE_RISK: ['admin'],
+  VIEW_RISKS: ['admin', 'manager', 'analyst'],
+  
+  // Controls
+  CREATE_CONTROL: ['admin', 'manager'],
+  EDIT_CONTROL: ['admin', 'manager'],
+  DELETE_CONTROL: ['admin'],
+  VIEW_CONTROLS: ['admin', 'manager', 'analyst'],
+  MAP_CONTROL_TO_RISK: ['admin', 'manager', 'analyst'],
+  
+  // Evidence
+  UPLOAD_EVIDENCE: ['admin', 'manager', 'analyst'],
+  VIEW_EVIDENCE: ['admin', 'manager', 'analyst'],
+  DELETE_EVIDENCE: ['admin', 'manager', 'analyst'], // Analyst restricted in backend
+  VERIFY_EVIDENCE: ['admin', 'manager'],
+  REJECT_EVIDENCE: ['admin', 'manager'],
+  
+  // Document Analysis
+  UPLOAD_DOCUMENT: ['admin', 'manager', 'analyst'],
+  VIEW_DOCUMENT_ANALYSIS: ['admin', 'manager', 'analyst'],
+  REGENERATE_ANALYSIS: ['admin', 'manager', 'analyst'],
+  
+  // Gap Analysis
+  VIEW_GAP_ANALYSIS: ['admin', 'manager', 'analyst'],
+  REGENERATE_GAP: ['admin', 'manager', 'analyst'],
+  
+  // Reports
+  VIEW_REPORTS: ['admin', 'manager', 'analyst'],
+  GENERATE_REPORTS: ['admin', 'manager', 'analyst'],
+  DOWNLOAD_REPORTS: ['admin', 'manager', 'analyst'],
+  
+  // Tickets
+  VIEW_TICKETS: ['admin', 'manager', 'analyst'], // Analyst only sees own
+  RESOLVE_TICKET: ['admin', 'manager', 'analyst'],
+  APPROVE_TICKET: ['admin', 'manager'],
+  REJECT_TICKET: ['admin', 'manager'],
+  CLOSE_TICKET: ['admin'],
+  
+  // Users
+  VIEW_USERS: ['admin', 'manager'],
+  INVITE_USER: ['admin', 'manager'], // Manager can only invite Analysts (logic in component)
+  DELETE_USER: ['admin'],
+  
+  // Organization
+  VIEW_ORG: ['admin', 'manager'],
+  EDIT_ORG: ['admin'],
+  
+  // Audit Log
+  VIEW_AUDIT_LOG: ['admin', 'manager'],
+  
+  // Audit Prep
+  VIEW_AUDIT_PREP: ['admin', 'manager', 'analyst'],
 };
-
-// =============================================================================
-// Permission Definitions
-// =============================================================================
-
-export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
-  superadmin: [
-    'manage_users',
-    'manage_roles',
-    'view_all_data',
-    'create_risk',
-    'edit_risk',
-    'delete_risk',
-    'create_control',
-    'edit_control',
-    'delete_control',
-    'create_evidence',
-    'verify_evidence',
-    'delete_evidence',
-    'create_compliance',
-    'edit_compliance',
-    'view_audit_logs',
-    'export_reports',
-    'configure_system',
-    'create_ticket',
-    'escalate_ticket',
-    'resolve_ticket',
-    'assign_ticket',
-    'manage_organizations',
-    'bypass_rls',
-  ],
-  admin: [
-    'manage_users',
-    'manage_roles',
-    'view_all_data',
-    'create_risk',
-    'edit_risk',
-    'delete_risk',
-    'create_control',
-    'edit_control',
-    'delete_control',
-    'create_evidence',
-    'verify_evidence',
-    'delete_evidence',
-    'create_compliance',
-    'edit_compliance',
-    'view_audit_logs',
-    'export_reports',
-    'configure_system',
-    'create_ticket',
-    'escalate_ticket',
-    'resolve_ticket',
-    'assign_ticket',
-  ],
-  analyst: [
-    'create_risk',
-    'edit_risk',
-    'create_control',
-    'edit_control',
-    'create_evidence',
-    'create_compliance',
-    'edit_compliance',
-    'view_audit_logs',
-    'export_reports',
-    'create_ticket',
-    'escalate_ticket',
-    'resolve_ticket',
-  ],
-  control_owner: [
-    'edit_control',
-    'create_evidence',
-    'view_audit_logs',
-    'create_ticket',
-    'escalate_ticket',
-    'resolve_ticket',
-  ],
-  risk_owner: [
-    'edit_risk',
-    'create_evidence',
-    'view_audit_logs',
-    'create_ticket',
-    'escalate_ticket',
-    'resolve_ticket',
-  ],
-  compliance_officer: [
-    'view_all_data',
-    'create_compliance',
-    'edit_compliance',
-    'verify_evidence',
-    'view_audit_logs',
-    'export_reports',
-    'create_ticket',
-    'escalate_ticket',
-    'resolve_ticket',
-    'approve_actions',
-  ],
-  department_manager: [
-    'view_all_data',
-    'approve_actions',
-    'view_audit_logs',
-    'export_reports',
-    'create_ticket',
-    'escalate_ticket',
-    'resolve_ticket',
-  ],
-  manager: [
-    'view_all_data',
-    'approve_actions',
-    'view_audit_logs',
-    'export_reports',
-    'create_ticket',
-    'escalate_ticket',
-    'resolve_ticket',
-  ],
-  executive: [
-    'view_all_data',
-    'approve_actions',
-    'view_audit_logs',
-    'export_reports',
-    'escalate_ticket',
-    'resolve_ticket',
-  ],
-  auditor: [
-    'view_all_data',
-    'view_audit_logs',
-    'export_reports',
-  ],
-};
-
-// =============================================================================
-// Permission Helpers
-// =============================================================================
-
-export function hasPermission(role: UserRole, permission: string): boolean {
-  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
-}
-
-export function canEditRisk(role: UserRole): boolean {
-  return hasPermission(role, 'edit_risk');
-}
-
-export function canCreateRisk(role: UserRole): boolean {
-  return hasPermission(role, 'create_risk');
-}
-
-export function canDeleteRisk(role: UserRole): boolean {
-  return hasPermission(role, 'delete_risk');
-}
-
-export function canCreateControl(role: UserRole): boolean {
-  return hasPermission(role, 'create_control');
-}
-
-export function canEditControl(role: UserRole): boolean {
-  return hasPermission(role, 'edit_control');
-}
-
-export function canUploadEvidence(role: UserRole): boolean {
-  return hasPermission(role, 'create_evidence');
-}
-
-export function canVerifyEvidence(role: UserRole): boolean {
-  return hasPermission(role, 'verify_evidence');
-}
-
-export function canApproveActions(role: UserRole): boolean {
-  return hasPermission(role, 'approve_actions');
-}
-
-export function canViewAuditLogs(role: UserRole): boolean {
-  return hasPermission(role, 'view_audit_logs');
-}
-
-export function canManageUsers(role: UserRole): boolean {
-  return hasPermission(role, 'manage_users');
-}
-
-export function isAdmin(role: UserRole): boolean {
-  return role === 'admin';
-}
-
-export function isAnalyst(role: UserRole): boolean {
-  return role === 'analyst';
-}
-
-export function isManager(role: UserRole): boolean {
-  return role === 'department_manager';
-}

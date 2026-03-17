@@ -31,10 +31,13 @@ export default function DashboardLayout({
         setOnboardingChecked(true);
         return;
       }
+      
+      const isOnOrganizationPage = window.location.pathname === '/dashboard/organization';
+      
       try {
         const status = await api.get<{ completed: boolean }>("/onboarding/status");
-        if (!status.completed) {
-          router.push("/onboarding");
+        if (!status.completed && !isOnOrganizationPage) {
+          router.push("/dashboard/organization");
           return;
         }
       } catch {
@@ -48,8 +51,8 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, user, router]);
 
-  // Show loading state while checking auth or onboarding
-  if (isLoading || (!onboardingChecked && isAuthenticated)) {
+  // Show loading state ONLY while waiting for base authentication to initialize
+  if (isLoading) {
     return (
       <div className="h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">

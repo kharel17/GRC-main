@@ -1,6 +1,8 @@
 
-import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats } from '@/types';
+import { ISOControl, ISOEvidence, ISOAuditLog, ISOComplianceStats, ISOControlStatus } from '@/types';
 import { api } from './api-client';
+import isoData from '@/data/iso27001-controls.json';
+
 
 let isUsingFallback = false;
 export const getIsUsingFallback = () => isUsingFallback;
@@ -38,9 +40,23 @@ export class LocalStorageAdapter implements StorageService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      if (!localStorage.getItem(this.CONTROLS_KEY)) {
-        localStorage.setItem(this.CONTROLS_KEY, '[]');
+      // Only seed if truly empty — never overwrite existing data
+      const existingControls = localStorage.getItem(this.CONTROLS_KEY);
+      const isEmpty = !existingControls || JSON.parse(existingControls).length === 0;
+
+      if (isEmpty) {
+        // Map controls from the JSON to the ISOControl format
+        const allControls = isoData.controls.map((control: any) => ({
+          ...control,
+          status: control.status || 'not_started',
+          evidenceIds: [],
+          riskIds: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+        localStorage.setItem(this.CONTROLS_KEY, JSON.stringify(allControls));
       }
+
       if (!localStorage.getItem(this.EVIDENCE_KEY)) {
         localStorage.setItem(this.EVIDENCE_KEY, '[]');
       }
@@ -153,9 +169,51 @@ export class ApiStorageAdapter implements StorageService {
     this.fallback = fallback;
   }
 
+  private isIsoAnnexId(id: string): boolean {
+    return /^\d+\.\d+$/.test(id) || id.startsWith('A.');
+  }
+
+  private mapSoAEntryToControl(entry: any): ISOControl {
+    return {
+      id: entry.control_annex,
+      clauseId: entry.clause_id,
+      annex: entry.control_annex,
+      title: entry.control_title,
+      description: entry.control_description,
+      status: entry.status as ISOControlStatus,
+      ownerId: entry.responsible_id || "",
+      ownerName: entry.responsible_name || "",
+      evidenceCount: entry.evidence_count || 0,
+      isApplicable: entry.is_applicable,
+      notes: entry.notes || "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+  }
+
+  private mapCAToControl(ca: any): ISOControl {
+    // Merge with static data to get title/description if missing
+    const staticInfo = isoData.controls.find(c => c.id === ca.control_annex);
+    return {
+      id: ca.control_annex, 
+      realId: ca.id,        
+      title: staticInfo?.title || `Control ${ca.control_annex}`,
+      description: staticInfo?.description || "",
+      status: ca.status || 'not_started',
+      ownerId: ca.responsible_id || "",
+      notes: ca.notes || "",
+      isApplicable: ca.is_applicable,
+      justification: ca.justification,
+      iso_clause: ca.control_annex,
+      createdAt: ca.created_at || new Date().toISOString(),
+      updatedAt: ca.updated_at || new Date().toISOString(),
+    } as any;
+  }
+
   async getControls(): Promise<ISOControl[]> {
     try {
-      return await api.get<ISOControl[]>('/controls');
+      const response = await api.get<{ entries: any[] }>('/control-applicability/soa');
+      return response.entries.map(entry => this.mapSoAEntryToControl(entry));
     } catch (err) {
       console.warn('[ApiStorageAdapter] getControls failed, falling back', err);
       return this.fallback.getControls();
@@ -164,7 +222,11 @@ export class ApiStorageAdapter implements StorageService {
 
   async getControlById(id: string): Promise<ISOControl | null> {
     try {
-      return await api.get<ISOControl>(`/controls/${id}`);
+      if (this.isIsoAnnexId(id)) {
+        const ca = await api.get<any>(`/control-applicability/annex/${id}`);
+        return this.mapCAToControl(ca);
+      }
+      return await api.get<ISOControl>(`/controls/${id}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getControlById failed, falling back', err);
       return this.fallback.getControlById(id);
@@ -173,7 +235,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async saveControl(control: ISOControl): Promise<ISOControl> {
     try {
-      return await api.post<ISOControl>('/controls', control);
+      return await api.post<ISOControl>('/controls/', control);
     } catch (err) {
       console.warn('[ApiStorageAdapter] saveControl failed, falling back', err);
       return this.fallback.saveControl(control);
@@ -182,7 +244,18 @@ export class ApiStorageAdapter implements StorageService {
 
   async updateControl(control: ISOControl): Promise<ISOControl> {
     try {
-      return await api.put<ISOControl>(`/controls/${control.id}`, control);
+      if (this.isIsoAnnexId(control.id)) {
+        // Find existing CA record to get its UUID
+        const ca = await api.get<any>(`/control-applicability/annex/${control.id}`);
+        const updateData = {
+          status: control.status,
+          notes: control.notes,
+          responsible_id: control.ownerId === 'unassigned' ? null : control.ownerId,
+        };
+        const updated = await api.put<any>(`/control-applicability/${ca.id}/`, updateData);
+        return this.mapCAToControl(updated);
+      }
+      return await api.put<ISOControl>(`/controls/${control.id}/`, control);
     } catch (err) {
       console.warn('[ApiStorageAdapter] updateControl failed, falling back', err);
       return this.fallback.updateControl(control);
@@ -191,7 +264,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getEvidence(controlId: string): Promise<ISOEvidence[]> {
     try {
-      return await api.get<ISOEvidence[]>(`/evidence?control_id=${controlId}`);
+      return await api.get<ISOEvidence[]>(`/evidence/?control_id=${controlId}`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getEvidence failed, falling back', err);
       return this.fallback.getEvidence(controlId);
@@ -200,7 +273,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async getAllEvidence(): Promise<ISOEvidence[]> {
     try {
-      return await api.get<ISOEvidence[]>('/evidence');
+      return await api.get<ISOEvidence[]>('/evidence/');
     } catch (err) {
       console.warn('[ApiStorageAdapter] getAllEvidence failed, falling back', err);
       return this.fallback.getAllEvidence();
@@ -209,7 +282,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async uploadEvidence(evidence: ISOEvidence): Promise<ISOEvidence> {
     try {
-      return await api.post<ISOEvidence>('/evidence', evidence);
+      return await api.post<ISOEvidence>('/evidence/', evidence);
     } catch (err) {
       console.warn('[ApiStorageAdapter] uploadEvidence failed, falling back', err);
       return this.fallback.uploadEvidence(evidence);
@@ -218,7 +291,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async deleteEvidence(id: string): Promise<void> {
     try {
-      return await api.delete(`/evidence/${id}`);
+      return await api.delete(`/evidence/${id}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] deleteEvidence failed, falling back', err);
       return this.fallback.deleteEvidence(id);
@@ -228,7 +301,7 @@ export class ApiStorageAdapter implements StorageService {
   async getAuditLogs(entityId?: string): Promise<ISOAuditLog[]> {
     try {
       const query = entityId ? `?entity_id=${entityId}` : '';
-      return await api.get<ISOAuditLog[]>(`/audit-logs${query}`);
+      return await api.get<ISOAuditLog[]>(`/audit-logs/${query}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getAuditLogs failed, falling back', err);
       return this.fallback.getAuditLogs(entityId);
@@ -237,7 +310,7 @@ export class ApiStorageAdapter implements StorageService {
 
   async logAction(logData: Omit<ISOAuditLog, 'id' | 'timestamp'>): Promise<ISOAuditLog> {
     try {
-      return await api.post<ISOAuditLog>('/audit-logs', logData);
+      return await api.post<ISOAuditLog>('/audit-logs/', logData);
     } catch (err) {
       console.warn('[ApiStorageAdapter] logAction failed, falling back', err);
       return this.fallback.logAction(logData);

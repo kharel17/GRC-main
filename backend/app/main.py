@@ -75,20 +75,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Global Exception Handler ──────────────────────────────
+# Ensures CORS headers are present even on unhandled 500 errors.
+# Without this, the browser blocks 500 responses as CORS violations,
+# causing "Failed to fetch" instead of showing the actual error.
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    origin = request.headers.get("origin", "")
+    headers = {}
+    cors_origins = settings.BACKEND_CORS_ORIGINS or allowed_origins
+    if origin in cors_origins or "*" in cors_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"},
+        headers=headers,
+    )
+
 # ── AI Service Initialization ─────────────────────────────
 from app.services.ai_service import ai_service
 
+import threading
+
 @app.on_event("startup")
 async def startup_ai_service():
-    """Initialize the AI semantic engine on server startup."""
-    try:
-        ai_service.initialize()
-        logger.info("AI Service initialized successfully")
-    except Exception as e:
-        logger.warning(f"AI Service failed to initialize: {e}. AI endpoints will return 503.")
+    """Initialize the AI semantic engine on server startup in background."""
+    def run_init():
+        try:
+            ai_service.initialize()
+            logger.info("AI Service initialized successfully in background")
+        except Exception as e:
+            logger.warning(f"AI Service background initialization failed: {e}. AI endpoints will return 503.")
+    
+    # Run in a separate thread so it doesn't block the FastAPI startup event
+    # and prevents ERR_CONNECTION_REFUSED while the model downloads/loads.
+    threading.Thread(target=run_init, daemon=True).start()
+    logger.info("AI Service initialization triggered in background thread")
+
+import asyncio
 
 # ── Platform Team Role Fix ─────────────────────────────────
 @app.on_event("startup")
+async def platform_role_fix_startup():
+    """Wrapper to run role fix in background to avoid blocking server startup."""
+    asyncio.create_task(fix_platform_team_roles())
+    logger.info("Platform team role fix scheduled in background")
+
 async def fix_platform_team_roles():
     """Ensure platform team accounts always have correct admin roles."""
     from sqlalchemy import select
@@ -105,20 +141,55 @@ async def fix_platform_team_roles():
 
     try:
         async with SessionLocal() as db:
+            # 1. Ensure "Platform Team" organization exists
+            # 1. Ensure "Platform Team" organization exists
+            platform_org_result = await db.execute(
+                select(models.Organization).where(models.Organization.name == "Platform Team")
+            )
+            platform_org = platform_org_result.scalar_one_or_none()
+            
+            if not platform_org:
+                platform_org = models.Organization(
+                    id=uuid.uuid4(),
+                    name="Platform Team",
+                    industry="Technology",
+                    onboarding_completed=True
+                )
+                db.add(platform_org)
+                await db.flush()
+                logger.info("Startup check: Created Platform Team organization")
+
+            # 2. Fix roles and associate with organization
             for email, role in ROLE_OVERRIDE_MAP.items():
                 result = await db.execute(
                     select(models.User).where(models.User.email == email)
                 )
                 user = result.scalar_one_or_none()
-                if user and user.role != role:
-                    user.role = role
-                    user.invitation_status = 'active'
-                    await db.commit()
-                    logger.info(f"Fixed role: {email} → {role.value}")
-                elif user and user.invitation_status != 'active':
-                    user.invitation_status = 'active'
-                    await db.commit()
-                    logger.info(f"Activated user: {email}")
+                
+                if user:
+                    needs_update = False
+                    if user.role != role:
+                        user.role = role
+                        needs_update = True
+                        logger.info(f"Startup check: Fixed role for {email} → {role.value}")
+                    
+                    if user.invitation_status != 'active':
+                        user.invitation_status = 'active'
+                        needs_update = True
+                        logger.info(f"Startup check: Activated user {email}")
+                    
+                    # Associate platform users with organization
+                    if email in ["bcolorc17@gmail.com", "grchelios@gmail.com"]:
+                        if user.organization_id != platform_org.id:
+                            user.organization_id = platform_org.id
+                            user.organization_name = platform_org.name
+                            needs_update = True
+                            logger.info(f"Startup check: Associated {email} with Platform Team")
+
+                    if needs_update:
+                        await db.flush()
+            
+            await db.commit()
     except Exception as e:
         logger.warning(f"Platform team role fix skipped: {e}")
 

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { createControl } from '@/lib/data-service';
-import { useAuth } from '@/hooks/useAuth';
+import { createControl, fetchUsers } from '@/lib/data-service';
+import { useAuth, useApiData } from '@/hooks';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
 import {
@@ -34,8 +34,11 @@ interface NewControlDialogProps {
 export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDialogProps) {
     const { user } = useAuth();
 
+    const { data: users, loading: loadingUsers } = useApiData(fetchUsers);
+    
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [ownerId, setOwnerId] = useState<string>(user?.id || '');
     const [controlType, setControlType] = useState('preventive');
     const [effectiveness, setEffectiveness] = useState('medium');
     const [status, setStatus] = useState('planned');
@@ -46,6 +49,7 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
     const resetForm = () => {
         setTitle('');
         setDescription('');
+        setOwnerId(user?.id || '');
         setControlType('preventive');
         setEffectiveness('medium');
         setStatus('planned');
@@ -72,7 +76,10 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
 
     const handleSubmit = async () => {
         setAttempted(true);
-        if (!validateForm()) return;
+        
+        if (!validateForm()) {
+            return;
+        }
 
         setSubmitting(true);
         try {
@@ -82,7 +89,7 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
                 control_type: controlType,
                 effectiveness,
                 status,
-                owner_id: user?.id,
+                owner_id: ownerId,
             } as any);
 
             toast.success('Control created successfully!');
@@ -96,8 +103,15 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
         }
     };
 
+    const handleOpenChange = (newOpen: boolean) => {
+        if (!newOpen) {
+            resetForm();
+        }
+        onOpenChange(newOpen);
+    };
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Create New Control</DialogTitle>
@@ -135,6 +149,7 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
                             rows={3}
                             className={errors.description && attempted ? "border-red-500 focus-visible:ring-red-500" : ""}
                         />
+                        {attempted && errors.description && <p className="text-xs text-red-500">{errors.description}</p>}
                         <div className="flex justify-between mt-1">
                             {attempted && errors.description ? (
                                 <p className="text-xs text-red-500">{errors.description}</p>
@@ -143,6 +158,25 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
                             )}
                             <p className="text-xs text-muted-foreground">{description.length} chars</p>
                         </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Assigned Owner *</Label>
+                        <Select value={ownerId} onValueChange={setOwnerId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select owner..."} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {users?.filter(u => ['admin', 'manager', 'analyst'].includes(u.role)).map((u) => (
+                                    <SelectItem key={u.id} value={u.id}>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium">{u.full_name || u.email}</span>
+                                            <span className="text-[10px] text-muted-foreground uppercase">{u.role}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="space-y-2">

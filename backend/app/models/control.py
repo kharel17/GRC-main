@@ -31,6 +31,8 @@ class Control(Base):
     effectiveness = Column(SAEnum(ControlEffectiveness), nullable=False)
     status = Column(SAEnum(ControlStatus), default=ControlStatus.planned)
     
+    linked_risk_id = Column(UUID(as_uuid=True), ForeignKey("risks.id"), nullable=True)
+    
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     

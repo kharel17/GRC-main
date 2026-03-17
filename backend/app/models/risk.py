@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import enum
+from typing import Optional
 from .base import Base
 
 class RiskStatus(str, enum.Enum):
@@ -20,15 +21,13 @@ class RiskCategory(Base):
     description = Column(String, nullable=False)
     color = Column(String, nullable=False)
 
-    risks = relationship("Risk", back_populates="category")
-
 class Risk(Base):
     __tablename__ = "risks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    category_id = Column(UUID(as_uuid=True), ForeignKey("risk_categories.id"), nullable=False)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("risk_categories.id"), nullable=True)
     asset_id = Column(UUID(as_uuid=True), ForeignKey("assets.id"), nullable=True)
     
     threat = Column(Text, nullable=True)
@@ -48,9 +47,19 @@ class Risk(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    category = relationship("RiskCategory", foreign_keys=[category_id])
     organization = relationship("Organization", foreign_keys=[organization_id])
-    category = relationship("RiskCategory", back_populates="risks")
     asset = relationship("Asset", back_populates="risks")
     owner = relationship("User", foreign_keys=[owner_id], back_populates="risks_owned")
     creator = relationship("User", foreign_keys=[created_by], back_populates="risks_created")
     tickets = relationship("Ticket", back_populates="related_risk")
+
+    @property
+    def score(self) -> int:
+        return self.risk_score
+        
+    @property
+    def owner_name(self) -> Optional[str]:
+        return self.owner.full_name if getattr(self, "owner", None) else None
+
+

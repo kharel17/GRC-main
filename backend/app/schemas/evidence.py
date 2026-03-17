@@ -30,7 +30,7 @@ class EvidenceUpdate(BaseModel):
 
 class EvidenceStatusUpdate(BaseModel):
     """Body for PATCH /evidence/{id}/status"""
-    status: str  # "active", "expired", "rejected"
+    status: str  # "pending", "verified", "rejected", "expired"
     review_notes: Optional[str] = None
     valid_until: Optional[datetime] = None
 

@@ -1,14 +1,28 @@
-from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Any, List, Optional
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import select
+from sqlalchemy import select, update
 from app import schemas, models
+from app.models.risk import Risk
 from app.api import deps
 from app.services import audit_service
 from app.models.audit_log import AuditAction, AuditEntityType
+from app.utils.notifications import notify
 
 router = APIRouter()
+
+@router.get("/categories/", response_model=List[schemas.RiskCategory])
+async def get_risk_categories(
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Retrieve risk categories.
+    """
+    result = await db.execute(select(models.RiskCategory))
+    return result.scalars().all()
 
 @router.get("/", response_model=List[schemas.Risk])
 async def read_risks(
@@ -23,34 +37,72 @@ async def read_risks(
     # Use selectinload to eagerly load the category relationship
     result = await db.execute(
         select(models.Risk)
-        .options(selectinload(models.Risk.category))
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
         .offset(skip)
         .limit(limit)
     )
     return result.scalars().all()
 
-@router.post("/", response_model=schemas.Risk)
+@router.post("/", response_model=schemas.Risk, status_code=200)
 async def create_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
     risk_in: schemas.RiskCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
     Create new risk.
     """
+    # Check for duplicate in last 10 seconds (catches retry duplicates)
+    from datetime import datetime, timedelta
+    import logging
+    logger = logging.getLogger("app.api.risks")
+    
+    recent_cutoff = datetime.utcnow() - timedelta(seconds=10)
+    
+    # Check if a risk with same title and creator was created very recently
+    result = await db.execute(
+        select(models.Risk).where(
+            models.Risk.title == risk_in.title,
+            models.Risk.created_by == current_user.id,
+            models.Risk.created_at >= recent_cutoff
+        )
+    )
+    duplicate = result.scalars().first()
+    
+    if duplicate:
+        logger.warning(f"Duplicate risk creation prevented: {risk_in.title}")
+        return duplicate
+
+    # 1. Build risk object
+    risk_data = risk_in.model_dump()
+    
+    # Explicitly convert strings to UUID objects and handle defaults
+    owner_id = risk_data.get('owner_id')
+    category_id = risk_data.get('category_id')
+    asset_id = risk_data.get('asset_id')
+
+    # Convert to UUID if present and a string, otherwise preserve the Pydantic-parsed UUID object
+    risk_data['owner_id'] = UUID(owner_id) if isinstance(owner_id, str) and owner_id else (owner_id or current_user.id)
+    risk_data['category_id'] = UUID(category_id) if isinstance(category_id, str) and category_id else category_id
+    risk_data['asset_id'] = UUID(asset_id) if isinstance(asset_id, str) and asset_id else asset_id
+    
+    # Double check likelihood/impact for risk_score calculation safety
+    likelihood = risk_data.get('likelihood', 1)
+    impact = risk_data.get('impact', 1)
+    risk_data['risk_score'] = likelihood * impact
+
     risk = models.Risk(
-        **risk_in.model_dump(),
-        created_by=current_user.id
+        **risk_data,
+        created_by=current_user.id,
+        organization_id=current_user.organization_id
     )
     db.add(risk)
-    await db.commit()
-    await db.refresh(risk)
     
-    # Reload with category for response schema
-    # Or just return risk, category will be null in response if not loaded, schema allows Optional
+    # 2. Flush to get the risk.id without committing
+    await db.flush()
     
-    # Log Audit
+    # 3. Add audit log to the same transaction
     await audit_service.log_action(
         db=db,
         user=current_user,
@@ -61,11 +113,40 @@ async def create_risk(
         new_values=risk_in.model_dump(mode='json'),
         description=f"Risk created: {risk.title}"
     )
+    
+    # 4. Flush to DB
+    await db.flush()
+    await db.refresh(risk)
+
+    # 5. Notifications
+    # Notify owner
+    if risk.owner_id:
+        await notify(
+            db=db,
+            user_id=str(risk.owner_id),
+            title="New risk assigned to you",
+            message=f"New risk assigned to you: {risk.title} Score: {risk.risk_score}",
+            entity_type="risk",
+            entity_id=str(risk.id),
+            link_url=f"/dashboard/risks/{risk.id}",
+            notification_type="RISK_ASSIGNMENT"
+        )
+    
+    # 5. Refresh and load relationships for serialization
+    # We must eagerly load category because schemas.Risk expects it
+    # and lazy-loading will fail after commit/refresh on an async session
     await db.commit()
+
+    result = await db.execute(
+        select(models.Risk)
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
+        .where(models.Risk.id == risk.id)
+    )
+    risk = result.scalar_one()
     
     return risk
 
-@router.get("/{id}", response_model=schemas.Risk)
+@router.get("/{id}/", response_model=schemas.Risk)
 async def read_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -79,20 +160,20 @@ async def read_risk(
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
-        .options(selectinload(models.Risk.category))
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
     )
     risk = result.scalars().first()
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
     return risk
 
-@router.put("/{id}", response_model=schemas.Risk)
+@router.put("/{id}/", response_model=schemas.Risk)
 async def update_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
     id: str,
     risk_in: schemas.RiskUpdate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
     Update an existing risk.
@@ -100,14 +181,25 @@ async def update_risk(
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
-        .options(selectinload(models.Risk.category))
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
     )
     risk = result.scalars().first()
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
 
+    # 1. Build risk object
+    print("DEBUG: update_risk payload:", risk_in.model_dump(exclude_unset=True))
     old_values = {}
     update_data = risk_in.model_dump(exclude_unset=True)
+    
+    # Handle empty strings from frontend
+    if 'category_id' in update_data and not update_data['category_id']:
+        update_data['category_id'] = None
+    if 'owner_id' in update_data and not update_data['owner_id']:
+        update_data['owner_id'] = None
+    if 'asset_id' in update_data and not update_data['asset_id']:
+        update_data['asset_id'] = None
+
     for field, value in update_data.items():
         old_values[field] = getattr(risk, field)
         setattr(risk, field, value)
@@ -144,7 +236,7 @@ async def update_risk(
 
 from app.models.control import RiskControlMapping, Control
 
-@router.get("/{id}/controls", response_model=list[schemas.RiskControlMappingOut])
+@router.get("/{id}/controls/", response_model=list[schemas.RiskControlMappingOut])
 async def get_risk_controls(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -162,7 +254,7 @@ async def get_risk_controls(
     mappings = result.scalars().all()
     out = []
     for m in mappings:
-        out.append(RiskControlMappingOut(
+        out.append(schemas.RiskControlMappingOut(
             id=str(m.id),
             risk_id=str(m.risk_id),
             control_id=str(m.control_id),
@@ -175,7 +267,7 @@ async def get_risk_controls(
         ))
     return out
 
-@router.post("/{id}/controls", response_model=schemas.RiskControlMappingOut)
+@router.post("/{id}/controls/", response_model=schemas.RiskControlMappingOut)
 async def map_control_to_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -204,8 +296,7 @@ async def map_control_to_risk(
         mapped_by=current_user.id,
     )
     db.add(mapping)
-    await db.commit()
-    await db.refresh(mapping)
+    await db.flush()
 
     # Audit
     await audit_service.log_action(
@@ -218,9 +309,23 @@ async def map_control_to_risk(
         new_values={"control_id": str(body.control_id), "control_title": ctrl.title},
         description=f"Control '{ctrl.title}' mapped to Risk '{risk.title}'"
     )
-    await db.commit()
 
-    return RiskControlMappingOut(
+    # Auto-update risk status based on control mapping
+    if risk and risk.status != models.RiskStatus.accepted:
+        # If control is high effectiveness or implemented -> mark risk as mitigated
+        if (
+            ctrl.effectiveness == models.ControlEffectiveness.high
+            or ctrl.status == models.ControlStatus.implemented
+        ):
+            risk.status = models.RiskStatus.mitigated
+        # If risk was just identified -> move to assessed
+        elif risk.status == models.RiskStatus.identified:
+            risk.status = models.RiskStatus.assessed
+
+    await db.commit()
+    await db.refresh(mapping)
+
+    return schemas.RiskControlMappingOut(
         id=str(mapping.id),
         risk_id=str(mapping.risk_id),
         control_id=str(mapping.control_id),
@@ -231,3 +336,55 @@ async def map_control_to_risk(
         residual_risk_score=mapping.residual_risk_score,
         mapped_at=str(mapping.mapped_at) if mapping.mapped_at else None,
     )
+
+@router.delete("/{id}", status_code=204)
+async def delete_risk(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: str,
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+):
+    """
+    Delete a risk.
+    Only strictly for Admin and Manager.
+    """
+    result = await db.execute(
+        select(models.Risk)
+        .where(models.Risk.id == id)
+        .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
+    )
+    risk = result.scalars().first()
+    if not risk:
+        raise HTTPException(status_code=404, detail="Risk not found")
+    
+    # 1. Audit log BEFORE deletion
+    # Once deleted, we can't reliably load relationships for validation
+    await audit_service.log_action(
+        db=db,
+        user=current_user,
+        action=AuditAction.deleted,
+        entity_type=AuditEntityType.risk,
+        entity_id=risk.id,
+        entity_name=risk.title,
+        old_values=schemas.Risk.model_validate(risk).model_dump(mode='json'),
+        description=f"Risk deleted: {risk.title}"
+    )
+
+    # 2. Delete many-to-many mappings (RiskControlMapping)
+    from sqlalchemy import delete, update
+    await db.execute(
+        delete(RiskControlMapping).where(RiskControlMapping.risk_id == id)
+    )
+
+    # 3. Unlink direct control associations (if any)
+    await db.execute(
+        update(models.Control)
+        .where(models.Control.linked_risk_id == id)
+        .values(linked_risk_id=None)
+    )
+    
+    # 4. Delete the risk itself
+    await db.delete(risk)
+    
+    await db.commit()
+    return None

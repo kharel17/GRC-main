@@ -6,10 +6,12 @@ import { fetchComplianceItems, fetchEvidence, fetchOrganization, exportAuditRepo
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardCheck, ShieldCheck, FileText, CheckCircle2, Circle, AlertCircle, Loader2, Download, FileJson, FileBarChart } from "lucide-react";
+import { ClipboardCheck, ShieldCheck, FileText, CheckCircle2, Circle, AlertCircle, Loader2, Download, FileJson, FileBarChart, Plus } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import Link from "next/link";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 
 export default function AuditPreparationPage() {
   const { data: compliance, loading: compLoading } = useApiData(fetchComplianceItems);
@@ -79,34 +81,36 @@ export default function AuditPreparationPage() {
           <p className="text-muted-foreground text-sm">Inventory of evidence and control status for external audit readiness.</p>
         </div>
         <div className="flex flex-col items-end gap-3">
-          <div className="flex gap-2">
-            <Button 
-                onClick={() => handleDownload('soa')} 
-                variant="outline"
-                disabled={!!downloading || !org}
-                className="gap-2"
-              >
-                {downloading === 'soa' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />}
-                Download SoA
-              </Button>
+          <RoleGuard allowedRoles={['admin', 'manager']}>
+            <div className="flex gap-2">
               <Button 
-                onClick={() => handleDownload('risks')} 
-                variant="outline"
+                  onClick={() => handleDownload('soa')} 
+                  variant="outline"
+                  disabled={!!downloading || !org}
+                  className="gap-2"
+                >
+                  {downloading === 'soa' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />}
+                  Download SoA
+                </Button>
+                <Button 
+                  onClick={() => handleDownload('risks')} 
+                  variant="outline"
+                  disabled={!!downloading || !org}
+                  className="gap-2"
+                >
+                  {downloading === 'risks' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart className="h-4 w-4" />}
+                  Risk Register
+                </Button>
+              <Button 
+                onClick={() => handleDownload('audit')} 
                 disabled={!!downloading || !org}
                 className="gap-2"
               >
-                {downloading === 'risks' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart className="h-4 w-4" />}
-                Risk Register
+                {downloading === 'audit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Full Readiness Report
               </Button>
-            <Button 
-              onClick={() => handleDownload('audit')} 
-              disabled={!!downloading || !org}
-              className="gap-2"
-            >
-              {downloading === 'audit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Full Readiness Report
-            </Button>
-          </div>
+            </div>
+          </RoleGuard>
           <div className="text-right hidden md:block">
             <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Audit Readiness</p>
             <div className="flex items-center gap-3">
@@ -161,47 +165,86 @@ export default function AuditPreparationPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[100px]">ID</TableHead>
-                <TableHead>Requirement</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Evidence</TableHead>
-                <TableHead className="text-right">Readiness</TableHead>
+                <TableHead className="w-[120px] font-bold">Clause ID</TableHead>
+                <TableHead className="font-bold">Control Description</TableHead>
+                <TableHead className="font-bold">Status</TableHead>
+                <TableHead className="font-bold">Evidence</TableHead>
+                <TableHead className="text-right font-bold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {compliance?.map((item: any) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-mono text-xs">{item.requirementId}</TableCell>
-                  <TableCell>
-                    <div className="font-medium text-sm">{item.title}</div>
-                    <p className="text-[10px] text-muted-foreground line-clamp-1">{item.description}</p>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={item.status === 'compliant' ? 'outline' : 'secondary'} className="text-[10px]">
-                      {item.status.replace('_', ' ')}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs">{item.evidenceCount || 0} items</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {(item.evidenceCount || 0) > 0 ? (
-                      <div className="flex items-center justify-end gap-1.5 text-green-600 font-bold text-xs">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Ready
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-end gap-1.5 text-slate-400 text-xs">
-                        <Circle className="h-3.5 w-3.5" />
-                        Missing
-                      </div>
-                    )}
+              {(!compliance || compliance.length === 0) ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-20">
+                    <ClipboardCheck className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Audit workspace not ready</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                      Upload evidence to your controls to prepare for audit
+                    </p>
+                    <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
+                      <Button asChild className="gap-2">
+                        <a href="/dashboard/evidence">
+                          <Plus className="h-4 w-4" />
+                          Go to Evidence
+                        </a>
+                      </Button>
+                    </RoleGuard>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                compliance?.map((item: any) => (
+                  <TableRow key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                    <TableCell className="font-mono text-xs font-bold text-primary">
+                      {item.iso_clause || item.requirementId || 'A.0.0'}
+                    </TableCell>
+                    <TableCell className="max-w-[400px]">
+                      <div className="font-bold text-sm text-slate-900 dark:text-slate-100">{item.title}</div>
+                      <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{item.description}</p>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={item.status === 'compliant' ? 'secondary' : 'outline'} 
+                        className={item.status === 'compliant' ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-none uppercase text-[9px]" : "uppercase text-[9px]"}
+                      >
+                        {item.status.replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="flex -space-x-1.5">
+                          {[...Array(Math.min(item.evidenceCount || 0, 3))].map((_, i) => (
+                            <div key={i} className="w-5 h-5 rounded-full border-2 border-white dark:border-slate-950 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                              <FileText className="h-2.5 w-2.5 text-blue-500" />
+                            </div>
+                          ))}
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {item.evidenceCount || 0} items
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {(item.evidenceCount || 0) > 0 ? (
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none gap-1 py-1">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Ready
+                          </Badge>
+                        ) : (
+                          <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
+                            <Button asChild size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase tracking-tight gap-1.5 text-primary hover:bg-primary/5">
+                              <Link href={`/dashboard/evidence?controlId=${item.id}`}>
+                                <Plus className="h-3 w-3" />
+                                Add Evidence
+                              </Link>
+                            </Button>
+                          </RoleGuard>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

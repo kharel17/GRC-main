@@ -9,19 +9,27 @@ class NotificationService:
     async def create_notification(
         db: AsyncSession,
         user_id: UUID,
+        title: str,
         message: str,
-        type: str,
+        notification_type: str,
+        link_url: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[UUID] = None,
         ticket_id: Optional[UUID] = None
     ) -> models.Notification:
         notification = models.Notification(
             user_id=user_id,
-            ticket_id=ticket_id,
+            title=title,
             message=message,
-            type=type
+            type=notification_type,
+            link_url=link_url,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            ticket_id=ticket_id,
+            is_read=0
         )
         db.add(notification)
-        await db.commit()
-        await db.refresh(notification)
+        await db.flush()
         return notification
 
     @staticmethod
@@ -55,4 +63,4 @@ class NotificationService:
             .where(models.Notification.is_read == 0)
             .values(is_read=1)
         )
-        await db.commit()
+        await db.flush()

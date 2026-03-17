@@ -1,11 +1,11 @@
 """
-AI Service – Hybrid Gemini + Local NLP Engine for ISO 27001 GRC Platform.
+AI Service – Hybrid AI Strategy: Local NLP Embeddings + Gemini Generation.
 
-Primary:  Google Gemini API (text-embedding-004 for embeddings, gemini-2.5-flash for generation)
-Fallback: Local sentence-transformers model (all-MiniLM-L6-v2)
+Primary:  NLP (all-MiniLM-L6-v2) for all embeddings and semantic matching.
+Primary:  Google Gemini API (gemini-1.5-flash) for advanced text generation.
 
-If GEMINI_API_KEY is set, Gemini is used. If the key is missing or any Gemini
-call fails at runtime, the service automatically falls back to the local model.
+Embeddings are always computed locally for speed and reliability. Gemini is used
+for deeper document analysis and risk scoring whenever a key is present.
 """
 
 import json
@@ -15,6 +15,10 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
+from app.config import settings
+
+from google import genai
+from google.genai import types
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -159,7 +163,7 @@ class AIService:
 
     LOCAL_MODEL_NAME = "all-MiniLM-L6-v2"
     GEMINI_EMBED_MODEL = "text-embedding-004"
-    GEMINI_GENERATE_MODEL = "gemini-2.5-flash"
+    GEMINI_GENERATE_MODEL = "gemini-1.5-flash"
     DEFAULT_TOP_N = 5
     DEFAULT_THRESHOLD = 0.30
 
@@ -194,17 +198,28 @@ class AIService:
     def initialize(self) -> None:
         """Load models and pre-compute control embeddings. Call once at startup."""
         logger.info("AI Service: Loading ISO 27001 controls...")
-        self._load_controls()
+        try:
+            self._load_controls()
+        except Exception as e:
+            logger.error(f"AI Service: Failed to load controls ({e})")
+            return
 
-        # --- Try Gemini ---
+        # --- Try Gemini first (Lightweight) ---
         self._init_gemini()
 
-        # --- Always load local model as fallback ---
+        # --- Load local model for embeddings ---
+        # Note: Even if Gemini is available for generation, we still use local embeddings
+        # for semantic matching and gap analysis tasks.
         self._init_local_model()
 
-        self._is_ready = True
-        engine = "Gemini (primary) + Local NLP (fallback)" if self._gemini_available else "Local NLP only"
-        logger.info(f"AI Service: Ready ✓  Engine: {engine}")
+        if self._gemini_available or self._local_model is not None:
+            self._is_ready = True
+            engines = []
+            if self._gemini_available: engines.append("Gemini (Generation)")
+            if self._local_model: engines.append("Local NLP (Embeddings)")
+            logger.info(f"AI Service: Ready ✓  Engines: {', '.join(engines)}")
+        else:
+            logger.error("AI Service: Initialization failed. No AI engines available.")
 
     def _load_controls(self) -> None:
         """Load and parse the ISO 27001 controls JSON."""
@@ -220,37 +235,19 @@ class AIService:
         ]
 
     def _init_gemini(self) -> None:
-        """Try to initialize the Gemini client and pre-embed controls."""
-        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        """Try to initialize the Gemini client for text generation."""
+        api_key = (settings.GEMINI_API_KEY or "").strip()
         if not api_key:
-            logger.info("AI Service: No GEMINI_API_KEY found. Gemini disabled.")
+            logger.info("AI Service: No GEMINI_API_KEY found. Gemini generation disabled.")
             return
 
         try:
-            from google import genai
-
             self._gemini_client = genai.Client(api_key=api_key)
-
-            # Pre-embed all controls using Gemini
-            logger.info(f"AI Service: Pre-embedding {len(self._controls)} controls with Gemini...")
-            embeddings = []
-            # Batch in groups of 20 to respect rate limits
-            batch_size = 20
-            for i in range(0, len(self._control_texts), batch_size):
-                batch = self._control_texts[i : i + batch_size]
-                response = self._gemini_client.models.embed_content(
-                    model=self.GEMINI_EMBED_MODEL,
-                    contents=batch,
-                )
-                for emb in response.embeddings:
-                    embeddings.append(emb.values)
-
-            self._gemini_control_embeddings = np.array(embeddings, dtype=np.float32)
             self._gemini_available = True
-            logger.info("AI Service: Gemini initialized ✓")
+            logger.info("AI Service: Gemini generation client initialized ✓")
 
         except Exception as e:
-            logger.warning(f"AI Service: Gemini init failed ({e}). Will use local NLP.")
+            logger.warning(f"AI Service: Gemini init failed ({e}). Generator disabled.")
             self._gemini_available = False
 
     def _init_local_model(self) -> None:
@@ -280,60 +277,26 @@ class AIService:
 
     @property
     def active_engine(self) -> str:
-        if self._gemini_available:
-            return "gemini"
-        return "local"
+        return "hybrid" if self._gemini_available else "local"
 
     # ------------------------------------------------------------------
     # Embedding helper
     # ------------------------------------------------------------------
 
     def _embed_text(self, text: str) -> np.ndarray:
-        """Embed text using Gemini (primary) or local model (fallback)."""
-        if self._gemini_available and self._gemini_client:
-            try:
-                response = self._gemini_client.models.embed_content(
-                    model=self.GEMINI_EMBED_MODEL,
-                    contents=[text],
-                )
-                return np.array([response.embeddings[0].values], dtype=np.float32)
-            except Exception as e:
-                logger.warning(f"Gemini embed failed ({e}). Falling back to local model.")
-
-        # Fallback to local
+        """Embed text using local NLP model."""
         if self._local_model is not None:
             return self._local_model.encode([text], convert_to_numpy=True)
-
-        raise RuntimeError("No embedding engine available.")
+        raise RuntimeError("Local NLP engine not available.")
 
     def _embed_texts(self, texts: list[str]) -> np.ndarray:
-        """Embed multiple texts using Gemini (primary) or local model (fallback)."""
-        if self._gemini_available and self._gemini_client:
-            try:
-                embeddings = []
-                batch_size = 20
-                for i in range(0, len(texts), batch_size):
-                    batch = texts[i : i + batch_size]
-                    response = self._gemini_client.models.embed_content(
-                        model=self.GEMINI_EMBED_MODEL,
-                        contents=batch,
-                    )
-                    for emb in response.embeddings:
-                        embeddings.append(emb.values)
-                return np.array(embeddings, dtype=np.float32)
-            except Exception as e:
-                logger.warning(f"Gemini batch embed failed ({e}). Falling back to local model.")
-
-        # Fallback to local
+        """Embed multiple texts using local NLP model."""
         if self._local_model is not None:
             return self._local_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-
-        raise RuntimeError("No embedding engine available.")
+        raise RuntimeError("Local NLP engine not available.")
 
     def _get_control_embeddings(self) -> np.ndarray:
-        """Get the pre-computed control embeddings for the active engine."""
-        if self._gemini_available and self._gemini_control_embeddings is not None:
-            return self._gemini_control_embeddings
+        """Get the pre-computed local control embeddings."""
         if self._local_control_embeddings is not None:
             return self._local_control_embeddings
         raise RuntimeError("No control embeddings available.")

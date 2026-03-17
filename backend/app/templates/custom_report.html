@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ report_title }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; }
+    .page { max-width: 960px; margin: 0 auto; background: white; padding: 48px; }
+
+    .header { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; padding: 32px; border-radius: 12px; margin-bottom: 40px; }
+    .header h1 { font-size: 26px; margin-bottom: 8px; }
+    .header .meta { opacity: 0.85; font-size: 13px; }
+    .header .meta span { margin-right: 20px; }
+
+    .section { margin-bottom: 48px; }
+    h2 { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+
+    .exec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+    .exec-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; text-align: center; }
+    .exec-card .num { font-size: 32px; font-weight: 800; }
+    .exec-card .lbl { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .red { color: #dc2626; } .green { color: #16a34a; } .amber { color: #d97706; } .blue { color: #2563eb; }
+
+    .progress-wrap { margin: 12px 0 32px; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 6px; }
+    .progress-bar { background: #e2e8f0; border-radius: 8px; height: 12px; overflow: hidden; }
+    .progress-fill { background: linear-gradient(90deg, #16a34a, #22c55e); height: 12px; border-radius: 8px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { background: #f1f5f9; padding: 10px 14px; text-align: left; color: #475569; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tbody td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    tbody tr:hover td { background: #f8fafc; }
+
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-high, .badge-open { background: #fee2e2; color: #b91c1c; }
+    .badge-medium { background: #fef3c7; color: #b45309; }
+    .badge-low, .badge-closed, .badge-compliant, .badge-implemented { background: #dcfce7; color: #15803d; }
+    .badge-in_progress { background: #fef3c7; color: #b45309; }
+    .badge-not_started, .badge-gap { background: #f1f5f9; color: #475569; }
+
+    .empty { text-align: center; color: #94a3b8; padding: 24px; font-style: italic; }
+    .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px; }
+    .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 40px; }
+    .toc h3 { font-size: 13px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .toc ul { list-style: none; }
+    .toc ul li { padding: 4px 0; font-size: 13px; color: #334155; }
+    .toc ul li::before { content: "→ "; color: #3b82f6; font-weight: bold; }
+    code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>{{ report_title }}</h1>
+    <div class="meta">
+      <span>📅 {{ generated_date }}</span>
+      <span>👤 {{ generated_by }}</span>
+      <span>📊 {{ framework }}</span>
+      <span>🗓 Period: {{ date_range }}</span>
+    </div>
+  </div>
+
+  <!-- Table of Contents -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ul>
+      <li>Executive Summary</li>
+      {% if include_risks %}<li>Risk Summary ({{ risks | length }} risks)</li>{% endif %}
+      {% if include_controls %}<li>Control Status ({{ controls | length }} controls)</li>{% endif %}
+      {% if include_compliance %}<li>Compliance Status ({{ compliance_percentage }}% compliant)</li>{% endif %}
+      {% if include_tickets %}<li>Ticket Summary ({{ tickets | length }} tickets)</li>{% endif %}
+      {% if include_audit_logs %}<li>Audit Trail ({{ audit_logs | length }} entries)</li>{% endif %}
+    </ul>
+  </div>
+
+  <!-- Executive Summary -->
+  <div class="section">
+    <h2>📋 Executive Summary</h2>
+    <div class="exec-grid">
+      <div class="exec-card">
+        <div class="num">{{ exec_summary.total_risks }}</div>
+        <div class="lbl">Total Risks</div>
+      </div>
+      <div class="exec-card">
+        <div class="num red">{{ exec_summary.high_risks }}</div>
+        <div class="lbl">High Risks</div>
+      </div>
+      <div class="exec-card">
+        <div class="num green">{{ exec_summary.compliance_score }}%</div>
+        <div class="lbl">Compliance Score</div>
+      </div>
+      <div class="exec-card">
+        <div class="num blue">{{ exec_summary.total_controls }}</div>
+        <div class="lbl">Total Controls</div>
+      </div>
+      <div class="exec-card">
+        <div class="num green">{{ exec_summary.implemented_controls }}</div>
+        <div class="lbl">Implemented Controls</div>
+      </div>
+      <div class="exec-card">
+        <div class="num amber">{{ exec_summary.open_tickets }}</div>
+        <div class="lbl">Open Tickets</div>
+      </div>
+    </div>
+
+    {% if include_compliance %}
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Overall Compliance</span>
+        <span>{{ compliance_percentage }}%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: {{ compliance_percentage }}%"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Risks Section -->
+  {% if include_risks %}
+  <div class="section">
+    <h2>⚠️ Risk Summary</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Risk Title</th>
+          <th>Category</th>
+          <th>Score</th>
+          <th>Status</th>
+          <th>Owner</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in risks %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ r.title }}</strong></td>
+          <td>{{ r.category }}</td>
+          <td>
+            <span class="badge {% if r.score >= 15 %}badge-high{% elif r.score >= 8 %}badge-medium{% else %}badge-low{% endif %}">
+              {{ r.score }}
+            </span>
+          </td>
+          <td><span class="badge badge-{{ r.status | lower | replace(' ', '_') }}">{{ r.status }}</span></td>
+          <td>{{ r.owner }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">No risks found for this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Controls Section -->
+  {% if include_controls %}
+  <div class="section">
+    <h2>🛡️ Control Status</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Control Code</th>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Owner</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in controls %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><code>{{ c.code }}</code></td>
+          <td>{{ c.title }}</td>
+          <td><span class="badge badge-{{ c.status | lower | replace(' ', '_') }}">{{ c.status }}</span></td>
+          <td>{{ c.owner }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No controls found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Compliance Section -->
+  {% if include_compliance %}
+  <div class="section">
+    <h2>✅ Compliance Status</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Req. ID</th>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Due Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in compliance_items %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><code>{{ i.req_id }}</code></td>
+          <td>{{ i.title }}</td>
+          <td><span class="badge badge-{{ i.status | lower | replace(' ', '_') }}">{{ i.status }}</span></td>
+          <td>{{ i.due_date }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No compliance items found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Tickets Section -->
+  {% if include_tickets %}
+  <div class="section">
+    <h2>🎫 Ticket Summary</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Priority</th>
+          <th>Assignee</th>
+          <th>Due Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ t.title }}</td>
+          <td><span class="badge badge-{{ t.status | lower }}">{{ t.status }}</span></td>
+          <td><span class="badge badge-{{ t.priority | lower }}">{{ t.priority }}</span></td>
+          <td>{{ t.assignee }}</td>
+          <td>{{ t.due_date }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">No tickets found for this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Audit Logs Section -->
+  {% if include_audit_logs %}
+  <div class="section">
+    <h2>📜 Audit Trail</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Timestamp</th>
+          <th>Action</th>
+          <th>Entity</th>
+          <th>User</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in audit_logs %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ log.timestamp }}</td>
+          <td>{{ log.action }}</td>
+          <td>{{ log.entity }}</td>
+          <td>{{ log.user }}</td>
+          <td>{{ log.details }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">No audit logs found for this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    GRC Platform &mdash; Confidential &mdash; Generated {{ generated_date }}
+  </div>
+</div>
+</body>
+</html>

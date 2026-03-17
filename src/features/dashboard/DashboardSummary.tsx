@@ -36,13 +36,17 @@ export function DashboardSummary({ risks, controls, complianceItems, isLoading }
     );
   }
 
-  const avgRiskScore =
-    risks.length > 0 ? Math.round(risks.reduce((sum, r) => sum + r.score, 0) / risks.length) : 0;
+  const rawAvgRiskScore =
+    risks.length > 0 
+      ? Math.round(risks.reduce((sum, r) => sum + (r.score ?? 0), 0) / risks.length) 
+      : 0;
+  const avgRiskScore = isNaN(rawAvgRiskScore) ? 0 : rawAvgRiskScore;
 
   const openRisks = risks.filter((r) => r.status !== 'mitigated' && r.status !== 'accepted').length;
 
   const compliantItems = complianceItems.filter((c) => c.status === 'compliant').length;
-  const complianceRate = Math.round((compliantItems / complianceItems.length) * 100) || 0;
+  const rawComplianceRate = complianceItems.length > 0 ? Math.round((compliantItems / complianceItems.length) * 100) : 0;
+  const complianceRate = isNaN(rawComplianceRate) ? 0 : rawComplianceRate;
 
   const implementedControls = controls.filter((c) => c.status === 'implemented').length;
 
@@ -109,7 +113,7 @@ export function DashboardSummary({ risks, controls, complianceItems, isLoading }
     },
     {
       label: 'Controls Active',
-      value: `${implementedControls}/${controls.length}`,
+      value: `${implementedControls ?? 0}/${controls.length ?? 0}`,
       trend: implementedControls === controls.length ? 'positive' : 'neutral',
       trendLabel: 'Implemented',
       type: 'controls',
@@ -120,23 +124,34 @@ export function DashboardSummary({ risks, controls, complianceItems, isLoading }
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {metrics.map((metric) => (
-        <Card key={metric.label} className="card-hover group">
+        <Card key={metric.label} className="relative overflow-hidden border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-950/50 backdrop-blur-sm transition-all hover:shadow-lg hover:-translate-y-1 group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/5 to-transparent rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150" />
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-xs sm:text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
                 {metric.label}
               </CardTitle>
-              <span className={`p-1.5 rounded-lg ${metric.color} opacity-80 group-hover:opacity-100 transition-opacity`}>
+              <div className={`p-2 rounded-xl ${metric.color} shadow-sm group-hover:scale-110 transition-transform`}>
                 {getMetricIcon(metric.type)}
-              </span>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold text-foreground">{metric.value}</span>
-              {getTrendIcon(metric.trend)}
+              <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+                {metric.value}
+              </span>
+              <div className="flex items-center group-hover:translate-x-0.5 transition-transform">
+                {getTrendIcon(metric.trend)}
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{metric.trendLabel}</p>
+            <div className="flex items-center gap-1.5 mt-2">
+              <div className={`w-1.5 h-1.5 rounded-full ${
+                metric.trend === 'positive' ? 'bg-green-500' : 
+                metric.trend === 'negative' ? 'bg-red-500' : 'bg-amber-500'
+              }`} />
+              <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-tighter">{metric.trendLabel}</p>
+            </div>
           </CardContent>
         </Card>
       ))}

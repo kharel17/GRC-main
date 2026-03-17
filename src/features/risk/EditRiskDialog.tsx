@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { updateRisk, getRiskCategories } from '@/lib/data-service';
+import { updateRisk, fetchRiskCategories, fetchUsers } from '@/lib/data-service';
+import { useApiData } from '@/hooks';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
 import { Risk } from '@/types';
@@ -33,11 +34,14 @@ interface EditRiskDialogProps {
 }
 
 export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRiskDialogProps) {
-    const categories = getRiskCategories();
+    const [categories, setCategories] = useState<any[]>([]);
 
+    const { data: users, loading: loadingUsers } = useApiData(fetchUsers);
+    
     const [title, setTitle] = useState(risk.title);
     const [description, setDescription] = useState(risk.description);
     const [categoryId, setCategoryId] = useState(risk.categoryId || risk.category?.id || '');
+    const [ownerId, setOwnerId] = useState<string>(risk.owner_id || '');
     const [likelihood, setLikelihood] = useState(String(risk.likelihood));
     const [impact, setImpact] = useState(String(risk.impact));
     const [status, setStatus] = useState<string>(risk.status);
@@ -45,12 +49,25 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [attempted, setAttempted] = useState(false);
 
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const data = await fetchRiskCategories();
+                setCategories(data);
+            } catch (err) {
+                console.error('Failed to load categories:', err);
+            }
+        };
+        loadCategories();
+    }, []);
+
     // Re-sync form when opening with a different risk
     useEffect(() => {
         if (open && risk) {
             setTitle(risk.title);
             setDescription(risk.description);
             setCategoryId(risk.categoryId || risk.category?.id || '');
+            setOwnerId(risk.owner_id || '');
             setLikelihood(String(risk.likelihood));
             setImpact(String(risk.impact));
             setStatus(risk.status);
@@ -83,6 +100,9 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
     };
 
     const handleSubmit = async () => {
+        // Guard against double submission
+        if (submitting) return;
+
         setAttempted(true);
         if (!validateForm()) return;
 
@@ -96,13 +116,24 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
                 impact: parseInt(impact),
                 risk_score: riskScore,
                 status,
+                owner_id: ownerId,
             } as any);
 
             toast.success('Risk updated successfully!');
             onSuccess();
             onOpenChange(false);
         } catch (err: unknown) {
-            toast.error(handleApiError(err));
+            // Log the full error details
+            console.error('Risk update error:', {
+                err,
+                type: typeof err,
+                message: err instanceof Error ? err.message : String(err),
+                status: (err as any)?.status,
+                detail: (err as any)?.detail,
+            });
+
+            const errorMessage = (err as any)?.detail || (err as any)?.message || 'Failed to update risk. Please try again.';
+            toast.error(errorMessage);
         } finally {
             setSubmitting(false);
         }
@@ -179,6 +210,25 @@ export function EditRiskDialog({ open, onOpenChange, risk, onSuccess }: EditRisk
                             </SelectContent>
                         </Select>
                         {attempted && errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Assigned Owner *</Label>
+                        <Select value={ownerId} onValueChange={setOwnerId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select owner..."} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {users?.filter(u => ['admin', 'manager', 'analyst'].includes(u.role)).map((u) => (
+                                    <SelectItem key={u.id} value={u.id}>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium">{u.full_name || u.email}</span>
+                                            <span className="text-[10px] text-muted-foreground uppercase">{u.role}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

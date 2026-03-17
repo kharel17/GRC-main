@@ -2,10 +2,11 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { api } from '@/lib/api-client';
 import { Upload, CheckCircle2, AlertCircle, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-api-error';
+
+import { uploadEvidence } from '@/lib/data-service';
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -17,7 +18,6 @@ interface EvidenceDropzoneProps {
 
 interface UploadState {
     status: 'idle' | 'selected' | 'uploading' | 'success' | 'error';
-    progress: number;
     errorMessage?: string;
 }
 
@@ -44,12 +44,12 @@ function formatBytes(bytes: number): string {
 
 export function EvidenceDropzone({ relatedTo, relatedId, onUploadSuccess }: EvidenceDropzoneProps) {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [uploadState, setUploadState] = useState<UploadState>({ status: 'idle', progress: 0 });
+    const [uploadState, setUploadState] = useState<UploadState>({ status: 'idle' });
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
             setSelectedFile(acceptedFiles[0]);
-            setUploadState({ status: 'selected', progress: 0 });
+            setUploadState({ status: 'selected' });
         }
     }, []);
 
@@ -64,37 +64,34 @@ export function EvidenceDropzone({ relatedTo, relatedId, onUploadSuccess }: Evid
     const handleUpload = async () => {
         if (!selectedFile) return;
 
-        setUploadState({ status: 'uploading', progress: 20 });
+        setUploadState({ status: 'uploading' });
 
         try {
-            // Simulate progress steps
-            setUploadState({ status: 'uploading', progress: 40 });
-
-            await api.upload('/evidence/', selectedFile, {
+            await uploadEvidence(selectedFile, {
                 title: selectedFile.name,
                 related_to: relatedTo,
                 related_id: relatedId,
             });
 
-            setUploadState({ status: 'success', progress: 100 });
+            setUploadState({ status: 'success' });
             toast.success('Evidence uploaded successfully');
             onUploadSuccess();
 
             // Reset after 2 seconds
             setTimeout(() => {
                 setSelectedFile(null);
-                setUploadState({ status: 'idle', progress: 0 });
+                setUploadState({ status: 'idle' });
             }, 2000);
         } catch (error: unknown) {
             const errorMessage = handleApiError(error);
-            setUploadState({ status: 'error', progress: 0, errorMessage: errorMessage });
+            setUploadState({ status: 'error', errorMessage: errorMessage });
             toast.error(errorMessage);
         }
     };
 
     const handleClear = () => {
         setSelectedFile(null);
-        setUploadState({ status: 'idle', progress: 0 });
+        setUploadState({ status: 'idle' });
     };
 
     // ── Render ──────────────────────────────────────────────
@@ -165,15 +162,8 @@ export function EvidenceDropzone({ relatedTo, relatedId, onUploadSuccess }: Evid
 
                     <div className="flex items-center gap-2 shrink-0">
                         {uploadState.status === 'uploading' ? (
-                            <div className="flex items-center gap-3">
-                                {/* Progress bar */}
-                                <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                        style={{ width: `${uploadState.progress}%` }}
-                                    />
-                                </div>
-                                <span className="text-xs text-muted-foreground">{uploadState.progress}%</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground animate-pulse">Uploading file...</span>
                             </div>
                         ) : (
                             <>

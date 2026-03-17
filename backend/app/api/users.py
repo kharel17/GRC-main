@@ -18,8 +18,8 @@ async def read_users(
     limit: int = 100,
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Retrieve users."""
-    stmt = select(User).offset(skip).limit(limit)
+    """Retrieve users (active only)."""
+    stmt = select(User).where(User.is_active == True).offset(skip).limit(limit)
     result = await db.execute(stmt)
     users = result.scalars().all()
     return users
@@ -75,3 +75,35 @@ async def create_user(
     await db.commit()
     await db.refresh(new_user)
     return new_user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.RoleChecker([UserRole.admin])),
+) -> None:
+    """
+    Soft-delete a user (admin only). 
+    Sets is_active to False to move from management list while preserving historical data.
+    Cannot delete yourself.
+    """
+
+    # Prevent self-deletion
+    if str(current_user.id) == str(user_id):
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot delete your own account"
+        )
+
+    stmt = select(User).where(User.id == user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Soft delete: deactivation
+    user.is_active = False
+    user.invitation_status = 'deactivated'
+    await db.commit()

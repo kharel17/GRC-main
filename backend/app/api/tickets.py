@@ -136,6 +136,27 @@ async def update_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
     return ticket
 
+@router.patch("/{id}/", response_model=schemas.Ticket)
+async def patch_ticket(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: UUID,
+    ticket_in: schemas.TicketUpdate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Partial update a ticket.
+    """
+    ticket = await TicketService.update_ticket(
+        db=db,
+        ticket_id=id,
+        ticket_in=ticket_in,
+        current_user_id=current_user.id
+    )
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
 @router.post("/{id}/escalate", response_model=schemas.Ticket)
 async def escalate_ticket(
     *,

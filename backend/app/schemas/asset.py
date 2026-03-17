@@ -14,8 +14,8 @@ class AssetCreate(BaseModel):
     confidentiality: str = "medium"  # low, medium, high
     integrity: str = "medium"
     availability: str = "medium"
-    owner_id: UUID
-    organization_id: UUID
+    owner_id: Optional[UUID] = None
+    organization_id: Optional[UUID] = None
 
 
 class AssetUpdate(BaseModel):

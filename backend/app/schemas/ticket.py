@@ -118,6 +118,8 @@ class TicketUpdate(BaseModel):
     resolved_at: Optional[datetime] = None
     escalated_at: Optional[datetime] = None
 
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
 class TicketResolution(BaseModel):
     resolution_notes: str
 

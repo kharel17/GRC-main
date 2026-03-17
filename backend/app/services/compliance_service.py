@@ -47,8 +47,26 @@ class ComplianceService:
     async def get_soa(db: AsyncSession, organization_id: UUID) -> List[dict]:
         """
         Generates the Statement of Applicability (SoA) for an organization.
+        With dynamic status calculation based on evidence.
         """
-        # Fetch all applicability records
+        from app.models.evidence import Evidence, EvidenceControlMatch, EvidenceStatus
+        from sqlalchemy import func
+
+        # 1. Fetch evidence counts per control code (annex)
+        counts_stmt = (
+            select(
+                EvidenceControlMatch.control_id,
+                func.count(Evidence.id).label("total"),
+                func.count(Evidence.id).filter(Evidence.status == EvidenceStatus.verified).label("verified")
+            )
+            .join(Evidence, EvidenceControlMatch.evidence_id == Evidence.id)
+            .where(Evidence.organization_id == organization_id)
+            .group_by(EvidenceControlMatch.control_id)
+        )
+        counts_res = await db.execute(counts_stmt)
+        evidence_stats = {row.control_id: (row.total, row.verified) for row in counts_res.all()}
+
+        # 2. Fetch all applicability records for the org
         stmt = (
             select(models.ControlApplicability, models.User.full_name)
             .outerjoin(models.User, models.ControlApplicability.responsible_id == models.User.id)
@@ -60,30 +78,36 @@ class ComplianceService:
         ca_map = {ca.control_annex: (ca, name) for ca, name in ca_data}
         
         soa = []
-        # Use the master control list
+        # Use the master control list (93 controls)
         for ctrl in _ISO_CONTROLS:
             annex = ctrl["id"]
             ca_record, resp_name = ca_map.get(annex, (None, None))
+            total_ev, verified_ev = evidence_stats.get(annex, (0, 0))
             
-            if ca_record:
-                item = SoAItem(
-                    control_annex=annex,
-                    title=ctrl["title"],
-                    is_applicable=ca_record.is_applicable,
-                    status=ca_record.status.value,
-                    justification=ca_record.justification,
-                    responsible_name=resp_name,
-                    notes=ca_record.notes
-                )
+            # DYNAMIC STATUS CALCULATION
+            # Default to record status if explicitly set to 'not_applicable'
+            if ca_record and ca_record.status == models.control_applicability.ControlImplementationStatus.not_applicable:
+                derived_status = "not_applicable"
+            elif verified_ev > 0:
+                derived_status = "implemented"
+            elif total_ev > 0:
+                derived_status = "in_progress"
             else:
-                # Default if not initialized (though seeding should prevent this)
-                item = SoAItem(
-                    control_annex=annex,
-                    title=ctrl["title"],
-                    is_applicable=True,
-                    status="not_started"
-                )
-            soa.append(item.to_dict())
+                derived_status = "not_started"
+
+            soa.append({
+                "control_annex": annex,
+                "control_title": ctrl["title"],
+                "control_description": ctrl["description"],
+                "clause_id": ctrl["clauseId"],
+                "is_applicable": ca_record.is_applicable if ca_record else True,
+                "status": derived_status,
+                "justification": ca_record.justification if ca_record else None,
+                "responsible_id": str(ca_record.responsible_id) if ca_record and ca_record.responsible_id else None,
+                "responsible_name": resp_name,
+                "evidence_count": total_ev,
+                "notes": ca_record.notes if ca_record else None
+            })
             
         return soa
 

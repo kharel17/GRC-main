@@ -55,7 +55,7 @@ async def create_asset(
         integrity=asset_in.integrity,
         availability=asset_in.availability,
         owner_id=asset_in.owner_id or current_user.id,
-        organization_id=current_user.organization_id
+        organization_id=asset_in.organization_id or current_user.organization_id
     )
     db.add(asset)
     await db.commit()

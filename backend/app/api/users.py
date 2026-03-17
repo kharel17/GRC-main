@@ -18,8 +18,8 @@ async def read_users(
     limit: int = 100,
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Retrieve users."""
-    stmt = select(User).offset(skip).limit(limit)
+    """Retrieve users (active only)."""
+    stmt = select(User).where(User.is_active == True).offset(skip).limit(limit)
     result = await db.execute(stmt)
     users = result.scalars().all()
     return users
@@ -83,7 +83,11 @@ async def delete_user(
     db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.RoleChecker([UserRole.admin])),
 ) -> None:
-    """Delete a user (admin only). Cannot delete yourself."""
+    """
+    Soft-delete a user (admin only). 
+    Sets is_active to False to move from management list while preserving historical data.
+    Cannot delete yourself.
+    """
 
     # Prevent self-deletion
     if str(current_user.id) == str(user_id):
@@ -99,5 +103,7 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    await db.delete(user)
+    # Soft delete: deactivation
+    user.is_active = False
+    user.invitation_status = 'deactivated'
     await db.commit()

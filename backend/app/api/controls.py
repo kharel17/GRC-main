@@ -1,4 +1,5 @@
 from typing import Any, List
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -94,11 +95,11 @@ async def create_control(
     
     return control
 
-@router.get("/{id}", response_model=schemas.Control)
+@router.get("/{id}/", response_model=schemas.Control)
 async def read_control(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    id: str,
+    id: UUID,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     result = await db.execute(
@@ -109,11 +110,11 @@ async def read_control(
         raise HTTPException(status_code=404, detail="Control not found")
     return control
 
-@router.put("/{id}", response_model=schemas.Control)
+@router.put("/{id}/", response_model=schemas.Control)
 async def update_control(
     *,
     db: AsyncSession = Depends(deps.get_db),
-    id: str,
+    id: UUID,
     control_in: schemas.ControlUpdate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
 ) -> Any:
@@ -168,5 +169,54 @@ async def update_control(
                 link_url=f"/dashboard/controls/{control.id}",
                 notification_type="CONTROL_IMPLEMENTED"
             )
+
+    return control
+
+@router.patch("/{id}/", response_model=schemas.Control)
+async def patch_control(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: UUID,
+    control_in: schemas.ControlUpdate,
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst, models.UserRole.manager])),
+) -> Any:
+    """
+    Partial update for a control. 
+    Commonly used to change owner_id or status without sending full body.
+    """
+    import logging
+    logger = logging.getLogger("grc.controls")
+    
+    result = await db.execute(
+        select(models.Control).where(models.Control.id == id)
+    )
+    control = result.scalars().first()
+    if not control:
+        raise HTTPException(status_code=404, detail="Control not found")
+
+    update_data = control_in.model_dump(exclude_unset=True)
+    logger.info(f"PATCH control {id} with data: {update_data}")
+
+    old_values = {}
+    for field, value in update_data.items():
+        old_values[field] = getattr(control, field)
+        setattr(control, field, value)
+
+    await db.commit()
+    await db.refresh(control)
+
+    # Audit log
+    await audit_service.log_action(
+        db=db,
+        user=current_user,
+        action=AuditAction.updated,
+        entity_type=AuditEntityType.control,
+        entity_id=control.id,
+        entity_name=control.title,
+        old_values=old_values,
+        new_values=update_data,
+        description=f"Control partially updated: {control.title}"
+    )
+    await db.commit()
 
     return control

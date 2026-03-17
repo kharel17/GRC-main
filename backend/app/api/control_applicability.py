@@ -38,6 +38,8 @@ class SoAEntry(BaseModel):
     status: str
     justification: Optional[str] = None
     responsible_id: Optional[str] = None
+    responsible_name: Optional[str] = None
+    evidence_count: int = 0
     notes: Optional[str] = None
 
 
@@ -218,45 +220,25 @@ async def get_statement_of_applicability(
     Generate the Statement of Applicability (SoA).
     Combines ISO 27001 control definitions with per-organization applicability data.
     """
+    from app.services.compliance_service import compliance_service
+
     # Get organization
     org_result = await db.execute(select(models.Organization).limit(1))
     org = org_result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="No organization configured")
     
-    # Get all applicability records
-    ca_result = await db.execute(
-        select(models.ControlApplicability)
-        .where(models.ControlApplicability.organization_id == org.id)
-    )
-    ca_records = {ca.control_annex: ca for ca in ca_result.scalars().all()}
+    # Use compliance service to get SOA data
+    entries_data = await compliance_service.get_soa(db, org.id)
     
-    entries = []
+    # Calculate counters from entries
     counters = {"implemented": 0, "in_progress": 0, "not_started": 0, "not_applicable": 0}
-    
-    for ctrl in _ISO_CONTROLS:
-        annex = ctrl["id"]
-        ca = ca_records.get(annex)
-        
-        status = ca.status.value if ca else "not_started"
-        is_applicable = ca.is_applicable if ca else True
-        
+    for entry in entries_data:
+        status = entry["status"]
         if status in counters:
             counters[status] += 1
-        
-        entries.append(SoAEntry(
-            control_annex=annex,
-            control_title=ctrl["title"],
-            control_description=ctrl["description"],
-            clause_id=ctrl["clauseId"],
-            is_applicable=is_applicable,
-            status=status,
-            justification=ca.justification if ca else None,
-            responsible_id=str(ca.responsible_id) if ca and ca.responsible_id else None,
-            notes=ca.notes if ca else None,
-        ))
     
-    total = len(_ISO_CONTROLS)
+    total = len(entries_data)
     applicable = total - counters["not_applicable"]
     compliance_pct = round((counters["implemented"] / applicable * 100), 1) if applicable > 0 else 0
     
@@ -269,7 +251,7 @@ async def get_statement_of_applicability(
         not_started_controls=counters["not_started"],
         not_applicable_controls=counters["not_applicable"],
         compliance_percentage=compliance_pct,
-        entries=entries,
+        entries=entries_data,
     )
 
 

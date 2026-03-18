@@ -89,6 +89,59 @@ async def create_ticket_from_ai(
         source_audit_log_id=ai_in.source_audit_log_id
     )
 
+from pydantic import BaseModel
+
+class BulkDeleteRequest(BaseModel):
+    ticket_ids: List[UUID]
+
+@router.post("/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_delete_tickets(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    request_data: BulkDeleteRequest,
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin])),
+) -> None:
+    """
+    Delete multiple tickets. Admin only.
+    """
+    if not request_data.ticket_ids:
+        return
+
+    # Verify all tickets exist
+    result = await db.execute(
+        select(models.Ticket).where(models.Ticket.id.in_(request_data.ticket_ids))
+    )
+    tickets = result.scalars().all()
+    found_ids = [t.id for t in tickets]
+    
+    if len(found_ids) != len(request_data.ticket_ids):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Some tickets were not found. Found {len(found_ids)} out of {len(request_data.ticket_ids)}"
+        )
+
+    # Delete related comments and activities first
+    from sqlalchemy import delete as sql_delete
+    await db.execute(sql_delete(models.TicketComment).where(models.TicketComment.ticket_id.in_(request_data.ticket_ids)))
+    await db.execute(sql_delete(models.TicketActivity).where(models.TicketActivity.ticket_id.in_(request_data.ticket_ids)))
+
+    # Delete tickets
+    await db.execute(sql_delete(models.Ticket).where(models.Ticket.id.in_(request_data.ticket_ids)))
+
+    # Audit logging for each
+    for ticket in tickets:
+        await audit_service.log_action(
+            db=db,
+            user=current_user,
+            action=AuditAction.deleted,
+            entity_type=AuditEntityType.ticket,
+            entity_id=ticket.id,
+            entity_name=ticket.title,
+            description=f"Ticket deleted via bulk action: {ticket.title}",
+        )
+
+    await db.commit()
+
 @router.get("/{id}", response_model=schemas.Ticket)
 async def read_ticket(
     *,

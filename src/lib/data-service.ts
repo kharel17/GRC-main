@@ -205,6 +205,10 @@ export async function deleteTicket(id: string): Promise<void> {
   await api.delete(`/tickets/${id}`);
 }
 
+export async function bulkDeleteTickets(ticketIds: string[]): Promise<void> {
+  await api.post(`/tickets/bulk-delete`, { ticket_ids: ticketIds });
+}
+
 export async function escalateTicket(id: string, escalatedToId: string): Promise<Ticket> {
   return api.post<Ticket>(`/tickets/${id}/escalate/?escalated_to_id=${escalatedToId}`);
 }

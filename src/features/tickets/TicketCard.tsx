@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   MessageSquare,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Priority styles
 export function getPriorityStyles(priority: TicketPriority) {
@@ -100,9 +101,12 @@ function getTimeAgo(timestamp: string) {
 
 interface TicketCardProps {
   ticket: Ticket;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string, selected: boolean) => void;
 }
 
-export function TicketCard({ ticket }: TicketCardProps) {
+export function TicketCard({ ticket, selectable = false, selected = false, onSelect }: TicketCardProps) {
   const priorityStyles = getPriorityStyles(ticket.priority);
   const statusStyles = getStatusStyles(ticket.status);
 
@@ -110,9 +114,18 @@ export function TicketCard({ ticket }: TicketCardProps) {
     <Link href={`/dashboard/tickets/${ticket.id}`}>
       <Card className={`h-full border-l-4 ${priorityStyles?.border || 'border-l-slate-500'} hover:shadow-lg transition-all duration-200 cursor-pointer group`}>
         <CardContent className="pt-5 pb-4 space-y-3">
-          {/* Header: Priority + Status */}
+          {/* Header: Priority + Status + Selection */}
           <div className="flex items-start justify-between gap-2">
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {selectable && (
+                <div onClick={(e) => e.stopPropagation()} className="mr-1 mt-0.5">
+                  <Checkbox 
+                    checked={selected}
+                    onCheckedChange={(checked) => onSelect?.(ticket.id, !!checked)}
+                    aria-label={`Select ticket ${ticket.id}`}
+                  />
+                </div>
+              )}
               <Badge className={`${priorityStyles?.badge || ''} text-xs font-semibold uppercase border`}>
                 {ticket.priority}
               </Badge>

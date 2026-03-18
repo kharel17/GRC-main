@@ -197,8 +197,8 @@ class TicketService:
             if ticket.assigned_to_id != user_id:
                 return False
             
-            # Analysts can only RESOLVE or add comments
-            allowed_actions = ["resolve", "comment"]
+            # Analysts can RESOLVE, COMMENT, ESCALATE, and REQUEST_EVIDENCE
+            allowed_actions = ["resolve", "comment", "escalate", "request_evidence"]
             return action in allowed_actions
 
         return False

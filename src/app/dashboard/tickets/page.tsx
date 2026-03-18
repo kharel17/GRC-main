@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { fetchTickets } from '@/lib/data-service';
+import { fetchTickets, bulkDeleteTickets } from '@/lib/data-service';
+import { toast } from 'sonner';
 import { useApiData, useAuth } from '@/hooks';
 import { RoleGuard } from '@/components/auth';
 import { TicketStatus, TicketPriority, TicketCategory, Ticket as TicketType } from '@/types';
@@ -10,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -27,6 +29,8 @@ import {
   Plus,
   Ticket,
   XCircle,
+  Trash2,
+  CheckSquare,
 } from 'lucide-react';
 import { TicketCard } from '@/features/tickets/TicketCard';
 
@@ -38,6 +42,8 @@ export default function TicketsPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showMyTickets, setShowMyTickets] = useState(false);
+  const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const allTickets = tickets ?? [];
 
@@ -61,6 +67,7 @@ export default function TicketsPage() {
     setPriorityFilter('all');
     setCategoryFilter('all');
     setShowMyTickets(false);
+    setSelectedTickets(new Set());
   };
 
 
@@ -106,6 +113,44 @@ export default function TicketsPage() {
       borderColor: 'border-orange-200 dark:border-orange-800',
     },
   ];
+
+  const handleSelectTicket = (id: string, selected: boolean) => {
+    setSelectedTickets(prev => {
+      const newSet = new Set(prev);
+      if (selected) {
+        newSet.add(id);
+      } else {
+        newSet.delete(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = (selected: boolean) => {
+    if (selected) {
+      setSelectedTickets(new Set(filteredTickets.map(t => t.id)));
+    } else {
+      setSelectedTickets(new Set());
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTickets.size === 0) return;
+    if (!confirm(`Are you sure you want to permanently delete ${selectedTickets.size} ticket(s)? This action cannot be undone.`)) return;
+    
+    setIsBulkDeleting(true);
+    try {
+      await bulkDeleteTickets(Array.from(selectedTickets));
+      toast.success(`${selectedTickets.size} ticket(s) deleted successfully`);
+      setSelectedTickets(new Set());
+      refetch();
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.detail || 'Failed to delete tickets. Admin access required.';
+      toast.error(errorMsg);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -230,9 +275,43 @@ export default function TicketsPage() {
         </div>
       </div>
 
-      {/* Results Count */}
-      <div className="text-sm text-muted-foreground">
-        Showing {filteredTickets.length} of {allTickets.length} tickets
+      {/* Results Count & Bulk Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="text-sm text-muted-foreground flex items-center gap-4">
+          <span>Showing {filteredTickets.length} of {allTickets.length} tickets</span>
+          
+          {user?.role === 'admin' && filteredTickets.length > 0 && (
+            <div className="flex items-center gap-2 border-l pl-4 border-border">
+              <Checkbox 
+                id="select-all" 
+                checked={selectedTickets.size > 0 && selectedTickets.size === filteredTickets.length}
+                onCheckedChange={(checked: boolean) => handleSelectAll(checked)}
+              />
+              <Label htmlFor="select-all" className="cursor-pointer">Select All</Label>
+            </div>
+          )}
+        </div>
+
+        {selectedTickets.size > 0 && (
+          <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+            <Badge variant="secondary" className="px-3 py-1">
+              {selectedTickets.size} selected
+            </Badge>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+              className="gap-2"
+            >
+              {isBulkDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete Selected
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedTickets(new Set())}>
+              Cancel
+            </Button>
+          </div>
+        )}
       </div>
 
       {filteredTickets.length === 0 ? (
@@ -257,7 +336,13 @@ export default function TicketsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredTickets.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+            <TicketCard 
+              key={ticket.id} 
+              ticket={ticket} 
+              selectable={user?.role === 'admin'}
+              selected={selectedTickets.has(ticket.id)}
+              onSelect={handleSelectTicket}
+            />
           ))}
         </div>
       )}

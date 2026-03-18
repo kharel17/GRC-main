@@ -366,6 +366,17 @@ async def create_tickets_from_gaps(
             "low": TicketPriority.low,
         }
         
+        # Determine Assignee (Prefer an Analyst)
+        analyst_query = select(models.User).where(
+            models.User.organization_id == organization_id,
+            models.User.role == models.UserRole.analyst,
+            models.User.is_active == True
+        )
+        analyst_res = await db.execute(analyst_query)
+        analyst = analyst_res.scalars().first()
+        assignee_id = analyst.id if analyst else created_by.id
+        assignee_role = "Analyst" if analyst else created_by.role.value.capitalize()
+        
         # Create audit log first (required FK for ticket)
         audit_log = await audit_service.log_action(
             db=db,
@@ -392,8 +403,8 @@ async def create_tickets_from_gaps(
             status=TicketStatus.open,
             category=TicketCategory.compliance_gap,
             source_audit_log_id=audit_log.id,
-            assigned_to_id=created_by.id,
-            assigned_to_role="Analyst",
+            assigned_to_id=assignee_id,
+            assigned_to_role=assignee_role,
             organization_id=organization_id,
             created_by=created_by.id,
             framework_control_id=gap.framework_control_id,

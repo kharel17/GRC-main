@@ -34,6 +34,9 @@ class Organization(Base):
 
     # Detailed risk levels per risk type
     risk_appetite = Column(JSONB, nullable=True)
+
+    # Ticket & Escalation Settings
+    ticket_settings = Column(JSONB, nullable=True)
     
     # Milestone for compliance
     compliance_target_date = Column(DateTime, nullable=True)

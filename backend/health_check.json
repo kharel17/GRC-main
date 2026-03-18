@@ -1,0 +1,7 @@
+﻿{
+    "status":  "healthy",
+    "database":  "connected",
+    "environment":  "development",
+    "ai_ready":  true,
+    "ai_engine":  "hybrid"
+}

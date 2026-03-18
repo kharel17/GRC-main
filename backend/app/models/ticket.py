@@ -44,7 +44,7 @@ class Ticket(Base):
     
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
 
-    source_audit_log_id = Column(UUID(as_uuid=True), ForeignKey("audit_logs.id"), nullable=False)
+    source_audit_log_id = Column(UUID(as_uuid=True), ForeignKey("audit_logs.id"), nullable=True)
     
     assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     assigned_to_role = Column(String, nullable=False)

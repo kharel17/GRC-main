@@ -1,0 +1,765 @@
+﻿alembic : INFO  [alembi
+c.runtime.migration] 
+Context impl 
+PostgresqlImpl.
+At line:1 char:1
++ alembic upgrade head 
+2>&1 | Out-File 
+-Encoding utf8 
+d:\Grc-dev\backen ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (INFO  [alembi   
+ c....PostgresqlImp    
+l.:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+INFO  [alembic.runtime.
+migration] Will assume 
+transactional DDL.
+INFO  [alembic.runtime.
+migration] Running 
+upgrade 69c6398f2f3b 
+-> a3d809cd220f, Sync 
+ticket_settings column
+Traceback (most recent 
+call last):
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 550, in 
+_prepare_and_execute
+    self._rows = 
+deque(await prepared_st
+mt.fetch(*parameters))
+                       
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\prep
+ared_stmt.py", line 
+177, in fetch
+    data = await self._
+_bind_execute(args, 0, 
+timeout)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\prep
+ared_stmt.py", line 
+268, in __bind_execute
+    data, status, _ = 
+await 
+self.__do_execute(
+                      ^
+^^^^^^^^^^^^^^^^^^^^^^^
+        lambda 
+protocol: 
+protocol.bind_execute(
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^
+            
+self._state, args, '', 
+limit, True, timeout))
+            ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\prep
+ared_stmt.py", line 
+257, in __do_execute
+    return await 
+executor(protocol)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "asyncpg/protoco
+l/protocol.pyx", line 
+205, in bind_execute
+asyncpg.exceptions.NotN
+ullViolationError: 
+column 
+"organization_id" of 
+relation 
+"document_analyses" 
+contains null values
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most recent 
+call last):
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1967, in 
+_exec_single_context
+    self.dialect.do_exe
+cute(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~^
+        cursor, 
+str_statement, 
+effective_parameters, 
+context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\default.py", 
+line 952, in do_execute
+    cursor.execute(stat
+ement, parameters)
+    ~~~~~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 585, in 
+execute
+    self._adapt_connect
+ion.await_(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~^
+        self._prepare_a
+nd_execute(operation, 
+parameters)
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 132, in 
+await_only
+    return current.pare
+nt.switch(awaitable)  
+# type: ignore[no-any-r
+eturn,attr-defined] # 
+noqa: E501
+           ~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 196, in 
+greenlet_spawn
+    value = await 
+result
+            
+^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 563, in 
+_prepare_and_execute
+    self._handle_except
+ion(error)
+    ~~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 513, in 
+_handle_exception
+    self._adapt_connect
+ion._handle_exception(e
+rror)
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~^^
+^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 797, in 
+_handle_exception
+    raise 
+translated_error from 
+error
+sqlalchemy.dialects.pos
+tgresql.asyncpg.AsyncAd
+apt_asyncpg_dbapi.Integ
+rityError: <class 'asyn
+cpg.exceptions.NotNullV
+iolationError'>: 
+column 
+"organization_id" of 
+relation 
+"document_analyses" 
+contains null values
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most recent 
+call last):
+  File "<frozen 
+runpy>", line 198, in 
+_run_module_as_main
+  File "<frozen 
+runpy>", line 88, in 
+_run_code
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Scripts
+\alembic.exe\__main__.p
+y", line 7, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\conf
+ig.py", line 1047, in 
+main
+    CommandLine(prog=pr
+og).main(argv=argv)
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\conf
+ig.py", line 1037, in 
+main
+    self.run_cmd(cfg, 
+options)
+    ~~~~~~~~~~~~^^^^^^^
+^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\conf
+ig.py", line 971, in 
+run_cmd
+    fn(
+    ~~^
+        config,
+        ^^^^^^^
+        
+*[getattr(options, k, 
+None) for k in 
+positional],
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^
+        **{k: 
+getattr(options, k, 
+None) for k in kwarg},
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\comm
+and.py", line 483, in 
+upgrade
+    script.run_env()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\scri
+pt\base.py", line 545, 
+in run_env
+    util.load_python_fi
+le(self.dir, "env.py")
+    ~~~~~~~~~~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\util
+\pyfiles.py", line 
+116, in 
+load_python_file
+    module = load_modul
+e_py(module_id, path)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\util
+\pyfiles.py", line 
+136, in load_module_py
+    spec.loader.exec_mo
+dule(module)  # type: 
+ignore
+    ~~~~~~~~~~~~~~~~~~~
+~~~~^^^^^^^^
+  File "<frozen importl
+ib._bootstrap_external>
+", line 1026, in 
+exec_module
+  File "<frozen importl
+ib._bootstrap>", line 
+488, in _call_with_fram
+es_removed
+  File "D:\Grc-dev\back
+end\alembic\env.py", 
+line 84, in <module>
+    asyncio.run(run_mig
+rations_online())
+    ~~~~~~~~~~~^^^^^^^^
+^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\runners.py", line 
+195, in run
+    return 
+runner.run(main)
+           
+~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\runners.py", line 
+118, in run
+    return self._loop.r
+un_until_complete(task)
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\base_events.py", 
+line 725, in 
+run_until_complete
+    return 
+future.result()
+           
+~~~~~~~~~~~~~^^
+  File "D:\Grc-dev\back
+end\alembic\env.py", 
+line 76, in 
+run_migrations_online
+    await connection.ru
+n_sync(do_run_migration
+s)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+xt\asyncio\engine.py", 
+line 888, in run_sync
+    return await 
+greenlet_spawn(
+           
+^^^^^^^^^^^^^^^^^^^^^
+        fn, 
+self._proxied, *arg, 
+_require_await=False, 
+**kw
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 203, in 
+greenlet_spawn
+    result = 
+context.switch(value)
+  File "D:\Grc-dev\back
+end\alembic\env.py", 
+line 54, in 
+do_run_migrations
+    context.run_migrati
+ons()
+    ~~~~~~~~~~~~~~~~~~~
+~~~^^
+  File "<string>", 
+line 8, in 
+run_migrations
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\runt
+ime\environment.py", 
+line 969, in 
+run_migrations
+    self.get_context().
+run_migrations(**kw)
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\runt
+ime\migration.py", 
+line 626, in 
+run_migrations
+    
+step.migration_fn(**kw)
+    
+~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\Grc-dev\back
+end\alembic\versions\a3
+d809cd220f_sync_ticket_
+settings_column.py", 
+line 24, in upgrade
+    op.alter_column('do
+cument_analyses', 
+'organization_id',
+    ~~~~~~~~~~~~~~~^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+               existing
+_type=sa.UUID(),
+               ^^^^^^^^
+^^^^^^^^^^^^^^^^
+               
+nullable=False)
+               
+^^^^^^^^^^^^^^^
+  File "<string>", 
+line 8, in alter_column
+  File "<string>", 
+line 3, in alter_column
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\oper
+ations\ops.py", line 
+1974, in alter_column
+    return 
+operations.invoke(alt)
+           
+~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\oper
+ations\base.py", line 
+452, in invoke
+    return fn(self, 
+operation)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\oper
+ations\toimpl.py", 
+line 58, in 
+alter_column
+    operations.impl.alt
+er_column(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~^
+        table_name,
+        ^^^^^^^^^^^
+    ...<11 lines>...
+        **operation.kw,
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\ddl\
+postgresql.py", line 
+202, in alter_column
+    
+super().alter_column(
+    
+~~~~~~~~~~~~~~~~~~~~^
+        table_name,
+        ^^^^^^^^^^^
+    ...<10 lines>...
+        **kw,
+        ^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\ddl\
+impl.py", line 295, in 
+alter_column
+    self._exec(
+    ~~~~~~~~~~^
+        
+base.ColumnNullable(
+        
+^^^^^^^^^^^^^^^^^^^^
+    ...<8 lines>...
+        )
+        ^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\alembic\ddl\
+impl.py", line 256, in 
+_exec
+    return conn.execute
+(construct, params)
+           ~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1419, in execute
+    return meth(
+        self,
+        
+distilled_parameters,
+        
+execution_options or 
+NO_OPTIONS,
+    )
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\s
+ql\ddl.py", line 187, 
+in 
+_execute_on_connection
+    return connection._
+execute_ddl(
+           ~~~~~~~~~~~~
+~~~~~~~~~~~^
+        self, 
+distilled_params, 
+execution_options
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1530, in _execute_ddl
+    ret = 
+self._execute_context(
+        dialect,
+    ...<4 lines>...
+        compiled,
+    )
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1846, in 
+_execute_context
+    return self._exec_s
+ingle_context(
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~^
+        dialect, 
+context, statement, 
+parameters
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1986, in 
+_exec_single_context
+    self._handle_dbapi_
+exception(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~^
+        e, 
+str_statement, 
+effective_parameters, 
+cursor, context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+2363, in 
+_handle_dbapi_exception
+    raise sqlalchemy_ex
+ception.with_traceback(
+exc_info[2]) from e
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1967, in 
+_exec_single_context
+    self.dialect.do_exe
+cute(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~^
+        cursor, 
+str_statement, 
+effective_parameters, 
+context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\default.py", 
+line 952, in do_execute
+    cursor.execute(stat
+ement, parameters)
+    ~~~~~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 585, in 
+execute
+    self._adapt_connect
+ion.await_(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~^
+        self._prepare_a
+nd_execute(operation, 
+parameters)
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 132, in 
+await_only
+    return current.pare
+nt.switch(awaitable)  
+# type: ignore[no-any-r
+eturn,attr-defined] # 
+noqa: E501
+           ~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 196, in 
+greenlet_spawn
+    value = await 
+result
+            
+^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 563, in 
+_prepare_and_execute
+    self._handle_except
+ion(error)
+    ~~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 513, in 
+_handle_exception
+    self._adapt_connect
+ion._handle_exception(e
+rror)
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~^^
+^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 797, in 
+_handle_exception
+    raise 
+translated_error from 
+error
+sqlalchemy.exc.Integrit
+yError: (sqlalchemy.dia
+lects.postgresql.asyncp
+g.IntegrityError) 
+<class 'asyncpg.excepti
+ons.NotNullViolationErr
+or'>: column 
+"organization_id" of 
+relation 
+"document_analyses" 
+contains null values
+[SQL: ALTER TABLE 
+document_analyses 
+ALTER COLUMN 
+organization_id SET 
+NOT NULL]
+(Background on this 
+error at: https://sqlal
+che.me/e/20/gkpj)

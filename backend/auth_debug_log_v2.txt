@@ -1,0 +1,42 @@
+﻿python : INFO:     
+Started server process 
+[5236]
+At line:1 char:1
++ python -m uvicorn 
+app.main:app --port 
+8000 2>&1 | Out-File 
+-Encoding  ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (INFO:     Sta   
+ rted server proces    
+s [5236]:String) [    
+], RemoteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+INFO:     Waiting for 
+application startup.
+{"timestamp": "2026-03-17T23:43:31.183859Z", "level": "INFO", "logger": "grc.ai", "message": "AI Service: Loading ISO 27001 controls..."}
+{"timestamp": "2026-03-17T23:43:31.184119Z", "level": "INFO", "logger": "grc", "message": "AI Service initialization triggered in background thread"}
+{"timestamp": "2026-03-17T23:43:31.184296Z", "level": "INFO", "logger": "grc", "message": "Platform team role fix scheduled in background"}
+INFO:     Application 
+startup complete.
+ERROR:    [Errno 
+10048] error while 
+attempting to bind on 
+address ('127.0.0.1', 
+8000): [winerror 
+10048] only one usage 
+of each socket address 
+(protocol/network 
+address/port) is 
+normally permitted
+INFO:     Waiting for 
+application shutdown.
+INFO:     Application 
+shutdown complete.

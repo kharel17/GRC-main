@@ -118,7 +118,11 @@ async def create_risk(
     await db.flush()
     await db.refresh(risk)
 
-    # 5. Notifications
+    # 5. Trigger Ticket Logic (Centralized)
+    from app.services.risk_trigger_service import RiskTriggerService
+    await RiskTriggerService.evaluate_and_trigger(db, risk.id)
+
+    # 6. Notifications
     # Notify owner
     if risk.owner_id:
         await notify(
@@ -132,9 +136,7 @@ async def create_risk(
             notification_type="RISK_ASSIGNMENT"
         )
     
-    # 5. Refresh and load relationships for serialization
-    # We must eagerly load category because schemas.Risk expects it
-    # and lazy-loading will fail after commit/refresh on an async session
+    # 7. Commit and Reload
     await db.commit()
 
     result = await db.execute(
@@ -207,7 +209,11 @@ async def update_risk(
     await db.commit()
     await db.refresh(risk)
 
-    # Reload with category
+    # 4. Trigger Ticket Logic
+    from app.services.risk_trigger_service import RiskTriggerService
+    await RiskTriggerService.evaluate_and_trigger(db, risk.id)
+
+    # 5. Reload with category
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
@@ -215,7 +221,7 @@ async def update_risk(
     )
     risk = result.scalars().first()
 
-    # Audit log
+    # 6. Audit log
     await audit_service.log_action(
         db=db,
         user=current_user,

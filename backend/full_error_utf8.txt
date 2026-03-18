@@ -1,0 +1,660 @@
+﻿--- Starting Verification: Ticket Triggering & Escalation ---
+2026-03-18 04:39:16,530 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2026-03-18 04:39:16,530 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-03-18 04:39:17,083 INFO sqlalchemy.engine.Engine select current_schema()
+2026-03-18 04:39:17,083 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-03-18 04:39:17,816 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2026-03-18 04:39:17,817 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-03-18 04:39:18,371 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-03-18 04:39:18,373 INFO sqlalchemy.engine.Engine INSERT INTO organizations (id, name, industry, size, description, website, country, employee_count, infrastructure, data_types, onboarding_completed, created_by, ticket_settings, compliance_target_date, framework_id, isms_scope, compliance_frameworks, primary_contact_id, created_at, updated_at) VALUES ($1::UUID, $2::VARCHAR, $3::VARCHAR, $4::organizationsize, $5::VARCHAR, $6::VARCHAR, $7::VARCHAR, $8::VARCHAR, $9::VARCHAR, $10::VARCHAR, $11::BOOLEAN, $12::UUID, $13::JSONB, $14::TIMESTAMP WITHOUT TIME ZONE, $15::UUID, $16::VARCHAR, $17::JSONB, $18::UUID, $19::TIMESTAMP WITHOUT TIME ZONE, $20::TIMESTAMP WITHOUT TIME ZONE)
+2026-03-18 04:39:18,373 INFO sqlalchemy.engine.Engine [generated in 0.00039s] (UUID('6c09ae72-c85a-456a-aeba-798b14bcffd7'), 'Test Org c11a9a', None, None, 'Verification Org', None, None, None, None, None, False, None, '{"severity_threshold": 40, "is_auto_escalation_enabled": true, "suppression_window_days": 7}', None, None, None, '[]', None, datetime.datetime(2026, 3, 17, 22, 54, 18, 373412), datetime.datetime(2026, 3, 17, 22, 54, 18, 373416))
+2026-03-18 04:39:19,665 INFO sqlalchemy.engine.Engine INSERT INTO users (id, email, full_name, hashed_password, role, department, is_active, token_version, created_at, updated_at, is_acting_admin, manager_id, organization_id, invitation_status, invited_by, invited_at, organization_name) VALUES ($1::UUID, $2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::userrole, $6::VARCHAR, $7::BOOLEAN, $8::INTEGER, $9::TIMESTAMP WITHOUT TIME ZONE, $10::TIMESTAMP WITHOUT TIME ZONE, $11::INTEGER, $12::UUID, $13::UUID, $14::VARCHAR, $15::UUID, $16::TIMESTAMP WITHOUT TIME ZONE, $17::VARCHAR)
+2026-03-18 04:39:19,666 INFO sqlalchemy.engine.Engine [generated in 0.00030s] (UUID('2d4abee5-22a5-42c2-b464-ed3c15676053'), 'manager_00e996@test.com', 'Department Manager', 'hash', 'department_manager', None, True, 1, datetime.datetime(2026, 3, 17, 22, 54, 19, 665877), datetime.datetime(2026, 3, 17, 22, 54, 19, 665880), 0, None, UUID('6c09ae72-c85a-456a-aeba-798b14bcffd7'), 'pending', None, None, None)
+2026-03-18 04:39:20,779 INFO sqlalchemy.engine.Engine ROLLBACK
+python : Traceback 
+(most recent call 
+last):
+At line:1 char:39
++ ... v\backend"; 
+python d:\Grc-dev\backe
+nd\verify_ticket_escala
+tion.py 2>& ...
++                 ~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Traceback (mo   
+ st recent call las    
+t)::String) [], Re    
+moteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 550, in 
+_prepare_and_execute
+    self._rows = 
+deque(await prepared_st
+mt.fetch(*parameters))
+                       
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\prep
+ared_stmt.py", line 
+177, in fetch
+    data = await self._
+_bind_execute(args, 0, 
+timeout)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\prep
+ared_stmt.py", line 
+268, in __bind_execute
+    data, status, _ = 
+await 
+self.__do_execute(
+                      ^
+^^^^^^^^^^^^^^^^^^^^^^^
+        lambda 
+protocol: 
+protocol.bind_execute(
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^
+            
+self._state, args, '', 
+limit, True, timeout))
+            ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\prep
+ared_stmt.py", line 
+257, in __do_execute
+    return await 
+executor(protocol)
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "asyncpg/protoco
+l/protocol.pyx", line 
+205, in bind_execute
+asyncpg.exceptions.Inva
+lidTextRepresentationEr
+ror: invalid input 
+value for enum 
+userrole: 
+"department_manager"
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most recent 
+call last):
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1967, in 
+_exec_single_context
+    self.dialect.do_exe
+cute(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~^
+        cursor, 
+str_statement, 
+effective_parameters, 
+context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\default.py", 
+line 952, in do_execute
+    cursor.execute(stat
+ement, parameters)
+    ~~~~~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 585, in 
+execute
+    self._adapt_connect
+ion.await_(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~^
+        self._prepare_a
+nd_execute(operation, 
+parameters)
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 132, in 
+await_only
+    return current.pare
+nt.switch(awaitable)  
+# type: ignore[no-any-r
+eturn,attr-defined] # 
+noqa: E501
+           ~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 196, in 
+greenlet_spawn
+    value = await 
+result
+            
+^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 563, in 
+_prepare_and_execute
+    self._handle_except
+ion(error)
+    ~~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 513, in 
+_handle_exception
+    self._adapt_connect
+ion._handle_exception(e
+rror)
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~^^
+^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 797, in 
+_handle_exception
+    raise 
+translated_error from 
+error
+sqlalchemy.dialects.pos
+tgresql.asyncpg.AsyncAd
+apt_asyncpg_dbapi.Error
+: <class 'asyncpg.excep
+tions.InvalidTextRepres
+entationError'>: 
+invalid input value 
+for enum userrole: 
+"department_manager"
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most recent 
+call last):
+  File "d:\Grc-dev\back
+end\verify_ticket_escal
+ation.py", line 189, 
+in <module>
+    
+asyncio.run(verify())
+    
+~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\runners.py", line 
+195, in run
+    return 
+runner.run(main)
+           
+~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\runners.py", line 
+118, in run
+    return self._loop.r
+un_until_complete(task)
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\base_events.py", 
+line 725, in 
+run_until_complete
+    return 
+future.result()
+           
+~~~~~~~~~~~~~^^
+  File "d:\Grc-dev\back
+end\verify_ticket_escal
+ation.py", line 41, in 
+verify
+    await db.flush()
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+xt\asyncio\session.py",
+ line 787, in flush
+    await greenlet_spaw
+n(self.sync_session.flu
+sh, objects=objects)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 203, in 
+greenlet_spawn
+    result = 
+context.switch(value)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\session.py", line 
+4331, in flush
+    
+self._flush(objects)
+    
+~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\session.py", line 
+4466, in _flush
+    with 
+util.safe_reraise():
+         
+~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\langhelpers.py", 
+line 121, in __exit__
+    raise exc_value.wit
+h_traceback(exc_tb)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\session.py", line 
+4427, in _flush
+    
+flush_context.execute()
+    
+~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\unitofwork.py", 
+line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\unitofwork.py", 
+line 642, in execute
+    util.preloaded.orm_
+persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_
+mapper_hierarchy(self.m
+apper, False, False),
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\persistence.py", 
+line 93, in save_obj
+    _emit_insert_statem
+ents(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        insert,
+        ^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\persistence.py", 
+line 1233, in 
+_emit_insert_statements
+    result = 
+connection.execute(
+        statement,
+        params,
+        execution_optio
+ns=execution_options,
+    )
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1419, in execute
+    return meth(
+        self,
+        
+distilled_parameters,
+        
+execution_options or 
+NO_OPTIONS,
+    )
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\s
+ql\elements.py", line 
+527, in 
+_execute_on_connection
+    return connection._
+execute_clauseelement(
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~^
+        self, 
+distilled_params, 
+execution_options
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1641, in 
+_execute_clauseelement
+    ret = 
+self._execute_context(
+        dialect,
+    ...<8 lines>...
+        
+cache_hit=cache_hit,
+    )
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1846, in 
+_execute_context
+    return self._exec_s
+ingle_context(
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~^
+        dialect, 
+context, statement, 
+parameters
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1986, in 
+_exec_single_context
+    self._handle_dbapi_
+exception(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~^
+        e, 
+str_statement, 
+effective_parameters, 
+cursor, context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+2363, in 
+_handle_dbapi_exception
+    raise sqlalchemy_ex
+ception.with_traceback(
+exc_info[2]) from e
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1967, in 
+_exec_single_context
+    self.dialect.do_exe
+cute(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~^
+        cursor, 
+str_statement, 
+effective_parameters, 
+context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\default.py", 
+line 952, in do_execute
+    cursor.execute(stat
+ement, parameters)
+    ~~~~~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 585, in 
+execute
+    self._adapt_connect
+ion.await_(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~^
+        self._prepare_a
+nd_execute(operation, 
+parameters)
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 132, in 
+await_only
+    return current.pare
+nt.switch(awaitable)  
+# type: ignore[no-any-r
+eturn,attr-defined] # 
+noqa: E501
+           ~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 196, in 
+greenlet_spawn
+    value = await 
+result
+            
+^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 563, in 
+_prepare_and_execute
+    self._handle_except
+ion(error)
+    ~~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 513, in 
+_handle_exception
+    self._adapt_connect
+ion._handle_exception(e
+rror)
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~^^
+^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 797, in 
+_handle_exception
+    raise 
+translated_error from 
+error
+sqlalchemy.exc.DBAPIErr
+or: (sqlalchemy.dialect
+s.postgresql.asyncpg.Er
+ror) <class 'asyncpg.ex
+ceptions.InvalidTextRep
+resentationError'>: 
+invalid input value 
+for enum userrole: 
+"department_manager"
+[SQL: INSERT INTO 
+users (id, email, 
+full_name, 
+hashed_password, role, 
+department, is_active, 
+token_version, 
+created_at, 
+updated_at, 
+is_acting_admin, 
+manager_id, 
+organization_id, 
+invitation_status, 
+invited_by, 
+invited_at, 
+organization_name) 
+VALUES ($1::UUID, 
+$2::VARCHAR, 
+$3::VARCHAR, 
+$4::VARCHAR, 
+$5::userrole, 
+$6::VARCHAR, 
+$7::BOOLEAN, 
+$8::INTEGER, 
+$9::TIMESTAMP WITHOUT 
+TIME ZONE, 
+$10::TIMESTAMP WITHOUT 
+TIME ZONE, 
+$11::INTEGER, 
+$12::UUID, $13::UUID, 
+$14::VARCHAR, 
+$15::UUID, 
+$16::TIMESTAMP WITHOUT 
+TIME ZONE, 
+$17::VARCHAR)]
+[parameters: (UUID('2d4
+abee5-22a5-42c2-b464-ed
+3c15676053'), 'manager_
+00e996@test.com', 
+'Department Manager', 
+'hash', 
+'department_manager', 
+None, True, 1, datetime
+.datetime(2026, 3, 17, 
+22, 54, 19, 665877), da
+tetime.datetime(2026, 
+3, 17, 22, 54, 19, 
+665880), 0, None, UUID(
+'6c09ae72-c85a-456a-aeb
+a-798b14bcffd7'), 
+'pending', None, None, 
+None)]
+(Background on this 
+error at: https://sqlal
+che.me/e/20/dbapi)

@@ -1,0 +1,18 @@
+--- GRC COMPLIANCE EVIDENCE REPORT ---
+Date: 2026-03-18
+Ticket ID: [REPLACE_WITH_YOUR_TICKET_ID]
+Subject: Evidence for MFA Configuration Compliance (ISO A.9.2.1)
+
+Description:
+This document serves as formal evidence that Multi-Factor Authentication (MFA) has been successfully enabled for all administrative accounts in the production environment.
+
+Verification Steps Taken:
+1. Audited all user accounts with 'admin' privileges.
+2. Confirmed that 100% of these accounts have TOTP (Time-based One-Time Password) active.
+3. Verified that the global MFA policy is 'Enforced' and cannot be bypassed.
+
+Screenshot Hash (Simulated):
+SHA-256: 5f4dcc3b5aa765d61d8327deb882cf99
+
+Status: Compliance Verified
+Signed: [System Administrator / Compliance Officer]

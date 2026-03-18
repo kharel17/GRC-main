@@ -1,0 +1,12 @@
+Total users: 11
+User: alice@company.com, Role: UserRole.admin, Role Type: <enum 'UserRole'>, Active: True, Org: 24de3639-ee40-4563-a207-dd66436a0da8
+User: grchelios@gmail.com, Role: UserRole.admin, Role Type: <enum 'UserRole'>, Active: True, Org: 24de3639-ee40-4563-a207-dd66436a0da8
+User: sanskar.pok1@gmail.com, Role: UserRole.manager, Role Type: <enum 'UserRole'>, Active: True, Org: 24de3639-ee40-4563-a207-dd66436a0da8
+User: carol@company.com, Role: UserRole.manager, Role Type: <enum 'UserRole'>, Active: False, Org: 24de3639-ee40-4563-a207-dd66436a0da8
+User: bob@company.com, Role: UserRole.analyst, Role Type: <enum 'UserRole'>, Active: False, Org: 24de3639-ee40-4563-a207-dd66436a0da8
+User: kevinqt69@gmail.com, Role: UserRole.analyst, Role Type: <enum 'UserRole'>, Active: True, Org: 24de3639-ee40-4563-a207-dd66436a0da8
+User: manager_0e2da1@test.com, Role: UserRole.department_manager, Role Type: <enum 'UserRole'>, Active: True, Org: a87a5b13-408f-4531-8f40-eb529866f079
+User: owner_2d7691@test.com, Role: UserRole.risk_owner, Role Type: <enum 'UserRole'>, Active: True, Org: a87a5b13-408f-4531-8f40-eb529866f079
+User: manager_c7c992@test.com, Role: UserRole.department_manager, Role Type: <enum 'UserRole'>, Active: True, Org: ed11a56b-dda0-4e95-acad-2160af5b9a46
+User: owner_8af32b@test.com, Role: UserRole.risk_owner, Role Type: <enum 'UserRole'>, Active: True, Org: ed11a56b-dda0-4e95-acad-2160af5b9a46
+User: bcolorc17@gmail.com, Role: UserRole.admin, Role Type: <enum 'UserRole'>, Active: True, Org: 24de3639-ee40-4563-a207-dd66436a0da8

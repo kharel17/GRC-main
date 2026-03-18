@@ -1,0 +1,30 @@
+python : Access 
+Denied: 
+kevinqt69@gmail.com 
+(role: analyst) 
+requires one of 
+[<UserRole.admin: 
+'admin'>]
+At line:1 char:39
++ ... rc-dev\backend"; 
+python d:\Grc-dev\backe
+nd\test_roles.py *>&1 
+| Out-F ...
++                      
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Access Denied   
+ : ...dmin: 'admin'    
+>]:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+Admin: alice@company.com, Role: UserRole.admin, Type: <enum 'UserRole'>
+Analyst: kevinqt69@gmail.com, Role: UserRole.analyst, Type: <enum 'UserRole'>
+PASS: Admin passed admin check
+PASS: Analyst correctly failed admin check: 403: Role 'analyst' does not have access to this resource
+PASS: Analyst passed analyst check

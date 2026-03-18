@@ -17,6 +17,7 @@ class OrganizationCreate(BaseModel):
     isms_scope: Optional[str] = None
     employee_count: Optional[int] = None
     risk_appetite: Optional[dict] = None
+    ticket_settings: Optional[dict] = None
     compliance_target_date: Optional[datetime] = None
 
 
@@ -33,6 +34,7 @@ class OrganizationUpdate(BaseModel):
     isms_scope: Optional[str] = None
     employee_count: Optional[int] = None
     risk_appetite: Optional[dict] = None
+    ticket_settings: Optional[dict] = None
     compliance_target_date: Optional[datetime] = None
 
 
@@ -50,6 +52,7 @@ class OrganizationResponse(BaseModel):
     isms_scope: Optional[str] = None
     employee_count: Optional[int] = None
     risk_appetite: Optional[dict] = None
+    ticket_settings: Optional[dict] = None
     compliance_target_date: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

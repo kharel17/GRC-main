@@ -1,0 +1,845 @@
+python : Traceback 
+(most recent call 
+last):
+At line:1 char:39
++ ... rc-dev\backend"; 
+python d:\Grc-dev\backe
+nd\test_roles.py *>&1 
+| Out-F ...
++                      
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Traceback (mo   
+ st recent call las    
+t)::String) [], Re    
+moteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 526, in 
+_prepare_and_execute
+    prepared_stmt, 
+attributes = await adap
+t_connection._prepare(
+                       
+         ^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
+        operation, self
+._invalidate_schema_cac
+he_asof
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 773, in 
+_prepare
+    prepared_stmt = 
+await self._connection.
+prepare(
+                    ^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^
+        operation, name
+=self._prepared_stateme
+nt_name_func()
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\conn
+ection.py", line 638, 
+in prepare
+    return await 
+self._prepare(
+           
+^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\conn
+ection.py", line 657, 
+in _prepare
+    stmt = await 
+self._get_statement(
+           ^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\asyncpg\conn
+ection.py", line 443, 
+in _get_statement
+    statement = await 
+self._protocol.prepare(
+                ^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "asyncpg/protoco
+l/protocol.pyx", line 
+165, in prepare
+asyncpg.exceptions.Dupl
+icatePreparedStatementE
+rror: prepared 
+statement 
+"__asyncpg_stmt_1__" 
+already exists
+HINT:  
+NOTE: pgbouncer with 
+pool_mode set to 
+"transaction" or
+"statement" does not 
+support prepared 
+statements properly.
+You have two options:
+
+* if you are using 
+pgbouncer for 
+connection pooling to a
+  single server, 
+switch to the 
+connection pool 
+functionality
+  provided by asyncpg, 
+it is a much better 
+option for this
+  purpose;
+
+* if you have no 
+option of avoiding the 
+use of pgbouncer,
+  then you can set 
+statement_cache_size 
+to 0 when creating
+  the asyncpg 
+connection object.
+
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most recent 
+call last):
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1967, in 
+_exec_single_context
+    self.dialect.do_exe
+cute(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~^
+        cursor, 
+str_statement, 
+effective_parameters, 
+context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\default.py", 
+line 952, in do_execute
+    cursor.execute(stat
+ement, parameters)
+    ~~~~~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 585, in 
+execute
+    self._adapt_connect
+ion.await_(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~^
+        self._prepare_a
+nd_execute(operation, 
+parameters)
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 132, in 
+await_only
+    return current.pare
+nt.switch(awaitable)  
+# type: ignore[no-any-r
+eturn,attr-defined] # 
+noqa: E501
+           ~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 196, in 
+greenlet_spawn
+    value = await 
+result
+            
+^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 563, in 
+_prepare_and_execute
+    self._handle_except
+ion(error)
+    ~~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 513, in 
+_handle_exception
+    self._adapt_connect
+ion._handle_exception(e
+rror)
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~^^
+^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 797, in 
+_handle_exception
+    raise 
+translated_error from 
+error
+sqlalchemy.dialects.pos
+tgresql.asyncpg.AsyncAd
+apt_asyncpg_dbapi.Progr
+ammingError: <class 'as
+yncpg.exceptions.Duplic
+atePreparedStatementErr
+or'>: prepared 
+statement 
+"__asyncpg_stmt_1__" 
+already exists
+HINT:  
+NOTE: pgbouncer with 
+pool_mode set to 
+"transaction" or
+"statement" does not 
+support prepared 
+statements properly.
+You have two options:
+
+* if you are using 
+pgbouncer for 
+connection pooling to a
+  single server, 
+switch to the 
+connection pool 
+functionality
+  provided by asyncpg, 
+it is a much better 
+option for this
+  purpose;
+
+* if you have no 
+option of avoiding the 
+use of pgbouncer,
+  then you can set 
+statement_cache_size 
+to 0 when creating
+  the asyncpg 
+connection object.
+
+
+The above exception 
+was the direct cause 
+of the following 
+exception:
+
+Traceback (most recent 
+call last):
+  File "d:\Grc-dev\back
+end\test_roles.py", 
+line 58, in <module>
+    asyncio.run(test_ro
+le_checker())
+    ~~~~~~~~~~~^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\runners.py", line 
+195, in run
+    return 
+runner.run(main)
+           
+~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\runners.py", line 
+118, in run
+    return self._loop.r
+un_until_complete(task)
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\asy
+ncio\base_events.py", 
+line 725, in 
+run_until_complete
+    return 
+future.result()
+           
+~~~~~~~~~~~~~^^
+  File "d:\Grc-dev\back
+end\test_roles.py", 
+line 22, in 
+test_role_checker
+    result = await db.e
+xecute(select(models.Us
+er).where(models.User.e
+mail == 
+"alice@company.com"))
+             ^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+xt\asyncio\session.py",
+ line 449, in execute
+    result = await 
+greenlet_spawn(
+             
+^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 203, in 
+greenlet_spawn
+    result = 
+context.switch(value)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\session.py", line 
+2351, in execute
+    return 
+self._execute_internal(
+           
+~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        
+_add_event=_add_event,
+        
+^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\session.py", line 
+2239, in 
+_execute_internal
+    conn = self._connec
+tion_for_bind(bind)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\session.py", line 
+2108, in 
+_connection_for_bind
+    return trans._conne
+ction_for_bind(engine, 
+execution_options)
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "<string>", 
+line 2, in 
+_connection_for_bind
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\state_changes.py", 
+line 137, in _go
+    ret_value = 
+fn(self, *arg, **kw)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\o
+rm\session.py", line 
+1187, in 
+_connection_for_bind
+    conn = 
+bind.connect()
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+3293, in connect
+    return self._connec
+tion_cls(self)
+           ~~~~~~~~~~~~
+~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+143, in __init__
+    
+self._dbapi_connection 
+= 
+engine.raw_connection()
+                       
+      
+~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+3317, in raw_connection
+    return 
+self.pool.connect()
+           
+~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\p
+ool\base.py", line 
+448, in connect
+    return _ConnectionF
+airy._checkout(self)
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\p
+ool\base.py", line 
+1272, in _checkout
+    fairy = _Connection
+Record.checkout(pool)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\p
+ool\base.py", line 
+712, in checkout
+    rec = 
+pool._do_get()
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\p
+ool\impl.py", line 
+177, in _do_get
+    with 
+util.safe_reraise():
+         
+~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\langhelpers.py", 
+line 121, in __exit__
+    raise exc_value.wit
+h_traceback(exc_tb)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\p
+ool\impl.py", line 
+175, in _do_get
+    return self._create
+_connection()
+           ~~~~~~~~~~~~
+~~~~~~~~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\p
+ool\base.py", line 
+389, in 
+_create_connection
+    return 
+_ConnectionRecord(self)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\p
+ool\base.py", line 
+674, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\p
+ool\base.py", line 
+914, in __connect
+    )._exec_w_sync_on_f
+irst_run(self.dbapi_con
+nection, self)
+      ~~~~~~~~~~~~~~~~~
+~~~~~~~~^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+vent\attr.py", line 
+501, in _exec_w_sync_on
+_first_run
+    self(*args, **kw)
+    ~~~~^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+vent\attr.py", line 
+515, in __call__
+    fn(*args, **kw)
+    ~~^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\langhelpers.py", 
+line 1897, in go
+    return 
+once_fn(*arg, **kw)
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\create.py", line 
+773, in first_connect
+    
+dialect.initialize(c)
+    
+~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\base
+.py", line 3340, in 
+initialize
+    super().initialize(
+connection)
+    ~~~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\default.py", 
+line 528, in initialize
+    self.server_version
+_info = self._get_serve
+r_version_info(
+                       
+        ~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~^
+        connection
+        ^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\base
+.py", line 3610, in _ge
+t_server_version_info
+    v = connection.exec
+_driver_sql("select pg_
+catalog.version()").sca
+lar()
+        ~~~~~~~~~~~~~~~
+~~~~~~~~~~~^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1779, in 
+exec_driver_sql
+    ret = 
+self._execute_context(
+        dialect,
+    ...<5 lines>...
+        
+distilled_parameters,
+    )
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1846, in 
+_execute_context
+    return self._exec_s
+ingle_context(
+           ~~~~~~~~~~~~
+~~~~~~~~~~~~~^
+        dialect, 
+context, statement, 
+parameters
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1986, in 
+_exec_single_context
+    self._handle_dbapi_
+exception(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~^
+        e, 
+str_statement, 
+effective_parameters, 
+cursor, context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+2363, in 
+_handle_dbapi_exception
+    raise sqlalchemy_ex
+ception.with_traceback(
+exc_info[2]) from e
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\base.py", line 
+1967, in 
+_exec_single_context
+    self.dialect.do_exe
+cute(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~^
+        cursor, 
+str_statement, 
+effective_parameters, 
+context
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\e
+ngine\default.py", 
+line 952, in do_execute
+    cursor.execute(stat
+ement, parameters)
+    ~~~~~~~~~~~~~~^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 585, in 
+execute
+    self._adapt_connect
+ion.await_(
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~^
+        self._prepare_a
+nd_execute(operation, 
+parameters)
+        ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 132, in 
+await_only
+    return current.pare
+nt.switch(awaitable)  
+# type: ignore[no-any-r
+eturn,attr-defined] # 
+noqa: E501
+           ~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\u
+til\_concurrency_py3k.p
+y", line 196, in 
+greenlet_spawn
+    value = await 
+result
+            
+^^^^^^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 563, in 
+_prepare_and_execute
+    self._handle_except
+ion(error)
+    ~~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 513, in 
+_handle_exception
+    self._adapt_connect
+ion._handle_exception(e
+rror)
+    ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~^^
+^^^^^
+  File "C:\Users\user\A
+ppData\Local\Programs\P
+ython\Python313\Lib\sit
+e-packages\sqlalchemy\d
+ialects\postgresql\asyn
+cpg.py", line 797, in 
+_handle_exception
+    raise 
+translated_error from 
+error
+sqlalchemy.exc.Programm
+ingError: (sqlalchemy.d
+ialects.postgresql.asyn
+cpg.ProgrammingError) 
+<class 'asyncpg.excepti
+ons.DuplicatePreparedSt
+atementError'>: 
+prepared statement 
+"__asyncpg_stmt_1__" 
+already exists
+HINT:  
+NOTE: pgbouncer with 
+pool_mode set to 
+"transaction" or
+"statement" does not 
+support prepared 
+statements properly.
+You have two options:
+
+* if you are using 
+pgbouncer for 
+connection pooling to a
+  single server, 
+switch to the 
+connection pool 
+functionality
+  provided by asyncpg, 
+it is a much better 
+option for this
+  purpose;
+
+* if you have no 
+option of avoiding the 
+use of pgbouncer,
+  then you can set 
+statement_cache_size 
+to 0 when creating
+  the asyncpg 
+connection object.
+
+[SQL: select 
+pg_catalog.version()]
+(Background on this 
+error at: https://sqlal
+che.me/e/20/f405)

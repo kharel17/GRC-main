@@ -56,7 +56,7 @@ class TicketBase(BaseModel):
     priority: TicketPriority
     status: TicketStatus = TicketStatus.open
     category: TicketCategory
-    source_audit_log_id: UUID
+    source_audit_log_id: Optional[UUID] = None
     assigned_to_id: UUID
     assigned_to_role: str
     escalated_to_id: Optional[UUID] = None
@@ -101,7 +101,7 @@ class AITicketCreate(BaseModel):
     findingsText: str
     controlId: Optional[UUID] = None
     riskId: Optional[UUID] = None
-    source_audit_log_id: UUID
+    source_audit_log_id: Optional[UUID] = None
 
 class TicketCreate(TicketBase):
     pass

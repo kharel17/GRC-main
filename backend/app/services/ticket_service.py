@@ -30,13 +30,12 @@ class TicketService:
         control_id: Optional[uuid.UUID] = None,
         risk_id: Optional[uuid.UUID] = None,
         source_audit_log_id: Optional[uuid.UUID] = None
-    ) -> models.Ticket:
+    ) -> Optional[models.Risk]:
         """
-        Processes an AI finding: ISO mapping, weighting, repeat check, and tiered assignment.
+        Processes an AI finding: First creates a Risk, then RiskTriggerService handles the ticket.
         """
-        # 1. ISO Mapping & Weighting (Surgical Extraction Simulation)
-        # Geminis extraction would produce these specific fields
-        iso_clause = "A.18.1.1" # Example default: Compliance with legal/contractual requirements
+        # 1. ISO Mapping & Weighting (Simulation)
+        iso_clause = "A.18.1.1" 
         risk_score = 50 
         
         lower_text = finding_text.lower()
@@ -46,103 +45,51 @@ class TicketService:
         elif "password" in lower_text or "mfa" in lower_text:
             iso_clause = "A.9.2.1"
             risk_score = 85
-        elif "encryption" in lower_text or "tls" in lower_text:
-            iso_clause = "A.10.1.1"
-            risk_score = 70
-        elif "policy" in lower_text:
-            iso_clause = "A.5.1.1"
-            risk_score = 30
         
-        # 2. Criticality Mapping
-        base_priority = TicketService.calculate_priority(risk_score)
+        # 2. Get Organization
+        org_res = await db.execute(select(models.User).where(models.User.id == current_user_id))
+        user = org_res.scalars().first()
+        if not user or not user.organization_id:
+            return None
 
-        # 3. Repeat Check (Last 90 days) - State Agnostic
-        ninety_days_ago = datetime.utcnow() - timedelta(days=90)
-        repeat_query = await db.execute(
-            select(models.Ticket)
-            .where(models.Ticket.iso_clause == iso_clause)
-            .where(models.Ticket.created_at >= ninety_days_ago)
-            .order_by(models.Ticket.created_at.desc())
+        # 3. Create or Update the Risk
+        # We prefer updating if a risk for this clause already exists in 'identified' state
+        risk_stmt = (
+            select(models.Risk)
+            .where(models.Risk.organization_id == user.organization_id)
+            .where(models.Risk.title.like(f"%{iso_clause}%"))
+            .where(models.Risk.status == models.RiskStatus.identified)
             .limit(1)
         )
-        previous_ticket = repeat_query.scalars().first()
-        is_repeat = previous_ticket is not None
-        previous_ticket_id = previous_ticket.id if previous_ticket else None
+        risk_res = await db.execute(risk_stmt)
+        risk = risk_res.scalars().first()
 
-        # 4. Assignee Determination & SLA
-        # We need to find users with specific roles
-        async def get_user_by_role(role: models.UserRole) -> Optional[models.User]:
-            res = await db.execute(select(models.User).where(models.User.role == role).limit(1))
-            return res.scalars().first()
-
-        l1_admin = await get_user_by_role(models.UserRole.admin)
-        l2_manager = await get_user_by_role(models.UserRole.manager)
-        l3_analyst = await get_user_by_role(models.UserRole.analyst)
-
-        # Default fallback
-        assigned_to = l3_analyst or l1_admin
-        priority = base_priority
-        sla_hours = 0
-
-        if not is_repeat:
-            if base_priority == TicketPriority.critical:
-                assigned_to = l1_admin
-                sla_hours = 24
-            elif base_priority == TicketPriority.high:
-                assigned_to = l2_manager
-                sla_hours = 48
-            elif base_priority == TicketPriority.medium:
-                assigned_to = l3_analyst
-                sla_hours = 72
-            else:
-                assigned_to = l3_analyst
-                sla_hours = 24 * 7
-        else:
-            # Repeat logic
-            if base_priority == TicketPriority.critical:
-                assigned_to = l1_admin # "L1 Urgent"
-                sla_hours = 24
-            elif base_priority == TicketPriority.high:
-                assigned_to = l1_admin
-                sla_hours = 24
-            elif base_priority == TicketPriority.medium:
-                assigned_to = l2_manager
-                sla_hours = 48
-            else:
-                assigned_to = l2_manager
-                sla_hours = 72
-
-        # 5. Create the Ticket
-        ticket_create = schemas.TicketCreate(
-            title=f"AI Finding: {iso_clause} - {'REPEAT' if is_repeat else 'NEW'}",
-            description=finding_text,
-            priority=priority,
-            category=models.ticket.TicketCategory.security_incident,
-            source_audit_log_id=source_audit_log_id or uuid.uuid4(),
-            assigned_to_id=assigned_to.id if assigned_to else current_user_id,
-            assigned_to_role=assigned_to.role.value if assigned_to else "analyst",
-            due_date=datetime.utcnow() + timedelta(hours=sla_hours),
-            status_updated_at=datetime.utcnow(),
-            is_repeat_finding=is_repeat,
-            iso_clause=iso_clause,
-            risk_score=risk_score,
-            previous_ticket_id=previous_ticket_id
-        )
-
-        ticket = await TicketService.create_ticket(db, ticket_create, current_user_id)
-        
-        # 6. Audit Repeat Finding if applicable
-        if is_repeat:
-            activity = models.TicketActivity(
-                ticket_id=ticket.id,
-                user_id=None, # System
-                activity_type=TicketActivityType.other,
-                description="REPEAT_FINDING_FLAGGED: This ISO clause was flagged within the last 90 days."
+        if not risk:
+            risk = models.Risk(
+                title=f"AI Identified Risk: {iso_clause}",
+                description=finding_text,
+                likelihood=int(risk_score/20) + 1,
+                impact=int(risk_score/20) + 1,
+                risk_score=risk_score,
+                status=models.RiskStatus.identified,
+                organization_id=user.organization_id,
+                owner_id=current_user_id,
+                created_by=current_user_id
             )
-            db.add(activity)
-            await db.commit()
-
-        return ticket
+            db.add(risk)
+        else:
+            risk.risk_score = max(risk.risk_score, risk_score)
+            risk.description += f"\n\nNew Finding ({datetime.utcnow()}): {finding_text}"
+        
+        await db.flush()
+        
+        # 4. Trigger Ticket Logic
+        from app.services.risk_trigger_service import RiskTriggerService
+        await RiskTriggerService.evaluate_and_trigger(db, risk.id)
+        
+        await db.commit()
+        await db.refresh(risk)
+        return risk
 
     @staticmethod
     async def create_ticket(
@@ -377,7 +324,7 @@ class TicketService:
     async def escalate_ticket(
         db: AsyncSession, 
         ticket_id: uuid.UUID, 
-        escalated_to_id: uuid.UUID, 
+        escalated_to_id: Optional[uuid.UUID], 
         current_user_id: Optional[uuid.UUID],
         reason: Optional[str] = None
     ) -> Optional[models.Ticket]:
@@ -391,12 +338,6 @@ class TicketService:
         if not ticket:
             return None
 
-        # Permission check (Special case: Analyst cannot toggle auto-escalation)
-        res = await db.execute(select(models.User).where(models.User.id == current_user_id))
-        user = res.scalars().first()
-        if not await TicketService.validate_action_permissions(db, ticket, user, "escalate"):
-            raise PermissionError("You do not have permission to escalate this ticket")
-
         # Manual Escalation Guards (Spec Section 4) - Bypass for System Auto-Escalation
         if current_user_id is not None:
              if ticket.is_auto_escalation_enabled:
@@ -404,7 +345,20 @@ class TicketService:
              
              if not reason or len(reason) < 10:
                   raise ValueError("Reason must be at least 10 characters")
+
+        # Reassignment logic if not specifically targeted
+        target_id = escalated_to_id
+        if not target_id:
+             assignee_res = await db.execute(select(models.User).where(models.User.id == ticket.assigned_to_id))
+             assignee = assignee_res.scalars().first()
+             if not assignee:
+                  raise ValueError("Current assignee not found")
              
+             target_id = await TicketService.get_supervisor(db, assignee)
+
+        if not target_id:
+             raise ValueError("No supervisor found in hierarchy for escalation")
+
         # Check if assignee is already L1
         assignee_role = ticket.assigned_to_role
         if assignee_role == "admin":
@@ -413,7 +367,8 @@ class TicketService:
         old_id = ticket.assigned_to_id
         ticket.status = TicketStatus.escalated
         ticket.status_updated_at = datetime.utcnow()
-        ticket.escalated_to_id = escalated_to_id
+        ticket.assigned_to_id = target_id
+        ticket.escalated_to_id = target_id
         ticket.escalation_level += 1
         ticket.escalated_at = datetime.utcnow()
         
@@ -423,7 +378,7 @@ class TicketService:
             user_id=current_user_id,
             activity_type=TicketActivityType.escalation,
             old_value=str(old_id),
-            new_value=str(escalated_to_id),
+            new_value=str(target_id),
             description=reason or "Ticket escalated"
         )
         db.add(activity)
@@ -435,7 +390,7 @@ class TicketService:
         # Notify new assignee
         await notify(
             db=db,
-            user_id=escalated_to_id,
+            user_id=target_id,
             title="Ticket escalated to you",
             message=f"Ticket escalated to you: {ticket.title} - requires immediate attention",
             entity_type="ticket",

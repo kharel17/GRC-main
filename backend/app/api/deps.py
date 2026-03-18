@@ -3,6 +3,7 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, APIKeyCookie
 from jose import jwt, JWTError
 from pydantic import ValidationError
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app import models, schemas
 from app.config import settings
@@ -240,27 +241,67 @@ async def get_current_user(
     user_result = await db.execute(select(models.User).where(models.User.email == email))
     user_by_email = user_result.scalar_one_or_none()
     
-    # Associate Supabase ID with existing allowed email if first login
-    if user_by_email and not user_orm and user_by_email.id != user_id:
-        user_by_email.id = user_id # Align IDs
+    # Associate Supabase ID with existing allowed email
+    if user_by_email and user_by_email.id != user_id:
+        logger.warning(f"Aligning User ID for {email}: {user_by_email.id} -> {user_id}")
+        # Note: We can't just change the ID of a loaded object if it's the primary key 
+        # but in this specific setup it might work if session allows or we use a manual update
+        await db.execute(
+            text("UPDATE users SET id = :new_id WHERE email = :email"),
+            {"new_id": user_id, "email": email}
+        )
+        await db.commit()
+        # Reload user with new ID
+        user_orm = await db.get(models.User, user_id)
     
-    # We will strictly look up by email for the invitation system to ensure we catch invited users.
     if not user_orm and user_by_email:
         user_orm = user_by_email
-        # Optional: sync the ID if it differs
-        if str(user_orm.id) != user_id:
-             logger.warning(f"User ID mismatch for {email}. Supabase: {user_id}, DB: {user_orm.id}")
 
-    # Step 3: If user not found -> BLOCK
+    # Step 3: If user not found -> Attempt Auto-provision in DEV or BLOCK
     if not user_orm:
-        logger.warning(f"Blocked unauthorized login attempt for email: {email}")
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code": "NOT_INVITED",
-                "message": "You have not been invited to this platform. Please contact your administrator."
-            }
-        )
+        if settings.ENVIRONMENT == "development":
+            logger.info(f"Auto-provisioning unknown user in development mode: {email}")
+            # Ensure a default organization exists
+            platform_org_res = await db.execute(select(models.Organization).where(models.Organization.name == "Platform Team"))
+            platform_org = platform_org_res.scalar_one_or_none()
+            if not platform_org:
+                platform_org = models.Organization(
+                    id=uuid.uuid4(),
+                    name="Platform Team",
+                    onboarding_completed=True
+                )
+                db.add(platform_org)
+                await db.flush()
+            
+            new_user = models.User(
+                id=user_id,
+                email=email,
+                full_name=payload.get("user_metadata", {}).get("full_name", email.split('@')[0] if email else "Dev User"),
+                hashed_password="SUPABASE_AUTH",
+                role=models.UserRole.admin, # Default to admin in local dev
+                is_active=True,
+                invitation_status='active',
+                organization_id=platform_org.id,
+                organization_name=platform_org.name
+            )
+            db.add(new_user)
+            try:
+                await db.commit()
+                await db.refresh(new_user)
+                user_orm = new_user
+            except Exception as e:
+                await db.rollback()
+                logger.error(f"Failed to auto-provision dev user: {e}")
+                raise HTTPException(status_code=500, detail="Database error during auto-provisioning")
+        else:
+            logger.warning(f"Blocked unauthorized login attempt for email: {email}")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "NOT_INVITED",
+                    "message": "You have not been invited to this platform. Please contact your administrator."
+                }
+            )
 
     # Step 4: If user deactivated -> BLOCK
     if user_orm.invitation_status == 'deactivated':

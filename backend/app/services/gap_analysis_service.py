@@ -128,7 +128,19 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     - Evidence analysis (what's documented)
     - Document analysis results (what the AI found)
     """
-    # 1. Get all applicability records
+    # 1. Get verified evidence counts per control
+    from app.models.evidence import Evidence, EvidenceControlMatch, EvidenceStatus
+    verified_stmt = (
+        select(EvidenceControlMatch.control_id)
+        .join(Evidence, EvidenceControlMatch.evidence_id == Evidence.id)
+        .where(Evidence.organization_id == organization_id)
+        .where(Evidence.status == EvidenceStatus.verified)
+        .distinct()
+    )
+    verified_res = await db.execute(verified_stmt)
+    verified_control_ids = {row[0] for row in verified_res.all()}
+
+    # 1b. Get all applicability records
     ca_result = await db.execute(
         select(models.ControlApplicability)
         .where(models.ControlApplicability.organization_id == organization_id)
@@ -136,11 +148,12 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     ca_records = {ca.control_annex: ca for ca in ca_result.scalars().all()}
 
     # 2. Get all evidence texts for AI gap detection
-    evidence_result = await db.execute(
+    evidence_stmt = (
         select(models.Evidence)
         .where(models.Evidence.organization_id == organization_id)
     )
-    evidence_list = evidence_result.scalars().all()
+    evidence_res = await db.execute(evidence_stmt)
+    evidence_list = evidence_res.scalars().all()
     evidence_texts = [
         f"{e.title}. {e.description}" for e in evidence_list 
         if e.title and e.description
@@ -169,8 +182,8 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     implemented_by_docs = set()
     for doc in doc_analyses:
         if doc.implemented_controls:
-            for ctrl in doc.implemented_controls:
-                annex = ctrl.get("control_annex", "")
+            for v_ctrl in doc.implemented_controls:
+                annex = v_ctrl.get("control_annex", "")
                 if annex:
                     implemented_by_docs.add(annex)
 
@@ -190,10 +203,9 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     }
 
     # Map controls to their highest asset criticality
-    # For now, we look at risks associated with the control, then assets associated with the risk
     control_criticality = {} # annex -> multiplier
     
-    # Get all risk-control mappings to link annex codes (from FrameworkControl) to assets
+    # Get all risk-control mappings
     rc_result = await db.execute(
         select(models.RiskControlMapping, models.FrameworkControl.code)
         .join(models.FrameworkControl, models.RiskControlMapping.framework_control_id == models.FrameworkControl.id)
@@ -204,14 +216,12 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     
     for asset in assets_list:
         multiplier = CRITICALITY_MAP.get(asset.criticality, 1.2)
-        # Find risks associated with this asset via related_risks relationship (loaded via selectin)
         for risk in asset.related_risks:
-            # Find controls associated with this risk
-            for rc, annex in risk_controls:
-                if rc.risk_id == risk.id and annex:
-                    control_criticality[annex] = max(control_criticality.get(annex, 1.0), multiplier)
+            for rc, v_annex in risk_controls:
+                if rc.risk_id == risk.id and v_annex:
+                    control_criticality[v_annex] = max(control_criticality.get(v_annex, 1.0), multiplier)
 
-    # 6. Fetch FrameworkControl IDs to link them properly
+    # 6. Fetch FrameworkControl IDs
     from app.models.framework_control import FrameworkControl
     fw_controls_res = await db.execute(select(FrameworkControl))
     all_fw_controls = fw_controls_res.scalars().all()
@@ -233,15 +243,22 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
             continue
         
         applicable_count = applicable_count + 1
-        status = ca.status.value if ca else "not_started"
         
-        if status == "implemented":
+        # DYNAMIC STATUS: Check verified evidence
+        if annex in verified_control_ids:
+            status = "implemented"
             implemented_count = implemented_count + 1
             continue
-        elif status == "in_progress":
-            partial_count = partial_count + 1
-        else: # not_started or not_applicable (but we skipped NA)
-            missing_count = missing_count + 1
+        else:
+            status = ca.status.value if ca else "not_started"
+            if status == "implemented": # If static says implemented but no verified evidence, demote to missing
+                 status = "not_started"
+            
+            if status == "in_progress":
+                partial_count = partial_count + 1
+            else:
+                status = "not_started"
+                missing_count = missing_count + 1
 
         # This control is a gap
         has_evidence = annex not in ai_gaps

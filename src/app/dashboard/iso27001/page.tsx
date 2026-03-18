@@ -13,6 +13,10 @@ import {
 import Link from "next/link";
 import { useAuth } from "@/hooks";
 import dynamic from "next/dynamic";
+import { toast } from "sonner";
+import { Zap } from "lucide-react";
+import { recalculateCompliance } from "@/lib/data-service";
+
 
 const ISOComplianceWidget = dynamic(
   () => import("@/features/iso27001/ISOComplianceWidget").then(mod => mod.ISOComplianceWidget),
@@ -30,11 +34,31 @@ export default function ISODashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">ISO 27001 Overview</h1>
-        <p className="text-sm text-slate-600">
-          Monitor your ISO 27001 compliance status and manage controls.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">ISO 27001 Overview</h1>
+          <p className="text-sm text-slate-600">
+            Monitor your ISO 27001 compliance status and manage controls.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button 
+            className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 border-none shadow-md transition-all hover:scale-105 active:scale-95"
+            onClick={async () => {
+              const toastId = toast.loading("Running AI Compliance Scan...");
+              try {
+                await recalculateCompliance();
+                toast.success("AI Compliance Scan complete!", { id: toastId });
+                window.location.reload();
+              } catch (error) {
+                toast.error("AI Scan failed. Please try again.", { id: toastId });
+              }
+            }}
+          >
+            <Zap className="h-4 w-4 fill-white" />
+            Run AI Compliance Scan
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

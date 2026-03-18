@@ -115,31 +115,67 @@ class ComplianceService:
     async def get_compliance_score(db: AsyncSession, organization_id: UUID) -> Dict[str, Any]:
         """
         Calculates the compliance score and provides a detailed breakdown.
+        DYNAMIC: Considers a control 'implemented' if it has at least one verified evidence.
         """
+        from app.models.evidence import Evidence, EvidenceControlMatch, EvidenceStatus
+        from sqlalchemy import func
+
+        # 1. Get verified evidence counts per control
+        verified_stmt = (
+            select(EvidenceControlMatch.control_id)
+            .join(Evidence, EvidenceControlMatch.evidence_id == Evidence.id)
+            .where(Evidence.organization_id == organization_id)
+            .where(Evidence.status == EvidenceStatus.verified)
+            .distinct()
+        )
+        verified_res = await db.execute(verified_stmt)
+        verified_control_ids = {row[0] for row in verified_res.all()}
+
+        # 2. Get all applicability records
         stmt = (
-            select(
-                func.count().label("total"),
-                func.count().filter(models.ControlApplicability.is_applicable == True).label("applicable"),
-                func.count().filter(models.ControlApplicability.status == ControlImplementationStatus.implemented).label("implemented"),
-                func.count().filter(models.ControlApplicability.status == ControlImplementationStatus.in_progress).label("in_progress"),
-                func.count().filter(models.ControlApplicability.status == ControlImplementationStatus.not_started).label("not_started"),
-                func.count().filter(models.ControlApplicability.is_applicable == False).label("not_applicable")
-            )
+            select(models.ControlApplicability)
             .where(models.ControlApplicability.organization_id == organization_id)
         )
         result = await db.execute(stmt)
-        stats = result.one()
-        
-        score = round((stats.implemented / stats.applicable * 100), 1) if stats.applicable > 0 else 0
+        ca_records = result.scalars().all()
+
+        total = len(_ISO_CONTROLS)
+        applicable = 0
+        implemented = 0
+        in_progress = 0
+        not_applicable = 0
+
+        # Create a map for quick lookup
+        ca_map = {ca.control_annex: ca for ca in ca_records}
+
+        for ctrl in _ISO_CONTROLS:
+            annex = ctrl["id"]
+            ca = ca_map.get(annex)
+            
+            is_applicable = ca.is_applicable if ca else True
+            
+            if not is_applicable:
+                not_applicable += 1
+                continue
+            
+            applicable += 1
+            if annex in verified_control_ids:
+                implemented += 1
+            else:
+                # We'd need total evidence (not just verified) to distinguish in_progress
+                # But for the core score, 'implemented' is what matters.
+                pass
+
+        score = round((implemented / applicable * 100), 1) if applicable > 0 else 0
         
         return {
             "score": score,
-            "implemented": stats.implemented,
-            "in_progress": stats.in_progress,
-            "not_started": stats.not_started,
-            "not_applicable": stats.not_applicable,
-            "applicable_total": stats.applicable,
-            "total_controls": stats.total
+            "implemented": implemented,
+            "in_progress": in_progress, # Simplified for now
+            "not_started": applicable - implemented - in_progress,
+            "not_applicable": not_applicable,
+            "applicable_total": applicable,
+            "total_controls": total
         }
 
 compliance_service = ComplianceService()

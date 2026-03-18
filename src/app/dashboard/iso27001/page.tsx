@@ -47,8 +47,15 @@ export default function ISODashboardPage() {
             onClick={async () => {
               const toastId = toast.loading("Running AI Compliance Scan...");
               try {
-                await recalculateCompliance();
-                toast.success("AI Compliance Scan complete!", { id: toastId });
+                const result = await recalculateCompliance();
+                const data = result?.data || result;
+                const score = data?.score ?? data?.gap_summary?.compliance_percentage ?? "N/A";
+                const gaps = data?.gap_summary?.total_gaps ?? 0;
+                const tickets = data?.tickets_created ?? 0;
+                toast.success(
+                  `Scan complete! Score: ${score}% | Gaps: ${gaps} | Tickets created: ${tickets}`,
+                  { id: toastId, duration: 5000 }
+                );
                 window.location.reload();
               } catch (error) {
                 toast.error("AI Scan failed. Please try again.", { id: toastId });

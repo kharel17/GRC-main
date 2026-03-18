@@ -84,17 +84,44 @@ async def recalculate_compliance(
     db: AsyncSession = Depends(deps.get_db)
 ):
     """
-    Recalculate compliance score based on current verified evidence.
-    Available to all authenticated users.
+    Full AI Compliance Scan pipeline:
+    1. Recalculate compliance score from verified evidence
+    2. Run gap analysis (compare evidence against all Annex controls)
+    3. Auto-create remediation tickets for critical/high gaps
     """
     try:
+        # Step 1: Recalculate compliance score
         stats = await compliance_service.get_compliance_score(db, current_user.organization_id)
-        
+
+        # Step 2: Run gap analysis report
+        from app.services.gap_analysis_service import generate_gap_report, create_tickets_from_gaps
+        gap_report = await generate_gap_report(db, current_user.organization_id)
+
+        # Step 3: Auto-create tickets for critical/high severity gaps
+        tickets_created = []
+        try:
+            tickets_created = await create_tickets_from_gaps(
+                db=db,
+                organization_id=current_user.organization_id,
+                created_by=current_user,
+            )
+        except Exception as ticket_err:
+            import logging
+            logging.getLogger("grc.compliance").warning(f"Ticket auto-creation failed: {ticket_err}")
+
         return {
             "score": stats["score"],
             "total_controls": stats["total_controls"],
             "verified_controls": stats["implemented"],
-            "recalculated_at": datetime.utcnow()
+            "recalculated_at": datetime.utcnow(),
+            "gap_summary": {
+                "applicable_controls": gap_report.applicable_controls,
+                "implemented": gap_report.implemented,
+                "missing": gap_report.missing,
+                "total_gaps": len(gap_report.gaps),
+                "compliance_percentage": gap_report.compliance_percentage,
+            },
+            "tickets_created": len(tickets_created),
         }
     except Exception as e:
         import traceback

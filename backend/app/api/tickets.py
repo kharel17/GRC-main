@@ -250,3 +250,43 @@ async def create_ticket_comment(
     await db.commit()
     await db.refresh(comment)
     return comment
+
+
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ticket(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: UUID,
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin])),
+) -> None:
+    """
+    Delete a ticket. Admin only.
+    """
+    result = await db.execute(
+        select(models.Ticket).where(models.Ticket.id == id)
+    )
+    ticket = result.scalars().first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Delete related comments and activities first
+    await db.execute(
+        select(models.TicketComment).where(models.TicketComment.ticket_id == id)
+    )
+    from sqlalchemy import delete as sql_delete
+    await db.execute(sql_delete(models.TicketComment).where(models.TicketComment.ticket_id == id))
+    await db.execute(sql_delete(models.TicketActivity).where(models.TicketActivity.ticket_id == id))
+
+    await db.delete(ticket)
+
+    await audit_service.log_action(
+        db=db,
+        user=current_user,
+        action=AuditAction.deleted,
+        entity_type=AuditEntityType.ticket,
+        entity_id=id,
+        entity_name=ticket.title,
+        description=f"Ticket deleted: {ticket.title}",
+    )
+
+    await db.commit()

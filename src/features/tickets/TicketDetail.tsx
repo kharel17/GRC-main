@@ -11,7 +11,7 @@ import { SLACountdown } from './SLACountdown';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks';
-import { updateTicket, escalateTicket, resolveTicket, createTicketComment, fetchTicket, requestEvidence } from '@/lib/data-service';
+import { updateTicket, escalateTicket, resolveTicket, createTicketComment, fetchTicket, requestEvidence, deleteTicket } from '@/lib/data-service';
 import { canActOnTicket, isTicketOverdue } from '@/lib/ticket-utils';
 import { toast } from 'sonner';
 import { Ticket, TicketStatus, TicketActivity, EscalationLevel, AuditLog } from '@/types';
@@ -29,6 +29,7 @@ import {
   XCircle,
   ChevronUp,
   Link as LinkIcon,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -143,6 +144,21 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
       toast.success('Evidence request sent');
     } catch (error) {
       toast.error('Failed to request evidence');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to permanently delete this ticket? This action cannot be undone.')) return;
+    setIsUpdating(true);
+    try {
+      await deleteTicket(ticket.id);
+      toast.success('Ticket deleted successfully');
+      router.push('/dashboard/tickets');
+    } catch (error) {
+      const errorMsg = (error as any)?.response?.data?.detail || 'Failed to delete ticket. Admin access required.';
+      toast.error(errorMsg);
     } finally {
       setIsUpdating(false);
     }
@@ -296,6 +312,19 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
                   <XCircle className="h-4 w-4" />
                   Close
                 </Link>
+              </Button>
+            )}
+
+            {user?.role === 'admin' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20"
+                onClick={handleDelete}
+                disabled={isUpdating}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
               </Button>
             )}
           </div>

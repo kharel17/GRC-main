@@ -98,6 +98,17 @@ async def analyze_evidence_background(
                         evidence.status = models.evidence.EvidenceStatus.pending
                     else:
                         evidence.status = models.evidence.EvidenceStatus.rejected
+
+                    # Persist AI control matches into DB so compliance queries can use them
+                    from app.models.evidence import EvidenceControlMatch
+                    for match in analysis.matched_controls:
+                        ecm = EvidenceControlMatch(
+                            evidence_id=evidence.id,
+                            control_id=match.annex,        # e.g. "5.1"
+                            control_title=match.title,      # e.g. "Policies for information security"
+                            confidence_score=int(match.confidence),  # 0-100
+                        )
+                        db.add(ecm)
             
             await db.commit()
             await db.refresh(evidence)

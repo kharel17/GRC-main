@@ -186,7 +186,7 @@ export async function fetchTickets(): Promise<Ticket[]> {
 
 export async function fetchTicket(id: string): Promise<Ticket | undefined> {
   try {
-    return await api.get<Ticket>(`/tickets/${id}/`);
+    return await api.get<Ticket>(`/tickets/${id}`);
   } catch (err) {
     console.error(`[DataService] GET /tickets/${id} failed:`, err);
     return undefined;
@@ -199,6 +199,10 @@ export async function createTicket(data: Partial<Ticket>): Promise<Ticket> {
 
 export async function updateTicket(id: string, data: Partial<Ticket>): Promise<Ticket> {
   return api.patch<Ticket>(`/tickets/${id}/`, data);
+}
+
+export async function deleteTicket(id: string): Promise<void> {
+  await api.delete(`/tickets/${id}`);
 }
 
 export async function escalateTicket(id: string, escalatedToId: string): Promise<Ticket> {

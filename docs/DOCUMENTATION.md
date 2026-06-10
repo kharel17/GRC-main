@@ -8,6 +8,17 @@
 4. [User Walkthrough](#user-walkthrough)
 5. [Pending & Future Work](#pending--future-work)
 6. [Getting Started](#getting-started)
+7. [Production Readiness Plan](#production-readiness-plan)
+
+---
+
+## Production Readiness Plan
+
+The production-readiness work is tracked as a phased plan in:
+
+- [docs/PRODUCTION_READINESS_PHASES.md](docs/PRODUCTION_READINESS_PHASES.md)
+
+Follow that document phase-by-phase for mock data removal, multi-tenancy isolation, invitation flow completion, frontend updates, environment variables, cleanup SQL, and final verification.
 
 ---
 

@@ -32,6 +32,40 @@ export const CONTROL_STATUS = ['planned', 'implemented', 'under_review'] as cons
 
 export const COMPLIANCE_FRAMEWORKS = ['SOC2', 'ISO27001', 'GDPR', 'HIPAA', 'PCI-DSS'] as const;
 
+export const COMPLIANCE_FRAMEWORK_OPTIONS = [
+  {
+    id: 'iso27001',
+    name: 'ISO 27001',
+    description: 'Information Security Management',
+  },
+  {
+    id: 'soc2',
+    name: 'SOC 2',
+    description: 'Service Organization Controls',
+  },
+  {
+    id: 'gdpr',
+    name: 'GDPR',
+    description: 'General Data Protection Regulation',
+  },
+  {
+    id: 'pcidss',
+    name: 'PCI DSS',
+    description: 'Payment Card Industry',
+  },
+] as const;
+
+export type ComplianceFrameworkId = typeof COMPLIANCE_FRAMEWORK_OPTIONS[number]['id'];
+
+export function normalizeComplianceFrameworkId(frameworkId: string): ComplianceFrameworkId | string {
+  const compact = frameworkId.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (compact === 'iso' || compact === 'iso27001' || compact === 'isoiec27001') return 'iso27001';
+  if (compact === 'soc' || compact === 'soc2' || compact === 'socii') return 'soc2';
+  if (compact === 'gdpr') return 'gdpr';
+  if (compact === 'pci' || compact === 'pcidss') return 'pcidss';
+  return frameworkId;
+}
+
 export const COMPLIANCE_STATUS = ['not_started', 'in_progress', 'compliant', 'non_compliant'] as const;
 
 export const COMPLIANCE_PRIORITY = ['low', 'medium', 'high', 'critical'] as const;

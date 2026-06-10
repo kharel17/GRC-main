@@ -42,5 +42,6 @@ class ControlApplicabilityResponse(BaseModel):
 class ControlApplicabilityBulkCreate(BaseModel):
     """Used to initialize all 93 controls for an organization at once."""
     organization_id: UUID
+    framework_id: Optional[str] = None
     # If not provided, all 93 controls will be initialized as applicable + not_started
     overrides: Optional[dict] = None  # e.g. {"5.1": {"is_applicable": False, "justification": "..."}}

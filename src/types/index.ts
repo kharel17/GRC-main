@@ -52,6 +52,7 @@ export interface Organization {
   compliance_target_date?: string
   primaryContactId?: string
   complianceFrameworks?: string[]
+  compliance_frameworks?: string[]
   created_at?: string
   createdAt?: string // alias
   updated_at?: string

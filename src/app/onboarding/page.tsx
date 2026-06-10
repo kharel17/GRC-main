@@ -4,11 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api-client";
+import { COMPLIANCE_FRAMEWORK_OPTIONS } from "@/lib/constants";
 import {
   Building2,
   Users,
   Server,
   Database,
+  ShieldCheck,
   ChevronRight,
   CheckCircle2,
   Loader2,
@@ -19,6 +21,7 @@ const STEPS = [
   { id: 2, title: "Industry & Size", icon: Users },
   { id: 3, title: "Infrastructure", icon: Server },
   { id: 4, title: "Data Types", icon: Database },
+  { id: 5, title: "Frameworks", icon: ShieldCheck },
 ];
 
 const INDUSTRIES = [
@@ -51,6 +54,7 @@ export default function OnboardingPage() {
   const [employeeCount, setEmployeeCount] = useState("");
   const [infrastructure, setInfrastructure] = useState("");
   const [dataTypes, setDataTypes] = useState("");
+  const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>(["iso27001"]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -86,9 +90,19 @@ export default function OnboardingPage() {
         return infrastructure.trim().length > 0;
       case 4:
         return dataTypes.trim().length > 0;
+      case 5:
+        return selectedFrameworks.length > 0;
       default:
         return false;
     }
+  };
+
+  const toggleFramework = (frameworkId: string) => {
+    setSelectedFrameworks((current) =>
+      current.includes(frameworkId)
+        ? current.filter((id) => id !== frameworkId)
+        : [...current, frameworkId]
+    );
   };
 
   const handleSubmit = async () => {
@@ -102,6 +116,7 @@ export default function OnboardingPage() {
         employee_count: employeeCount,
         infrastructure,
         data_types: dataTypes,
+        compliance_frameworks: selectedFrameworks,
       });
       router.push("/dashboard");
     } catch (err: any) {
@@ -289,6 +304,44 @@ export default function OnboardingPage() {
             </div>
           )}
 
+          {/* Step 5: Compliance Frameworks */}
+          {step === 5 && (
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-blue-600" />
+                Compliance Frameworks
+              </h2>
+              <p className="text-sm text-slate-600">
+                Select the compliance frameworks your organization wants to track.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {COMPLIANCE_FRAMEWORK_OPTIONS.map((framework) => {
+                  const selected = selectedFrameworks.includes(framework.id);
+                  return (
+                    <button
+                      key={framework.id}
+                      type="button"
+                      onClick={() => toggleFramework(framework.id)}
+                      className={`text-left rounded-lg border p-4 transition-colors ${
+                        selected
+                          ? "border-blue-600 bg-blue-50 text-blue-900"
+                          : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{framework.name}</p>
+                          <p className="text-sm text-slate-600 mt-1">{framework.description}</p>
+                        </div>
+                        {selected && <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Navigation buttons */}
           <div className="flex justify-between mt-8 pt-6 border-t border-slate-100">
             {step > 1 ? (
@@ -302,7 +355,7 @@ export default function OnboardingPage() {
               <div />
             )}
 
-            {step < 4 ? (
+            {step < STEPS.length ? (
               <button
                 onClick={() => setStep(step + 1)}
                 disabled={!canAdvance()}

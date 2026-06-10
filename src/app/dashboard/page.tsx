@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 function AdminSystemOverview({ controls, risks, readiness }: { controls: Control[], risks: Risk[], readiness: any }) {
   const totalControls = controls.length;
   const openRisks = risks.filter(r => r.status !== 'mitigated' && r.status !== 'accepted').length;
-  const compliancePercentage = readiness?.score || 0;
+  const compliancePercentage = readiness?.compliance_percentage ?? readiness?.weighted_readiness ?? 0;
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

@@ -127,6 +127,7 @@ class EvidenceRequest(BaseModel):
     comment_text: str
 
 class TicketInDBBase(TicketBase):
+    source_audit_log_id: Optional[UUID] = None
     id: UUID
     created_at: datetime
     updated_at: datetime

@@ -7,6 +7,9 @@ import json
 from pathlib import Path
 from app import schemas, models
 from app.api import deps
+from app.services.control_applicability_service import (
+    initialize_control_applicability_for_framework,
+)
 from app.utils.notifications import notify
 
 router = APIRouter()
@@ -66,6 +69,10 @@ class ComplianceScoreResponse(BaseModel):
     by_clause: dict  # clause_id -> {total, implemented, percentage}
 
 
+class InitializeFrameworkRequest(BaseModel):
+    framework_id: str
+
+
 # ── GET /control-applicability ─────────────────────────────
 @router.get("/", response_model=List[schemas.ControlApplicabilityResponse])
 async def list_control_applicability(
@@ -99,39 +106,62 @@ async def initialize_control_applicability(
     Creates ControlApplicability records for every control.
     Optionally accepts overrides for specific controls.
     """
-    # Check if already initialized
-    existing = await db.execute(
-        select(models.ControlApplicability)
-        .where(models.ControlApplicability.organization_id == bulk_in.organization_id)
-        .limit(1)
-    )
-    if existing.scalars().first():
-        raise HTTPException(
-            status_code=409,
-            detail="Controls already initialized for this organization. Use PUT to update individual controls."
-        )
-    
-    overrides = bulk_in.overrides or {}
-    created = 0
-    
-    for ctrl in _ISO_CONTROLS:
-        annex = ctrl["id"]
-        override = overrides.get(annex, {})
-        
-        ca = models.ControlApplicability(
+    try:
+        result = await initialize_control_applicability_for_framework(
+            db=db,
             organization_id=bulk_in.organization_id,
-            control_annex=annex,
-            is_applicable=override.get("is_applicable", True),
-            status=override.get("status", "not_started"),
-            justification=override.get("justification"),
-            responsible_id=override.get("responsible_id"),
-            notes=override.get("notes"),
+            framework_id=bulk_in.framework_id or "iso27001",
+            overrides=bulk_in.overrides,
         )
-        db.add(ca)
-        created += 1
-    
-    await db.commit()
-    return {"message": f"Initialized {created} control applicability records", "count": created}
+        await db.commit()
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {
+        **result,
+        "message": (
+            f"Initialized {result['initialized_count']} {result['framework_name']} "
+            f"control applicability records"
+        ),
+    }
+
+
+@router.post("/initialize-framework", response_model=dict)
+async def initialize_framework_for_current_org(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    body: InitializeFrameworkRequest,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Initialize a framework for the current user's organization."""
+    if not current_user.organization_id:
+        raise HTTPException(status_code=400, detail="No organization associated with this user")
+
+    try:
+        result = await initialize_control_applicability_for_framework(
+            db=db,
+            organization_id=current_user.organization_id,
+            framework_id=body.framework_id,
+        )
+        await db.commit()
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {
+        **result,
+        "message": (
+            f"Initialized {result['initialized_count']} {result['framework_name']} "
+            f"control applicability records"
+        ),
+    }
 
 
 # ── PUT /control-applicability/{id} ────────────────────────

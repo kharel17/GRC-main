@@ -20,7 +20,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('controls', sa.Column('linked_risk_id', sa.UUID(), nullable=True))
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='controls'"
+    ))
+    existing_columns = {row[0] for row in result}
+
+    if 'linked_risk_id' not in existing_columns:
+        op.add_column('controls', sa.Column('linked_risk_id', sa.UUID(), nullable=True))
     op.create_foreign_key('fk_control_linked_risk', 'controls', 'risks', ['linked_risk_id'], ['id'])
 
 

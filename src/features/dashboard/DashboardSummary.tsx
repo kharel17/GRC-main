@@ -3,6 +3,8 @@
 import { Risk, ComplianceItem, Control } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, Shield, CheckCircle2, BarChart3 } from 'lucide-react';
+import { fetchControlApplicabilityComplianceScore } from '@/lib/data-service';
+import { useApiData } from '@/hooks';
 
 interface DashboardSummaryProps {
   risks: Risk[];
@@ -25,7 +27,9 @@ function MetricSkeleton() {
   );
 }
 
-export function DashboardSummary({ risks, controls, complianceItems, isLoading }: DashboardSummaryProps) {
+export function DashboardSummary({ risks, controls, isLoading }: DashboardSummaryProps) {
+  const { data: complianceScore } = useApiData(fetchControlApplicabilityComplianceScore);
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -44,9 +48,7 @@ export function DashboardSummary({ risks, controls, complianceItems, isLoading }
 
   const openRisks = risks.filter((r) => r.status !== 'mitigated' && r.status !== 'accepted').length;
 
-  const compliantItems = complianceItems.filter((c) => c.status === 'compliant').length;
-  const rawComplianceRate = complianceItems.length > 0 ? Math.round((compliantItems / complianceItems.length) * 100) : 0;
-  const complianceRate = isNaN(rawComplianceRate) ? 0 : rawComplianceRate;
+  const complianceRate = complianceScore?.compliance_percentage ?? 0;
 
   const implementedControls = controls.filter((c) => c.status === 'implemented').length;
 

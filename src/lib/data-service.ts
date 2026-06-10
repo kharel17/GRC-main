@@ -179,6 +179,59 @@ export async function recalculateCompliance(): Promise<any> {
   return api.post('/compliance/recalculate');
 }
 
+export interface ControlApplicabilityComplianceScore {
+  total_controls: number;
+  applicable_controls: number;
+  implemented: number;
+  in_progress: number;
+  not_started: number;
+  not_applicable: number;
+  compliance_percentage: number;
+  by_clause: Record<string, unknown>;
+}
+
+export async function fetchControlApplicabilityComplianceScore(): Promise<ControlApplicabilityComplianceScore> {
+  return fetchOrFallback<ControlApplicabilityComplianceScore>('/control-applicability/compliance-score', {
+    total_controls: 0,
+    applicable_controls: 0,
+    implemented: 0,
+    in_progress: 0,
+    not_started: 0,
+    not_applicable: 0,
+    compliance_percentage: 0,
+    by_clause: {},
+  });
+}
+
+export interface ControlApplicabilityInitializationResult {
+  framework_id: string;
+  framework_uuid?: string;
+  framework_name?: string;
+  initialized_count: number;
+  skipped_count?: number;
+  total_controls?: number;
+  count: number;
+  message?: string;
+}
+
+export async function initializeControlApplicability(
+  organizationId: string,
+  frameworkId = 'iso27001',
+): Promise<ControlApplicabilityInitializationResult> {
+  return api.post<ControlApplicabilityInitializationResult>('/control-applicability/initialize', {
+    organization_id: organizationId,
+    framework_id: frameworkId,
+  });
+}
+
+export async function initializeControlApplicabilityFramework(
+  frameworkId: string,
+): Promise<ControlApplicabilityInitializationResult> {
+  return api.post<ControlApplicabilityInitializationResult>('/control-applicability/initialize-framework', {
+    framework_id: frameworkId,
+  });
+}
+
 // -- Tickets --──────
 export async function fetchTickets(): Promise<Ticket[]> {
   return fetchOrFallback<Ticket[]>('/tickets/', []);
@@ -253,7 +306,15 @@ export async function fetchUsers(): Promise<any[]> {
   try {
     return await api.get<any[]>('/users/');
   } catch (err) {
-    console.warn(`[DataService] GET /users/ failed`, err);
+    if ((err as any)?.status === 404) {
+      try {
+        return await api.get<any[]>('/user/');
+      } catch (fallbackErr) {
+        console.warn(`[DataService] GET /user/ fallback failed`, fallbackErr);
+      }
+    } else {
+      console.warn(`[DataService] GET /users/ failed`, err);
+    }
     return [];
   }
 }
@@ -305,19 +366,19 @@ export async function cancelInvitation(userId: string): Promise<any> {
 // -- Organization --────────
 export async function fetchOrganization(): Promise<Organization | undefined> {
   try {
-    return await api.get<Organization>('/organizations/');
+    return await api.get<Organization>('/organization/');
   } catch (err) {
-    console.error(`[DataService] GET /organizations/ failed:`, err);
+    console.error(`[DataService] GET /organization/ failed:`, err);
     return undefined;
   }
 }
 
 export async function updateOrganization(id: string, data: Partial<Organization>): Promise<Organization> {
-  return api.put<Organization>(`/organizations/${id}/`, data);
+  return api.put<Organization>(`/organization/${id}/`, data);
 }
 
 export async function createOrganization(data: Partial<Organization>): Promise<Organization> {
-  return api.post<Organization>('/organizations/', data);
+  return api.post<Organization>('/organization/', data);
 }
 
 // -- Assets --────────

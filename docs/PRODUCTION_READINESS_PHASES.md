@@ -18,7 +18,7 @@ Make the GRC platform production-ready by:
 
 1. [COMPLETED] Phase 0: Remove mock and seed data.
 2. [COMPLETED] Phase 1: Backend multi-tenancy scoping.
-3. Phase 1.5: Database RLS and indexes.
+3. [COMPLETED] Phase 1.5: Database RLS and indexes.
 4. Phase 2: User invitation and role management.
 5. Phase 2.5: Password reset and security hardening.
 6. Phase 3: Frontend fixes and empty states.
@@ -26,8 +26,6 @@ Make the GRC platform production-ready by:
 8. Phase 4.5: Docker, nginx, health checks, and deployment readiness.
 9. Phase 5: Final documentation.
 
-## [COMPLETED] Phase 0: Remove Mock and Seed Data
-*Completed on June 12, 2026*
 
 ### Scope
 
@@ -203,7 +201,8 @@ FRONTEND_URL=http://localhost:3000
 - Invite link lets user set password and land on dashboard.
 - Deactivated users cannot access org data.
 
-## Phase 1.5: Database RLS And Indexes
+## [COMPLETED] Phase 1.5: Database RLS And Indexes
+*Completed on June 12, 2026*
 
 ### Scope
 

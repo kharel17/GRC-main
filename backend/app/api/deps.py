@@ -300,7 +300,18 @@ async def get_current_user(
             await db.rollback()
             logger.error(f"Error activating user: {e}")
 
+    # Set organization context for RLS
+    from app.database import org_id_var
+    from sqlalchemy import text
+    org_id_var.set(user_orm.organization_id)
+    if user_orm.organization_id:
+        await db.execute(
+            text("SELECT set_config('app.org_id', :org_id, true)"),
+            {"org_id": str(user_orm.organization_id)}
+        )
+
     return user_orm
+
 
 
 

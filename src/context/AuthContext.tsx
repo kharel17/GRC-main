@@ -225,8 +225,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      let error = signInError;
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
         return { success: false, error: error.message };

@@ -19,7 +19,7 @@ Make the GRC platform production-ready by:
 1. [COMPLETED] Phase 0: Remove mock and seed data.
 2. [COMPLETED] Phase 1: Backend multi-tenancy scoping.
 3. [COMPLETED] Phase 1.5: Database RLS and indexes.
-4. Phase 2: User invitation and role management.
+4. [COMPLETED] Phase 2: User invitation and role management.
 5. Phase 2.5: Password reset and security hardening.
 6. Phase 3: Frontend fixes and empty states.
 7. Phase 4: Environment and runtime configuration.
@@ -141,7 +141,8 @@ if not org_id:
 - [x] Cross-org data cannot be read or updated by another org's user.
 - [x] `python -m py_compile` passes for changed backend files.
 
-## Phase 2: User Invitation And Role Management
+## [COMPLETED] Phase 2: User Invitation And Role Management
+*Completed on June 12, 2026*
 
 ### Scope
 

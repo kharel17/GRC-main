@@ -18,8 +18,14 @@ async def read_users(
     limit: int = 100,
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Retrieve users (active only)."""
-    stmt = select(User).where(User.is_active == True).offset(skip).limit(limit)
+    """Retrieve users (active only, scoped to organization)."""
+    stmt = (
+        select(User)
+        .where(User.is_active == True)
+        .where(User.organization_id == current_user.organization_id)
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     users = result.scalars().all()
     return users
@@ -31,16 +37,13 @@ async def read_user_by_id(
     db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Get a specific user by id."""
-    stmt = select(User).where(User.id == user_id)
+    """Get a specific user by id (scoped to organization)."""
+    stmt = select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if current_user.id != user.id and current_user.role != UserRole.admin:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
+        raise HTTPException(status_code=404, detail="User not found in your organization")
 
     return user
 
@@ -65,11 +68,13 @@ async def create_user(
 
     hashed = bcrypt.hashpw(user_in.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
+    # Create user row for the CURRENT organization
     new_user = User(
         id=uuid.uuid4(),
         **user_in.model_dump(exclude={"password"}),
         hashed_password=hashed,
         is_active=True,
+        organization_id=current_user.organization_id # Force org ID
     )
     db.add(new_user)
     await db.commit()
@@ -96,14 +101,15 @@ async def delete_user(
             detail="You cannot delete your own account"
         )
 
-    stmt = select(User).where(User.id == user_id)
+    stmt = select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found in your organization")
 
     # Soft delete: deactivation
     user.is_active = False
+    user.organization_id = None # Clear org scoping on deactivation
     user.invitation_status = 'deactivated'
     await db.commit()

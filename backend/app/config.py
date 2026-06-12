@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     # AI Config
     GEMINI_API_KEY: Optional[str] = None
 
+    # SMTP Config
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    EMAILS_FROM_NAME: str = "GRC Platform"
+    EMAILS_FROM_EMAIL: Optional[str] = None
+
     SQLALCHEMY_DATABASE_URI: Union[str, None] = None
 
     @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")

@@ -38,6 +38,8 @@ class User(Base):
 
     # Invitation System
     invitation_status = Column(String, default="pending", nullable=False) # pending, active, deactivated
+    invitation_token_hash = Column(String, nullable=True, index=True)
+    invitation_expires_at = Column(DateTime, nullable=True)
     invited_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     invited_at = Column(DateTime, nullable=True)
     organization_name = Column(String, nullable=True) # Used during onboarding

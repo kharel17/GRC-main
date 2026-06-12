@@ -60,7 +60,7 @@ const fetchWithRetry = async (
   
   throw lastError!;
 };
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+const USE_MOCK = false;
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public body?: unknown) {

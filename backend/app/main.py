@@ -118,48 +118,33 @@ async def startup_ai_service():
 
 import asyncio
 
-# ── Platform Team Role Fix ─────────────────────────────────
+# ── Real User Role Fix ──────────────────────────────────────
 @app.on_event("startup")
-async def platform_role_fix_startup():
+async def real_user_role_fix_startup():
     """Wrapper to run role fix in background to avoid blocking server startup."""
-    asyncio.create_task(fix_platform_team_roles())
-    logger.info("Platform team role fix scheduled in background")
+    asyncio.create_task(fix_real_user_roles())
+    logger.info("Real user role fix scheduled in background")
 
-async def fix_platform_team_roles():
-    """Ensure platform team accounts always have correct admin roles."""
+async def fix_real_user_roles():
+    """Ensure active developer/admin accounts always have correct admin roles and are linked to the real organization."""
     from sqlalchemy import select
     from app.database import SessionLocal
     from app import models
 
+    REAL_ORG_ID = uuid.UUID("24de3639-ee40-4563-a207-dd66436a0da8")
     ROLE_OVERRIDE_MAP = {
-        "alice@company.com":   models.UserRole.admin,
-        "carol@company.com":   models.UserRole.manager,
-        "bob@company.com":     models.UserRole.analyst,
         "bcolorc17@gmail.com": models.UserRole.admin,
         "grchelios@gmail.com": models.UserRole.admin,
     }
 
     try:
         async with SessionLocal() as db:
-            # 1. Ensure "Platform Team" organization exists
-            # 1. Ensure "Platform Team" organization exists
-            platform_org_result = await db.execute(
-                select(models.Organization).where(models.Organization.name == "Platform Team")
+            # Check if real organization exists
+            org_result = await db.execute(
+                select(models.Organization).where(models.Organization.id == REAL_ORG_ID)
             )
-            platform_org = platform_org_result.scalar_one_or_none()
-            
-            if not platform_org:
-                platform_org = models.Organization(
-                    id=uuid.uuid4(),
-                    name="Platform Team",
-                    industry="Technology",
-                    onboarding_completed=True
-                )
-                db.add(platform_org)
-                await db.flush()
-                logger.info("Startup check: Created Platform Team organization")
+            real_org = org_result.scalar_one_or_none()
 
-            # 2. Fix roles and associate with organization
             for email, role in ROLE_OVERRIDE_MAP.items():
                 result = await db.execute(
                     select(models.User).where(models.User.email == email)
@@ -178,20 +163,20 @@ async def fix_platform_team_roles():
                         needs_update = True
                         logger.info(f"Startup check: Activated user {email}")
                     
-                    # Associate platform users with organization ONLY if they have none
-                    if email in ["bcolorc17@gmail.com", "grchelios@gmail.com"]:
-                        if not user.organization_id:
-                            user.organization_id = platform_org.id
-                            user.organization_name = platform_org.name
+                    # Associate real users with the real organization
+                    if real_org:
+                        if user.organization_id != REAL_ORG_ID:
+                            user.organization_id = REAL_ORG_ID
+                            user.organization_name = real_org.name
                             needs_update = True
-                            logger.info(f"Startup check: Associated {email} with Platform Team (was missing org)")
+                            logger.info(f"Startup check: Associated {email} with real organization ({real_org.name})")
 
                     if needs_update:
                         await db.flush()
             
             await db.commit()
     except Exception as e:
-        logger.warning(f"Platform team role fix skipped: {e}")
+        logger.warning(f"Real user role fix skipped: {e}")
 
 
 # ── Health Check ───────────────────────────────────────────

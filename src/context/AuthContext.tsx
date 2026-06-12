@@ -228,27 +228,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       let error = signInError;
 
-      // Auto-signup fallback for Dev Mode seed users if they don't exist yet in Supabase Auth
-      if (
-        error &&
-        error.message.includes('Invalid login credentials') &&
-        IS_DEV_MODE &&
-        ['alice@company.com', 'bob@company.com', 'carol@company.com'].includes(email)
-      ) {
-        console.log(`[Auth] Seed user ${email} not found. Auto-creating...`);
-        const signupRes = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              role: email === 'alice@company.com' ? 'admin' : (email === 'carol@company.com' ? 'department_manager' : 'analyst'),
-              full_name: email.split('@')[0]
-            }
-          }
-        });
-        error = signupRes.error;
-      }
-
       if (error) {
         return { success: false, error: error.message };
       }

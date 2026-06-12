@@ -61,3 +61,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
+def validate_password_strength(password: str) -> bool:
+    """
+    Validates that a password meets production security standards.
+    - Minimum 8 characters.
+    """
+    if len(password) < 8:
+        return False
+    # Add more complexity rules here if needed (digit, special char, etc.)
+    return True
+

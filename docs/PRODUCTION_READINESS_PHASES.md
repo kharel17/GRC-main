@@ -20,7 +20,7 @@ Make the GRC platform production-ready by:
 2. [COMPLETED] Phase 1: Backend multi-tenancy scoping.
 3. [COMPLETED] Phase 1.5: Database RLS and indexes.
 4. [COMPLETED] Phase 2: User invitation and role management.
-5. Phase 2.5: Password reset and security hardening.
+5. [COMPLETED] Phase 2.5: Password reset and security hardening.
 6. Phase 3: Frontend fixes and empty states.
 7. Phase 4: Environment and runtime configuration.
 8. Phase 4.5: Docker, nginx, health checks, and deployment readiness.
@@ -336,7 +336,8 @@ const frameworks = org.compliance_frameworks ?? org.complianceFrameworks ?? [];
 - User page works using current org only.
 - Accept invite works from emailed link.
 
-## Phase 2.5: Password Reset And Security Hardening
+## [COMPLETED] Phase 2.5: Password Reset And Security Hardening
+*Completed on June 12, 2026*
 
 ### Scope
 

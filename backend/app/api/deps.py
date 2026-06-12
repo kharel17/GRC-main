@@ -12,8 +12,39 @@ import uuid
 import httpx
 import json
 from jose import jwk
+from collections import defaultdict
+import time
 
 logger = logging.getLogger("grc.deps")
+
+# Simple in-memory rate limiting
+# In a real production environment with multiple workers/instances, 
+# this should be moved to Redis or a middleware.
+login_attempts = defaultdict(list)
+
+def rate_limit(limit: int, window: int):
+    """
+    Simple rate limiter dependency.
+    limit: max attempts
+    window: time window in seconds
+    """
+    def dependency(request: Request):
+        client_ip = request.client.host
+        now = time.time()
+        
+        # Clean up old attempts
+        login_attempts[client_ip] = [t for t in login_attempts[client_ip] if now - t < window]
+        
+        if len(login_attempts[client_ip]) >= limit:
+            logger.warning(f"Rate limit exceeded for IP: {client_ip}")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many attempts. Please try again later."
+            )
+        
+        login_attempts[client_ip].append(now)
+        return True
+    return dependency
 
 # Support both cookie and Bearer header auth
 reusable_oauth2_cookie = APIKeyCookie(name="access_token", auto_error=False)

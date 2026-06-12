@@ -4,9 +4,12 @@ from sqlalchemy.future import select
 from typing import Any, List
 from app.api import deps
 from app.models.user import User, UserRole
+from app.models.audit_log import AuditLog, AuditAction, AuditEntityType
+from app.models.auth import RefreshToken
 from app import schemas
 import bcrypt
 import uuid
+from sqlalchemy import delete
 
 router = APIRouter()
 
@@ -77,6 +80,20 @@ async def create_user(
         organization_id=current_user.organization_id # Force org ID
     )
     db.add(new_user)
+    await db.flush()
+
+    # Audit log
+    audit_log = AuditLog(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        action=AuditAction.created,
+        entity_type=AuditEntityType.user,
+        entity_id=new_user.id,
+        entity_name=new_user.email,
+        description=f"User created: {new_user.email}"
+    )
+    db.add(audit_log)
+    
     await db.commit()
     await db.refresh(new_user)
     return new_user
@@ -112,4 +129,21 @@ async def delete_user(
     user.is_active = False
     user.organization_id = None # Clear org scoping on deactivation
     user.invitation_status = 'deactivated'
+    
+    # REVOKE ALL SESSIONS
+    await db.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+    user.token_version += 1 # Invalidate all current JWTs
+    
+    # Audit log
+    audit_log = AuditLog(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        action=AuditAction.deleted,
+        entity_type=AuditEntityType.user,
+        entity_id=user.id,
+        entity_name=user.email,
+        description=f"User deactivated and sessions revoked: {user.email}"
+    )
+    db.add(audit_log)
+    
     await db.commit()

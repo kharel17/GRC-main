@@ -44,3 +44,12 @@ class UserInDB(UserInDBBase):
 class UserAcceptInvite(BaseModel):
     token: str
     password: str
+
+# Schema for requesting a password reset
+class ForgotPassword(BaseModel):
+    email: EmailStr
+
+# Schema for resetting password with a token
+class ResetPassword(BaseModel):
+    token: str
+    password: str

@@ -10,13 +10,15 @@ from app.api import deps
 from app.utils import security
 from app.services import auth_service
 from app.config import settings
+import secrets
+from app.utils.emails import send_reset_password_email
 
 router = APIRouter()
 
 def get_token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(deps.rate_limit(limit=5, window=60))])
 async def login_access_token(
     response: Response,
     db: AsyncSession = Depends(deps.get_db),
@@ -218,6 +220,75 @@ async def accept_invite(
     )
     
     return {"message": "Invitation accepted and logged in", "access_token": access_token}
+
+@router.post("/forgot-password", dependencies=[Depends(deps.rate_limit(limit=3, window=60))])
+async def forgot_password(
+    body: schemas.user.ForgotPassword,
+    db: AsyncSession = Depends(deps.get_db)
+) -> Any:
+    """
+    Send a password reset email.
+    """
+    result = await db.execute(select(models.User).where(models.User.email == body.email))
+    user = result.scalars().first()
+    
+    if not user:
+        # For security, don't reveal if user exists. Just return 200.
+        return {"message": "If an account exists for this email, you will receive a reset link shortly."}
+
+    # Generate token
+    token = secrets.token_urlsafe(32)
+    user.reset_token_hash = hashlib.sha256(token.encode()).hexdigest()
+    user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=24)
+    
+    db.add(user)
+    await db.commit()
+    
+    await send_reset_password_email(email_to=user.email, token=token)
+    
+    return {"message": "If an account exists for this email, you will receive a reset link shortly."}
+
+@router.post("/reset-password", dependencies=[Depends(deps.rate_limit(limit=3, window=60))])
+async def reset_password(
+    body: schemas.user.ResetPassword,
+    db: AsyncSession = Depends(deps.get_db)
+) -> Any:
+    """
+    Reset password using a secure token.
+    """
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+    result = await db.execute(
+        select(models.User).where(
+            models.User.reset_token_hash == token_hash
+        )
+    )
+    user = result.scalars().first()
+    
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    if user.reset_token_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+
+    # Validate complexity
+    if not security.validate_password_strength(body.password):
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+
+    # Update password
+    user.hashed_password = security.get_password_hash(body.password)
+    user.reset_token_hash = None
+    user.reset_token_expires_at = None
+    
+    # Optional: Invalidate all sessions on password change
+    user.token_version += 1
+    await db.execute(
+        delete(models.RefreshToken).where(models.RefreshToken.user_id == user.id)
+    )
+    
+    db.add(user)
+    await db.commit()
+    
+    return {"message": "Password updated successfully"}
 
 @router.post("/register", response_model=schemas.User)
 async def register_user(

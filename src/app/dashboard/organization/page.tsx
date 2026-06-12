@@ -53,7 +53,7 @@ export default function OrganizationPage() {
     if (!org?.id) return;
     setSaving(true);
     try {
-      await updateOrganization(org.id, formData);
+      await updateOrganization(formData);
       toast.success("Organization updated successfully");
       setIsEditing(false);
       refetch();

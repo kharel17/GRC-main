@@ -21,7 +21,7 @@ Make the GRC platform production-ready by:
 3. [COMPLETED] Phase 1.5: Database RLS and indexes.
 4. [COMPLETED] Phase 2: User invitation and role management.
 5. [COMPLETED] Phase 2.5: Password reset and security hardening.
-6. Phase 3: Frontend fixes and empty states.
+6. [COMPLETED] Phase 3: Frontend fixes and empty states.
 7. Phase 4: Environment and runtime configuration.
 8. Phase 4.5: Docker, nginx, health checks, and deployment readiness.
 9. Phase 5: Final documentation.
@@ -423,9 +423,11 @@ Add a safe framework deactivation workflow:
 - Removed users cannot keep using old sessions.
 - Admin changes are visible in audit logs.
 
-## Phase 3: Frontend Fixes And Empty States
+## [COMPLETED] Phase 3: Frontend Fixes And Empty States
+*Completed on June 12, 2026*
 
-### Additional Scope
+### Scope
+Additional Scope
 
 After mock data removal, pages must not look broken when there is no data.
 

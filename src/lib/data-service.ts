@@ -299,32 +299,36 @@ export async function deleteNotification(id: string): Promise<void> {
 
 // -- Users --────────
 export async function fetchCurrentUserProfile(): Promise<any> {
-  return api.get<any>('/auth/me/');
+    return api.get<any>('/auth/me/');
+}
+
+export async function forgotPassword(email: string): Promise<any> {
+    return api.post('/auth/forgot-password', { email }, { skipAuth: true });
+}
+
+export async function resetPassword(data: { token: string; password: string }): Promise<any> {
+    return api.post('/auth/reset-password', data, { skipAuth: true });
+}
+
+export async function acceptInvite(data: { token: string; password: string }): Promise<any> {
+    return api.post('/auth/accept-invite', data, { skipAuth: true });
 }
 
 export async function fetchUsers(): Promise<any[]> {
-  try {
-    return await api.get<any[]>('/users/');
-  } catch (err) {
-    if ((err as any)?.status === 404) {
-      try {
-        return await api.get<any[]>('/user/');
-      } catch (fallbackErr) {
-        console.warn(`[DataService] GET /user/ fallback failed`, fallbackErr);
-      }
-    } else {
-      console.warn(`[DataService] GET /users/ failed`, err);
+    try {
+        return await api.get<any[]>('/users/');
+    } catch (err) {
+        console.warn(`[DataService] GET /users/ failed`, err);
+        return [];
     }
-    return [];
-  }
 }
 
 export async function createUser(data: {
-  email: string;
-  full_name: string;
-  password: string;
-  role?: string;
-  department?: string;
+    email: string;
+    full_name: string;
+    password: string;
+    role?: string;
+    department?: string;
 }): Promise<any> {
     return api.post<any>('/users/', data);
 }
@@ -335,32 +339,32 @@ export async function deleteUser(userId: string): Promise<void> {
 
 // -- Invitations --────────
 export async function inviteUser(data: {
-  email: string;
-  full_name: string;
-  role: string;
-  manager_id?: string;
+    email: string;
+    full_name: string;
+    role: string;
+    manager_id?: string;
 }): Promise<any> {
-  return api.post<any>('/invitations/invite-user/', data);
+    return api.post<any>('/invitations/invite-user', data);
 }
 
 export async function inviteAdmin(data: {
-  email: string;
-  full_name: string;
-  organization_name: string;
+    email: string;
+    full_name: string;
+    organization_name: string;
 }): Promise<any> {
-  return api.post<any>('/invitations/invite-admin/', data);
+    return api.post<any>('/invitations/invite-admin', data);
 }
 
 export async function fetchPendingInvitations(): Promise<any[]> {
-  try {
-    return await api.get<any[]>('/invitations/pending/');
-  } catch {
-    return [];
-  }
+    try {
+        return await api.get<any[]>('/invitations/pending');
+    } catch {
+        return [];
+    }
 }
 
 export async function cancelInvitation(userId: string): Promise<any> {
-  return api.delete(`/invitations/${userId}/`);
+    return api.delete(`/invitations/${userId}`);
 }
 
 // -- Organization --────────
@@ -373,8 +377,8 @@ export async function fetchOrganization(): Promise<Organization | undefined> {
   }
 }
 
-export async function updateOrganization(id: string, data: Partial<Organization>): Promise<Organization> {
-  return api.put<Organization>(`/organization/${id}/`, data);
+export async function updateOrganization(data: Partial<Organization>): Promise<Organization> {
+  return api.put<Organization>('/organization/', data);
 }
 
 export async function createOrganization(data: Partial<Organization>): Promise<Organization> {

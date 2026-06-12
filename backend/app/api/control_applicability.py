@@ -81,11 +81,14 @@ async def list_control_applicability(
     status: Optional[str] = Query(None, description="Filter by status"),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """List all control applicability records for an organization."""
-    query = select(models.ControlApplicability)
-    
-    if organization_id:
-        query = query.where(models.ControlApplicability.organization_id == organization_id)
+    """List all control applicability records for the current user's organization."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    query = select(models.ControlApplicability).where(
+        models.ControlApplicability.organization_id == org_id
+    )
     if status:
         query = query.where(models.ControlApplicability.status == status)
     
@@ -173,9 +176,15 @@ async def update_control_applicability(
     ca_in: schemas.ControlApplicabilityUpdate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
-    """Update a single control applicability record."""
+    """Update a single control applicability record. Scoped to current user's org."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     result = await db.execute(
-        select(models.ControlApplicability).where(models.ControlApplicability.id == ca_id)
+        select(models.ControlApplicability)
+        .where(models.ControlApplicability.id == ca_id)
+        .where(models.ControlApplicability.organization_id == org_id)
     )
     ca = result.scalars().first()
     if not ca:
@@ -220,21 +229,18 @@ async def get_control_applicability_by_annex(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Get applicability record by annex ID (e.g. '5.1')."""
-    # Get organization (assume first org for now as per dashboard logic)
-    org_result = await db.execute(select(models.Organization).limit(1))
-    org = org_result.scalars().first()
-    if not org:
-        raise HTTPException(status_code=404, detail="No organization configured")
+    """Get applicability record by annex ID (e.g. '5.1'). Scoped to current user's org."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
 
     result = await db.execute(
         select(models.ControlApplicability)
-        .where(models.ControlApplicability.organization_id == org.id)
+        .where(models.ControlApplicability.organization_id == org_id)
         .where(models.ControlApplicability.control_annex == annex)
     )
     ca = result.scalars().first()
     if not ca:
-        # If not found, it might need initialization, but for now we 404
         raise HTTPException(status_code=404, detail=f"Control applicability for annex {annex} not found")
     
     return ca
@@ -249,17 +255,24 @@ async def get_statement_of_applicability(
     """
     Generate the Statement of Applicability (SoA).
     Combines ISO 27001 control definitions with per-organization applicability data.
+    Scoped to current user's organization.
     """
     from app.services.compliance_service import compliance_service
 
-    # Get organization
-    org_result = await db.execute(select(models.Organization).limit(1))
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    # Fetch org for name display
+    org_result = await db.execute(
+        select(models.Organization).where(models.Organization.id == org_id)
+    )
     org = org_result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="No organization configured")
     
     # Use compliance service to get SOA data
-    entries_data = await compliance_service.get_soa(db, org.id)
+    entries_data = await compliance_service.get_soa(db, org_id)
     
     # Calculate counters from entries
     counters = {"implemented": 0, "in_progress": 0, "not_started": 0, "not_applicable": 0}
@@ -294,16 +307,15 @@ async def get_compliance_score(
     """
     Calculate the live compliance score based on control implementation status.
     Breaks down by clause for dashboard widgets.
+    Scoped to current user's organization.
     """
-    # Get organization
-    org_result = await db.execute(select(models.Organization).limit(1))
-    org = org_result.scalars().first()
-    if not org:
-        raise HTTPException(status_code=404, detail="No organization configured")
-    
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     ca_result = await db.execute(
         select(models.ControlApplicability)
-        .where(models.ControlApplicability.organization_id == org.id)
+        .where(models.ControlApplicability.organization_id == org_id)
     )
     ca_records = {ca.control_annex: ca for ca in ca_result.scalars().all()}
     

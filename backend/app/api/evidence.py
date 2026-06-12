@@ -348,8 +348,14 @@ async def read_evidence(
     skip: int = 0,
     limit: int = 100,
 ) -> Any:
-    """Return evidence list, optionally filtered by related_id. Role-scoped."""
-    query = select(models.Evidence)
+    """Return evidence list, optionally filtered by related_id. Role-scoped and org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    query = select(models.Evidence).where(
+        models.Evidence.organization_id == org_id
+    )
 
     if related_id:
         query = query.where(models.Evidence.related_id == related_id)
@@ -385,8 +391,17 @@ async def update_evidence_status(
     ),
     status_in: schemas.EvidenceStatusUpdate,
 ) -> Any:
-    """Verify, reject, or set evidence under review. Admin/Manager only."""
-    evidence = await db.get(models.Evidence, evidence_id)
+    """Verify, reject, or set evidence under review. Admin/Manager only. Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Evidence)
+        .where(models.Evidence.id == evidence_id)
+        .where(models.Evidence.organization_id == org_id)
+    )
+    evidence = result.scalars().first()
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
 
@@ -449,8 +464,17 @@ async def delete_evidence(
     import os
     from urllib.parse import urlparse
 
-    # 1. Find evidence in DB
-    evidence = await db.get(models.Evidence, evidence_id)
+    # 1. Find evidence in DB (scoped to org)
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Evidence)
+        .where(models.Evidence.id == evidence_id)
+        .where(models.Evidence.organization_id == org_id)
+    )
+    evidence = result.scalars().first()
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
 
@@ -501,12 +525,17 @@ async def get_expiring_evidence(
     current_user: models.User = Depends(deps.get_current_active_user),
     days: int = Query(30, description="Window in days"),
 ) -> Any:
-    """Return evidence expiring within the given window (default 30 days)."""
+    """Return evidence expiring within the given window (default 30 days). Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     now = datetime.utcnow()
     cutoff = now + timedelta(days=days)
 
     query = (
         select(models.Evidence)
+        .where(models.Evidence.organization_id == org_id)
         .where(models.Evidence.valid_until.isnot(None))
         .where(models.Evidence.valid_until <= cutoff)
         .where(models.Evidence.valid_until >= now)

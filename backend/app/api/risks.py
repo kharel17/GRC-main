@@ -32,11 +32,16 @@ async def read_risks(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve risks.
+    Retrieve risks. Scoped to current user's organization.
     """
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     # Use selectinload to eagerly load the category relationship
     result = await db.execute(
         select(models.Risk)
+        .where(models.Risk.organization_id == org_id)
         .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
         .offset(skip)
         .limit(limit)
@@ -159,12 +164,16 @@ async def read_risk(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Get risk by ID.
+    Get risk by ID. Scoped to current user's organization.
     """
-    # Cast to UUID if needed, but standard library handles it often
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
+        .where(models.Risk.organization_id == org_id)
         .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
     )
     risk = result.scalars().first()
@@ -181,11 +190,16 @@ async def update_risk(
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
-    Update an existing risk.
+    Update an existing risk. Scoped to current user's organization.
     """
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
+        .where(models.Risk.organization_id == org_id)
         .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
     )
     risk = result.scalars().first()
@@ -253,8 +267,19 @@ async def get_risk_controls(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Get all controls mapped to a risk.
+    Get all controls mapped to a risk. Scoped to current user's organization.
     """
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    # Verify the risk belongs to the user's org
+    risk_check = await db.execute(
+        select(models.Risk.id).where(models.Risk.id == id, models.Risk.organization_id == org_id)
+    )
+    if not risk_check.scalars().first():
+        raise HTTPException(status_code=404, detail="Risk not found")
+
     result = await db.execute(
         select(RiskControlMapping)
         .where(RiskControlMapping.risk_id == id)
@@ -287,14 +312,22 @@ async def map_control_to_risk(
     """
     Map a control to a risk.
     """
-    # Verify risk exists
-    risk_result = await db.execute(select(models.Risk).where(models.Risk.id == id))
+    # Verify risk exists and belongs to user's org
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    risk_result = await db.execute(
+        select(models.Risk).where(models.Risk.id == id, models.Risk.organization_id == org_id)
+    )
     risk = risk_result.scalars().first()
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
 
-    # Verify control exists
-    ctrl_result = await db.execute(select(Control).where(Control.id == body.control_id))
+    # Verify control exists and belongs to user's org
+    ctrl_result = await db.execute(
+        select(Control).where(Control.id == body.control_id, Control.organization_id == org_id)
+    )
     ctrl = ctrl_result.scalars().first()
     if not ctrl:
         raise HTTPException(status_code=404, detail="Control not found")
@@ -354,12 +387,17 @@ async def delete_risk(
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ):
     """
-    Delete a risk.
+    Delete a risk. Scoped to current user's organization.
     Only strictly for Admin and Manager.
     """
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     result = await db.execute(
         select(models.Risk)
         .where(models.Risk.id == id)
+        .where(models.Risk.organization_id == org_id)
         .options(selectinload(models.Risk.category), selectinload(models.Risk.owner))
     )
     risk = result.scalars().first()

@@ -114,10 +114,11 @@ class RiskTriggerService:
         if risk.owner_id:
             return risk.owner_id
 
-        # 3. System Admin fallback
-        admin_res = await db.execute(
-            select(models.User).where(models.User.role == models.UserRole.admin).limit(1)
-        )
+        # 3. System Admin fallback (scoped to same org as the risk)
+        admin_query = select(models.User).where(models.User.role == models.UserRole.admin)
+        if risk.organization_id:
+            admin_query = admin_query.where(models.User.organization_id == risk.organization_id)
+        admin_res = await db.execute(admin_query.limit(1))
         admin = admin_res.scalars().first()
         if admin:
             return admin.id

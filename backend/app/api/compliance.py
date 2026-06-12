@@ -18,8 +18,13 @@ async def read_compliance_items(
     limit: int = 100,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     result = await db.execute(
         select(models.ComplianceItem)
+        .where(models.ComplianceItem.organization_id == org_id)
         .offset(skip)
         .limit(limit)
     )
@@ -58,9 +63,13 @@ async def create_compliance_item(
     item_in: schemas.ComplianceItemCreate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
-    item = models.ComplianceItem(
-        **item_in.model_dump()
-    )
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    item_data = item_in.model_dump()
+    item_data['organization_id'] = org_id
+    item = models.ComplianceItem(**item_data)
     db.add(item)
     await db.commit()
     await db.refresh(item)

@@ -70,9 +70,17 @@ class TicketService:
         previous_ticket_id = previous_ticket.id if previous_ticket else None
 
         # 4. Assignee Determination & SLA
-        # We need to find users with specific roles
+        # We need to find users with specific roles within the same org
+        # First, get the current user's organization_id
+        user_result = await db.execute(select(models.User).where(models.User.id == current_user_id))
+        current_user = user_result.scalars().first()
+        user_org_id = current_user.organization_id if current_user else None
+
         async def get_user_by_role(role: models.UserRole) -> Optional[models.User]:
-            res = await db.execute(select(models.User).where(models.User.role == role).limit(1))
+            query = select(models.User).where(models.User.role == role)
+            if user_org_id:
+                query = query.where(models.User.organization_id == user_org_id)
+            res = await db.execute(query.limit(1))
             return res.scalars().first()
 
         l1_admin = await get_user_by_role(models.UserRole.admin)
@@ -130,7 +138,7 @@ class TicketService:
                 impact=max(1, risk_score // 20),
                 risk_score=risk_score,
                 status=models.RiskStatus.identified,
-                organization_id=None, # Should be fetched from user
+                organization_id=user_org_id,
                 asset_id=risk_id or control_id, # Fallback to related entity for now
                 created_by=current_user_id,
                 owner_id=current_user_id

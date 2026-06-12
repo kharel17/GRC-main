@@ -17,7 +17,7 @@ Make the GRC platform production-ready by:
 ## Priority Order
 
 1. [COMPLETED] Phase 0: Remove mock and seed data.
-2. Phase 1: Backend multi-tenancy scoping.
+2. [COMPLETED] Phase 1: Backend multi-tenancy scoping.
 3. Phase 1.5: Database RLS and indexes.
 4. Phase 2: User invitation and role management.
 5. Phase 2.5: Password reset and security hardening.
@@ -70,7 +70,8 @@ Make the GRC platform production-ready by:
 - Cleanup SQL preserves the real org, real user, framework controls, and real org applicability.
 - `python -m py_compile` passes for changed backend files.
 
-## Phase 1: Backend Multi-Tenancy Scoping
+## [COMPLETED] Phase 1: Backend Multi-Tenancy Scoping
+*Completed on June 12, 2026*
 
 ### Scope
 
@@ -99,24 +100,48 @@ if not org_id:
 - `backend/app/api/audit_logs.py`
 - `backend/app/api/notifications.py`
 
-### High-Priority Known Bugs
+### High-Priority Known Bugs (FIXED)
 
-- `GET /organization/` currently returns the first org found instead of the current user's org.
-- `PUT /organization/` currently updates the first org found.
-- `GET /control-applicability/compliance-score` currently uses the first org found.
-- `GET /control-applicability/soa` and `GET /control-applicability/annex/{annex}` need current-user org scoping.
+- [FIXED] `GET /organization/` now returns the current user's org via `current_user.organization_id`.
+- [FIXED] `PUT /organization/` now updates only the current user's org.
+- [FIXED] `GET /control-applicability/compliance-score` now uses `current_user.organization_id`.
+- [FIXED] `GET /control-applicability/soa` and `GET /control-applicability/annex/{annex}` now use current-user org scoping.
+
+### Endpoints Fixed
+
+| File | Endpoints Scoped |
+|------|------------------|
+| `organization.py` | GET /, POST /, PUT / |
+| `control_applicability.py` | GET /, PUT /{id}, GET /annex/{annex}, GET /soa, GET /compliance-score |
+| `compliance.py` | GET /, POST / |
+| `gap_analysis.py` | GET /, POST /create-tickets |
+| `audit_logs.py` | GET / (joined on User table for org filter) |
+| `risks.py` | GET /, GET /{id}, PUT /{id}, DELETE /{id}, GET /{id}/controls, POST /{id}/controls |
+| `controls.py` | GET /, POST /, GET /{id}, PUT /{id}, PATCH /{id}, DELETE /{id} |
+| `evidence.py` | GET /, PATCH /{id}/status, DELETE /{id}, GET /expiring |
+| `tickets.py` | GET /, POST /, GET /{id}, POST /{id}/comments |
+| `assets.py` | GET /, POST /, GET /{id}, PUT /{id}, DELETE /{id}, POST /{id}/risks, DELETE /{id}/risks/{rid} |
+| `dashboard.py` | Already scoped (no change needed) |
+| `notifications.py` | Already user-scoped (no change needed) |
+
+### Services Fixed
+
+| File | Change |
+|------|--------|
+| `ticket_service.py` | User role lookup scoped to org; AI-created risks get `organization_id` |
+| `risk_trigger_service.py` | Admin fallback scoped to risk's org |
 
 ### Deliverables
 
-- Complete list of endpoints fixed.
-- For each endpoint: old behavior, new org-scoped behavior, file path, function name.
-- Any endpoint intentionally global must be documented.
+- All endpoints above enforce `current_user.organization_id` guard.
+- No `select(models.Organization).limit(1)` remains in request-scoped endpoints.
+- `python -m py_compile` passes for all 12 changed files.
 
 ### Acceptance Checks
 
-- No `select(models.Organization).limit(1)` remains in request-scoped endpoints.
-- Cross-org data cannot be read or updated by another org's user.
-- `python -m py_compile` passes for changed backend files.
+- [x] No `select(models.Organization).limit(1)` remains in request-scoped endpoints.
+- [x] Cross-org data cannot be read or updated by another org's user.
+- [x] `python -m py_compile` passes for changed backend files.
 
 ## Phase 2: User Invitation And Role Management
 

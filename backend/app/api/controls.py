@@ -19,9 +19,14 @@ async def read_controls(
     limit: int = 100,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     try:
         result = await db.execute(
             select(models.Control)
+            .where(models.Control.organization_id == org_id)
             .offset(skip)
             .limit(limit)
         )
@@ -38,11 +43,11 @@ async def create_control(
     control_in: schemas.ControlCreate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     # 1. Build control object
-    print("DEBUG: create_control payload:", control_in.model_dump())
-    control_data = control_in.model_dump()
-    control_data['owner_id'] = control_data.get('owner_id') or current_user.id
-    
     control = models.Control(
         title=control_in.title,
         description=control_in.description,
@@ -50,7 +55,8 @@ async def create_control(
         effectiveness=control_in.effectiveness,
         status=control_in.status,
         owner_id=control_in.owner_id or current_user.id,
-        created_by=current_user.id
+        created_by=current_user.id,
+        organization_id=org_id
     )
     db.add(control)
     await db.flush() # Get generated ID
@@ -85,10 +91,13 @@ async def create_control(
             notification_type="CONTROL_ASSIGNMENT"
         )
     
-    # Notify admin if implemented
+    # Notify admin if implemented (scoped to same org)
     if control.status == models.ControlStatus.implemented:
         admin_res = await db.execute(
-            select(models.User).where(models.User.role == models.UserRole.admin)
+            select(models.User).where(
+                models.User.role == models.UserRole.admin,
+                models.User.organization_id == org_id
+            )
         )
         admins = admin_res.scalars().all()
         for admin in admins:
@@ -112,8 +121,14 @@ async def read_control(
     id: UUID,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     result = await db.execute(
-        select(models.Control).where(models.Control.id == id)
+        select(models.Control)
+        .where(models.Control.id == id)
+        .where(models.Control.organization_id == org_id)
     )
     control = result.scalars().first()
     if not control:
@@ -128,8 +143,14 @@ async def update_control(
     control_in: schemas.ControlUpdate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     result = await db.execute(
-        select(models.Control).where(models.Control.id == id)
+        select(models.Control)
+        .where(models.Control.id == id)
+        .where(models.Control.organization_id == org_id)
     )
     control = result.scalars().first()
     if not control:
@@ -158,14 +179,17 @@ async def update_control(
     )
     await db.commit()
 
-    # 4. Notifications for status change to implemented
+    # 4. Notifications for status change to implemented (scoped to same org)
     if (
         "status" in update_data 
         and update_data["status"] == models.ControlStatus.implemented 
         and old_values.get("status") != models.ControlStatus.implemented
     ):
         admin_res = await db.execute(
-            select(models.User).where(models.User.role == models.UserRole.admin)
+            select(models.User).where(
+                models.User.role == models.UserRole.admin,
+                models.User.organization_id == org_id
+            )
         )
         admins = admin_res.scalars().all()
         for admin in admins:
@@ -196,9 +220,15 @@ async def patch_control(
     """
     import logging
     logger = logging.getLogger("grc.controls")
+
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
     
     result = await db.execute(
-        select(models.Control).where(models.Control.id == id)
+        select(models.Control)
+        .where(models.Control.id == id)
+        .where(models.Control.organization_id == org_id)
     )
     control = result.scalars().first()
     if not control:
@@ -240,10 +270,18 @@ async def delete_control(
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ):
     """
-    Delete a control.
+    Delete a control. Scoped to current user's organization.
     Only strictly for Admin and Manager.
     """
-    result = await db.execute(select(models.Control).where(models.Control.id == id))
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Control)
+        .where(models.Control.id == id)
+        .where(models.Control.organization_id == org_id)
+    )
     control = result.scalars().first()
     if not control:
         raise HTTPException(status_code=404, detail="Control not found")

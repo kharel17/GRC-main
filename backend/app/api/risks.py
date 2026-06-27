@@ -5,13 +5,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, update
 from app import schemas, models
-from app.models.risk import Risk
+from app.models.risk import Risk, RiskCategory
 from app.api import deps
 from app.services import audit_service
 from app.models.audit_log import AuditAction, AuditEntityType
 from app.utils.notifications import notify
+import uuid
 
 router = APIRouter()
+
+# Default ISO 27001 risk categories to seed if the table is empty
+_DEFAULT_CATEGORIES = [
+    {"name": "Technology",        "description": "Risks related to IT systems, software, and hardware",      "color": "#3b82f6"},
+    {"name": "Operational",       "description": "Risks from internal processes, people, and systems",       "color": "#f59e0b"},
+    {"name": "Physical",          "description": "Risks related to physical assets and facilities",           "color": "#8b5cf6"},
+    {"name": "Human",             "description": "Risks arising from human error, insider threats, or culture","color": "#ec4899"},
+    {"name": "Legal/Compliance",  "description": "Risks from regulatory, legal, or contractual obligations",  "color": "#ef4444"},
+    {"name": "Financial",         "description": "Risks with financial impact or fraud exposure",              "color": "#10b981"},
+]
 
 @router.get("/categories/", response_model=List[schemas.RiskCategory])
 async def get_risk_categories(
@@ -19,10 +30,33 @@ async def get_risk_categories(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve risk categories.
+    Retrieve risk categories. Auto-seeds ISO 27001 defaults if the table is empty.
     """
     result = await db.execute(select(models.RiskCategory))
-    return result.scalars().all()
+    categories = result.scalars().all()
+
+    # Bug 10: seed defaults if empty so the filter dropdown is never blank
+    if not categories:
+        import logging
+        logger = logging.getLogger("app.api.risks")
+        logger.info("risk_categories table is empty – seeding ISO 27001 defaults")
+        for cat_data in _DEFAULT_CATEGORIES:
+            # Guard against a race condition: only insert if name doesn't already exist
+            existing = await db.execute(
+                select(RiskCategory).where(RiskCategory.name == cat_data["name"])
+            )
+            if not existing.scalar_one_or_none():
+                db.add(RiskCategory(
+                    id=uuid.uuid4(),
+                    name=cat_data["name"],
+                    description=cat_data["description"],
+                    color=cat_data["color"],
+                ))
+        await db.commit()
+        result = await db.execute(select(models.RiskCategory))
+        categories = result.scalars().all()
+
+    return categories
 
 @router.get("/", response_model=List[schemas.Risk])
 async def read_risks(

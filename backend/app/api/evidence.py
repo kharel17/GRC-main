@@ -207,6 +207,12 @@ async def _upload_to_supabase_storage(
 
         if resp.status_code not in (200, 201):
             logger.error(f"Supabase upload failed: {resp.status_code} {resp.text}")
+            # Bug 5: Propagate 409 Conflict (duplicate filename) as a distinct error
+            if resp.status_code == 409:
+                raise HTTPException(
+                    status_code=409,
+                    detail="A file with this name already exists. Please rename the file and try again."
+                )
             raise HTTPException(
                 status_code=502,
                 detail=f"Failed to upload file to storage: {resp.text}",
@@ -259,11 +265,35 @@ async def create_evidence(
             detail=f"related_to must be one of: {[e.value for e in EvidenceRelatedTo]}",
         )
 
-    # Validate related_id as UUID
+    # Bug 4: If related_to=control and related_id is an annex string (e.g. "5.1"),
+    # look up the ControlApplicability by annex to find its real UUID.
+    related_uuid: UUID
+    raw_uuid_valid = False
     try:
         related_uuid = UUID(related_id)
+        raw_uuid_valid = True
     except ValueError:
-        raise HTTPException(status_code=422, detail="related_id must be a valid UUID")
+        pass
+
+    if not raw_uuid_valid:
+        if related_to_enum != EvidenceRelatedTo.control:
+            raise HTTPException(status_code=422, detail="related_id must be a valid UUID for non-control types")
+        # Try to resolve annex string → control UUID
+        from app.models.control_applicability import ControlApplicability
+        org_id = current_user.organization_id
+        ca_result = await db.execute(
+            select(ControlApplicability).where(
+                ControlApplicability.annex_id == related_id,
+                ControlApplicability.organization_id == org_id,
+            )
+        )
+        ca = ca_result.scalar_one_or_none()
+        if not ca:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No control found with annex '{related_id}' in your organization"
+            )
+        related_uuid = ca.id
 
     try:
         # Validate file size (10 MB)
@@ -276,8 +306,17 @@ async def create_evidence(
         # Build storage path:  {user_id}/{related_id}/{filename}
         storage_path = f"{current_user.id}/{related_uuid}/{file.filename}"
 
-        # Upload to Supabase Storage
-        public_url = await _upload_to_supabase_storage(file, storage_path)
+        # Upload to Supabase Storage — raises 502 on generic error, or 409 on duplicate
+        try:
+            public_url = await _upload_to_supabase_storage(file, storage_path)
+        except HTTPException as upload_exc:
+            # Bug 5: Re-map Supabase 409 (duplicate object) to a clear user-facing error
+            if upload_exc.status_code == 409 or "already exists" in str(upload_exc.detail).lower():
+                raise HTTPException(
+                    status_code=409,
+                    detail="A file with this name already exists. Please rename the file and try again."
+                )
+            raise
 
         # Persist metadata row
         evidence = models.Evidence(
@@ -317,25 +356,20 @@ async def create_evidence(
             new_values={
                 "file_name": file.filename,
                 "related_to": related_to,
-                "related_id": related_id,
+                "related_id": str(related_uuid),
             },
             description=f"Evidence uploaded: {evidence.title}",
         )
         await db.commit()
 
         return evidence
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
         logger.error(f"EVIDENCE UPLOAD CRASH: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"DEBUG CRASH: {str(e)}\n\n{error_msg}")
-
-        return evidence
-    except Exception as e:
-        import traceback
-        error_msg = traceback.format_exc()
-        logger.error(f"EVIDENCE UPLOAD CRASH: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"DEBUG CRASH: {str(e)}\n\n{error_msg}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
 # ── GET  /api/v1/evidence  ────────────────────────────────

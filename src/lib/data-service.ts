@@ -403,11 +403,11 @@ export async function deleteAsset(id: string): Promise<void> {
 }
 
 export async function linkRiskToAsset(assetId: string, riskId: string): Promise<any> {
-  return api.post<any>(`/assets/${assetId}/risks/`, { risk_id: riskId });
+  return api.post<any>(`/assets/${assetId}/risks`, { risk_id: riskId });
 }
 
 export async function unlinkRiskFromAsset(assetId: string, riskId: string): Promise<void> {
-  return api.delete(`/assets/${assetId}/risks/${riskId}/`);
+  return api.delete(`/assets/${assetId}/risks/${riskId}`);
 }
 
 // -- Audit Preparation --────────

@@ -193,6 +193,16 @@ async def link_risks_to_asset(
         raise HTTPException(status_code=404, detail="Asset not found")
 
     for risk_id in risk_ids:
+        # Validate risk belongs to user's organization
+        risk_res = await db.execute(
+            select(models.Risk).where(
+                models.Risk.id == risk_id,
+                models.Risk.organization_id == org_id
+            )
+        )
+        if not risk_res.scalars().first():
+            raise HTTPException(status_code=404, detail=f"Risk '{risk_id}' not found in your organization")
+
         mapping_result = await db.execute(
             select(AssetRiskMapping).where(
                 AssetRiskMapping.asset_id == asset.id,

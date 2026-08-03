@@ -125,6 +125,17 @@ async def create_risk(
     risk_data['owner_id'] = UUID(owner_id) if isinstance(owner_id, str) and owner_id else (owner_id or current_user.id)
     risk_data['category_id'] = UUID(category_id) if isinstance(category_id, str) and category_id else category_id
     risk_data['asset_id'] = UUID(asset_id) if isinstance(asset_id, str) and asset_id else asset_id
+
+    # Validate asset belongs to user's organization if asset_id is specified
+    if risk_data['asset_id']:
+        asset_res = await db.execute(
+            select(models.Asset).where(
+                models.Asset.id == risk_data['asset_id'],
+                models.Asset.organization_id == current_user.organization_id
+            )
+        )
+        if not asset_res.scalars().first():
+            raise HTTPException(status_code=404, detail="Asset not found in your organization")
     
     # Double check likelihood/impact for risk_score calculation safety
     likelihood = risk_data.get('likelihood', 1)

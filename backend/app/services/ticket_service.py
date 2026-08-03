@@ -545,23 +545,37 @@ class TicketService:
     async def check_slas(db: AsyncSession):
         """
         Check for tickets that have passed their due date and auto-escalate if enabled.
-        Strictly follows GRC Supervisor Fallback and L1 Hard Stop rules.
+        Strictly follows GRC Supervisor Fallback and L1 Hard Stop rules across all organizations.
         """
+        from sqlalchemy import text
         now = datetime.utcnow()
-        result = await db.execute(
-            select(models.Ticket)
-            .where(models.Ticket.status.in_([
-                TicketStatus.open, 
-                TicketStatus.in_review, 
-                TicketStatus.escalated, 
-                TicketStatus.pending_evidence,
-                TicketStatus.pending_l2_review,
-                TicketStatus.pending_l1_signoff,
-                TicketStatus.rejected
-            ]))
-            .where(models.Ticket.is_auto_escalation_enabled == True)
-        )
-        all_potential_overdue = result.scalars().all()
+
+        # Query all active organization IDs to set RLS context per organization
+        org_result = await db.execute(select(models.Organization.id))
+        org_ids = org_result.scalars().all()
+
+        for org_id in org_ids:
+            # Set RLS session context for current organization
+            await db.execute(
+                text("SELECT set_config('app.org_id', :org_id, true)"),
+                {"org_id": str(org_id)}
+            )
+
+            result = await db.execute(
+                select(models.Ticket)
+                .where(models.Ticket.organization_id == org_id)
+                .where(models.Ticket.status.in_([
+                    TicketStatus.open, 
+                    TicketStatus.in_review, 
+                    TicketStatus.escalated, 
+                    TicketStatus.pending_evidence,
+                    TicketStatus.pending_l2_review,
+                    TicketStatus.pending_l1_signoff,
+                    TicketStatus.rejected
+                ]))
+                .where(models.Ticket.is_auto_escalation_enabled == True)
+            )
+            all_potential_overdue = result.scalars().all()
         
         for ticket in all_potential_overdue:
             try:

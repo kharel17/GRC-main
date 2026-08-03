@@ -147,3 +147,46 @@ async def delete_user(
     db.add(audit_log)
     
     await db.commit()
+
+
+@router.patch("/{user_id}/role", response_model=schemas.User)
+async def update_user_role(
+    user_id: str,
+    role_data: dict,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.RoleChecker([UserRole.admin])),
+) -> Any:
+    """Update a user's role (admin only, scoped to organization)."""
+    new_role = role_data.get("role")
+    if not new_role:
+        raise HTTPException(status_code=400, detail="Missing 'role' field in request body")
+
+    try:
+        role_enum = UserRole(new_role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid role: '{new_role}'")
+
+    stmt = select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found in your organization")
+
+    user.role = role_enum
+    db.add(user)
+
+    audit_log = AuditLog(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        action=AuditAction.updated,
+        entity_type=AuditEntityType.user,
+        entity_id=user.id,
+        entity_name=user.email,
+        description=f"User role updated to {role_enum.value} for {user.email}"
+    )
+    db.add(audit_log)
+
+    await db.commit()
+    await db.refresh(user)
+    return user

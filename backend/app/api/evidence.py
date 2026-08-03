@@ -30,6 +30,7 @@ async def analyze_evidence_background(
     evidence_id: str,
     file_url: str,
     file_name: str,
+    organization_id: str = None,
 ):
     """
     Background task: runs AI analysis on uploaded 
@@ -42,6 +43,13 @@ async def analyze_evidence_background(
     import httpx
     
     async with SessionLocal() as db:
+        # Set RLS context for background session so queries aren't filtered out
+        if organization_id:
+            from sqlalchemy import text as _text
+            await db.execute(
+                _text("SELECT set_config('app.org_id', :org_id, true)"),
+                {"org_id": organization_id}
+            )
         try:
             # Get evidence record
             result = await db.execute(
@@ -343,6 +351,7 @@ async def create_evidence(
             evidence_id=str(evidence.id),
             file_url=evidence.file_url,
             file_name=evidence.file_name,
+            organization_id=str(current_user.organization_id) if current_user.organization_id else None,
         )
 
         # Audit log

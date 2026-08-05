@@ -13,14 +13,42 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 
+import { storageService } from "@/lib/storage-service";
+import { useMemo } from "react";
+
 export default function AuditPreparationPage() {
-  const { data: compliance, loading: compLoading } = useApiData(fetchComplianceItems);
+  const { data: rawCompliance, loading: compLoading } = useApiData(fetchComplianceItems);
+  const { data: isoControls, loading: isoLoading } = useApiData(() => storageService.getControls());
   const { data: evidence, loading: evLoading } = useApiData(fetchEvidence);
   const { data: org, loading: orgLoading } = useApiData(fetchOrganization);
   
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  const loading = compLoading || evLoading || orgLoading;
+  const loading = compLoading || isoLoading || evLoading || orgLoading;
+
+  // Unified compliance list: fallback to ISO 27001 Annex A controls if compliance_items is empty
+  const compliance = useMemo(() => {
+    if (rawCompliance && rawCompliance.length > 0) {
+      return rawCompliance;
+    }
+    if (isoControls && isoControls.length > 0) {
+      return isoControls.map(c => {
+        const linkedEv = evidence?.filter((e: any) => {
+          const rel = (e.related_to || e.control_id || e.controlId || '').toString();
+          return rel === c.id || rel === c.annex;
+        }) || [];
+        return {
+          id: c.id,
+          iso_clause: c.annex,
+          title: c.title,
+          description: c.description,
+          status: c.status === 'implemented' ? 'compliant' : c.status,
+          evidenceCount: linkedEv.length,
+        };
+      });
+    }
+    return [];
+  }, [rawCompliance, isoControls, evidence]);
 
   const handleDownload = async (type: 'audit' | 'soa' | 'risks') => {
     if (!org?.id) return;
@@ -67,7 +95,7 @@ export default function AuditPreparationPage() {
     );
   }
 
-  // Calculate readiness
+  // Calculate readiness metrics dynamically
   const totalItems = compliance?.length || 0;
   const verifiedEvidenceCount = evidence?.filter((e: any) => e.verified).length || 0;
   const itemsWithEvidence = compliance?.filter((c: any) => c.evidenceCount && c.evidenceCount > 0).length || 0;

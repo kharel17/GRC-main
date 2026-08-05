@@ -47,7 +47,7 @@ const reportTypes = [
     description: "Overview of all identified risks with scores and status distribution",
     icon: AlertTriangle,
     color: "text-red-600 bg-red-100",
-    format: "HTML",
+    format: "PDF",
     active: true,
   },
   {
@@ -56,44 +56,44 @@ const reportTypes = [
     description: "Current compliance standing across all frameworks",
     icon: CheckCircle2,
     color: "text-green-600 bg-green-100",
-    format: "HTML",
+    format: "PDF",
     active: true,
   },
   {
     id: "control-effectiveness",
     title: "Control Effectiveness",
-    description: "Analysis of control implementation and effectiveness",
+    description: "Analysis of control implementation and effectiveness across ISO 27001 controls",
     icon: Shield,
     color: "text-blue-600 bg-blue-100",
-    format: "XLSX",
-    active: false,
+    format: "PDF",
+    active: true,
   },
   {
     id: "audit-trail",
     title: "Audit Trail Export",
-    description: "Complete audit log for a specified time period",
+    description: "Complete audit log of all user actions and system events (last 500 entries)",
     icon: Clock,
     color: "text-purple-600 bg-purple-100",
-    format: "CSV",
-    active: false,
+    format: "PDF",
+    active: true,
   },
   {
     id: "evidence-inventory",
     title: "Evidence Inventory",
-    description: "List of all uploaded evidence with verification status",
+    description: "List of all uploaded evidence with verification status and AI categorization",
     icon: FileCheck,
     color: "text-amber-600 bg-amber-100",
-    format: "XLSX",
-    active: false,
+    format: "PDF",
+    active: true,
   },
   {
     id: "trend-analysis",
     title: "Risk Trend Analysis",
-    description: "Historical trends and projections for risk metrics",
+    description: "Historical trends, score distributions and category breakdown for risk metrics",
     icon: TrendingUp,
     color: "text-indigo-600 bg-indigo-100",
     format: "PDF",
-    active: false,
+    active: true,
   },
 ];
 
@@ -101,6 +101,10 @@ export default function ReportsPage() {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [generatingCustom, setGeneratingCustom] = useState(false);
+  const [downloadCount, setDownloadCount] = useState(0);
+  const [lastGenerated, setLastGenerated] = useState<string | null>(null);
+
+  const activeReports = reportTypes.filter((r) => r.active).length;
 
   const [customConfig, setCustomConfig] = useState({
     title: "Combined Q1 GRC Report",
@@ -113,7 +117,7 @@ export default function ReportsPage() {
     include_audit_logs: false,
   });
 
-  const handleDownload = async (reportId: string, format: string) => {
+  const handleDownload = async (reportId: string, _format: string, openInTab = false) => {
     try {
       setDownloading(reportId);
 
@@ -134,23 +138,33 @@ export default function ReportsPage() {
 
       if (!response.ok) {
         if (response.status === 401) throw new Error("Unauthorized");
-        throw new Error("Failed to generate report");
+        const errText = await response.text().catch(() => '');
+        throw new Error(errText || "Failed to generate report");
       }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${reportId}-${new Date().toISOString().split('T')[0]}.html`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
 
-      toast.success("Report downloaded successfully");
+      if (openInTab) {
+        // Open in new tab for preview
+        window.open(url, '_blank');
+      } else {
+        // Trigger file download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${reportId}-${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      window.URL.revokeObjectURL(url);
+      setDownloadCount((prev) => prev + 1);
+      setLastGenerated(new Date().toLocaleTimeString());
+      toast.success(`${openInTab ? 'Report opened in new tab' : 'Report downloaded'} successfully`);
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message === "Unauthorized" ? "Session expired" : "Error generating report");
+      toast.error(error.message === "Unauthorized" ? "Session expired" : `Error: ${error.message}`);
     } finally {
       setDownloading(null);
     }
@@ -254,7 +268,7 @@ export default function ReportsPage() {
                     variant="outline"
                     size="sm"
                     className="flex-1 gap-1 text-xs"
-                    onClick={() => handleDownload(report.id, report.format)}
+                    onClick={() => handleDownload(report.id, report.format, false)}
                     disabled={downloading === report.id || !report.active}
                   >
                     {downloading === report.id ? (
@@ -267,11 +281,15 @@ export default function ReportsPage() {
                   <Button 
                     size="sm" 
                     className="flex-1 gap-1 text-xs" 
-                    disabled={!report.active}
-                    onClick={() => handleDownload(report.id, report.format)}
+                    disabled={!report.active || downloading === report.id}
+                    onClick={() => handleDownload(report.id, report.format, true)}
                   >
-                    <RefreshCw className="h-3 w-3" />
-                    Generate
+                    {downloading === report.id ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                    Preview
                   </Button>
                 </div>
               </CardContent>
@@ -291,20 +309,22 @@ export default function ReportsPage() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-slate-50 rounded-lg">
-              <p className="text-2xl font-bold text-slate-900">47</p>
-              <p className="text-xs text-slate-500">Reports This Month</p>
+              <p className="text-2xl font-bold text-slate-900">{activeReports}</p>
+              <p className="text-xs text-slate-500">Available Reports</p>
             </div>
             <div className="text-center p-4 bg-slate-50 rounded-lg">
-              <p className="text-2xl font-bold text-slate-900">12</p>
-              <p className="text-xs text-slate-500">Scheduled Exports</p>
+              <p className="text-2xl font-bold text-slate-900">{downloadCount}</p>
+              <p className="text-xs text-slate-500">Generated This Session</p>
             </div>
             <div className="text-center p-4 bg-slate-50 rounded-lg">
-              <p className="text-2xl font-bold text-slate-900">98%</p>
-              <p className="text-xs text-slate-500">Avg. Health Score</p>
+              <p className="text-2xl font-bold text-slate-900">PDF</p>
+              <p className="text-xs text-slate-500">Export Format</p>
             </div>
             <div className="text-center p-4 bg-slate-50 rounded-lg">
-              <p className="text-2xl font-bold text-slate-900">Live</p>
-              <p className="text-xs text-slate-500">Custom Builder</p>
+              <p className="text-2xl font-bold text-slate-900 text-sm truncate">
+                {lastGenerated ?? '—'}
+              </p>
+              <p className="text-xs text-slate-500">Last Generated At</p>
             </div>
           </div>
         </CardContent>

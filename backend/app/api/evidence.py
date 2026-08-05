@@ -255,7 +255,7 @@ async def create_evidence(
     *,
     db: AsyncSession = Depends(deps.get_db),
     background_tasks: BackgroundTasks,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.get_current_active_user),
     file: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
@@ -368,6 +368,18 @@ async def create_evidence(
                 "related_id": str(related_uuid),
             },
             description=f"Evidence uploaded: {evidence.title}",
+        )
+
+        # Trigger instant notification to uploader
+        await notify(
+            db=db,
+            user_id=str(current_user.id),
+            title="Evidence Uploaded",
+            message=f"Evidence '{evidence.file_name}' uploaded successfully. AI analysis in progress.",
+            entity_type="evidence",
+            entity_id=str(evidence.id),
+            link_url="/dashboard/evidence",
+            notification_type="EVIDENCE_UPLOADED",
         )
         await db.commit()
 
@@ -532,12 +544,18 @@ async def delete_evidence(
             )
 
     # 3. Securely handle file deletion (attempt only)
-    # We don't fail the request if the file is missing from storage
     try:
-        # Note: If using Supabase Storage, we should call their API to delete the object.
-        # But for local dev or simple file-based, we'd delete the file.
-        # The prompt suggests a try/except Path unlink approach.
-        pass # Supabase storage deletion logic would go here
+        if evidence.file_url and BUCKET_NAME and BUCKET_NAME in evidence.file_url:
+            headers = {
+                "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
+                "apikey": settings.SUPABASE_SERVICE_KEY,
+            }
+            parts = evidence.file_url.split(f"/{BUCKET_NAME}/")
+            if len(parts) > 1:
+                storage_path = parts[1]
+                delete_url = f"{SUPABASE_STORAGE_URL}/object/{BUCKET_NAME}/{storage_path}"
+                async with httpx.AsyncClient(timeout=10) as client:
+                    await client.delete(delete_url, headers=headers)
     except Exception as e:
         logger.warning(f"Storage object deletion failed for evidence {evidence_id}: {e}")
 

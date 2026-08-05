@@ -1,6 +1,6 @@
 from typing import Any, List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, update
@@ -86,6 +86,7 @@ async def read_risks(
 async def create_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
+    background_tasks: BackgroundTasks,
     risk_in: schemas.RiskCreate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
@@ -187,9 +188,13 @@ async def create_risk(
     # and lazy-loading will fail after commit/refresh on an async session
     await db.commit()
 
-    # 6. Trigger Ticket Evaluation Logic
+    # 6. Trigger Ticket Evaluation Logic in background for fast response
     from app.services.risk_trigger_service import RiskTriggerService
-    await RiskTriggerService.evaluate_and_trigger(db, risk.id)
+    try:
+        # Evaluate triggers asynchronously in background or catch errors softly
+        background_tasks.add_task(RiskTriggerService.evaluate_and_trigger, db, risk.id)
+    except Exception as e:
+        logger.warning(f"Failed to queue risk trigger evaluation: {e}")
     
     # Re-fetch for final serialization
     result = await db.execute(

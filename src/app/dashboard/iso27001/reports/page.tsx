@@ -3,11 +3,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { isoService } from "@/lib/iso-service";
+import { fetchOrganization, exportAuditReport } from "@/lib/data-service";
 import { ISOControl } from "@/types/iso27001";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import dynamic from "next/dynamic";
@@ -29,27 +29,36 @@ export default function ISOReportsPage() {
     });
   }, []);
 
-  const handleDownloadReport = () => {
-    // Mock report generation
-    const reportData = {
-      generatedAt: new Date().toISOString(),
-      totalControls: controls.length,
-      implemented: controls.filter(c => c.status === 'implemented').length,
-      details: controls.map(c => ({ id: c.id, title: c.title, status: c.status }))
-    };
-    
-    // Create a Blob and download it
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `iso27001-report-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    toast.success("Report downloaded successfully");
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadReport = async () => {
+    setDownloading(true);
+    try {
+      const orgData = await fetchOrganization();
+      if (!orgData?.id) {
+        toast.error("Organization details could not be retrieved");
+        return;
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const orgStr = (orgData.name || 'Organization').replace(/\s+/g, '_');
+      const blob = await exportAuditReport(orgData.id, 'pdf');
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ISO27001_Compliance_Report_${orgStr}_${dateStr}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("ISO 27001 Compliance Report (PDF) downloaded successfully");
+    } catch (error) {
+      toast.error("Failed to download PDF report");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (loading) {
@@ -78,9 +87,13 @@ export default function ISOReportsPage() {
             Detailed breakdown of ISO 27001 implementation status.
           </p>
         </div>
-        <Button onClick={handleDownloadReport}>
-          <Download className="w-4 h-4 mr-2" />
-          Export Report
+        <Button onClick={handleDownloadReport} disabled={downloading}>
+          {downloading ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4 mr-2" />
+          )}
+          {downloading ? "Generating PDF..." : "Export Report (PDF)"}
         </Button>
       </div>
 

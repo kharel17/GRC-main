@@ -141,9 +141,54 @@ export interface GapReport {
 
 export async function fetchGapReport(): Promise<GapReport | undefined> {
   try {
-    return await api.get<GapReport>('/gap-analysis/');
+    return await api.get<GapReport>('/gap-analysis');
   } catch (err) {
-    console.error(`[DataService] GET /gap-analysis/ failed:`, err);
+    console.warn(`[DataService] GET /gap-analysis failed, building from compliance score:`, err);
+    try {
+      const caScore = await api.get<any>('/control-applicability/compliance-score');
+      const soaRes = await api.get<any>('/control-applicability/soa').catch(() => ({ entries: [] }));
+      const entries = soaRes?.entries || [];
+
+      if (caScore) {
+        const implemented = caScore.implemented ?? 0;
+        const inProgress = caScore.in_progress ?? 0;
+        const notStarted = caScore.not_started ?? 0;
+        const notApplicable = caScore.not_applicable ?? 0;
+        const total = caScore.applicable_controls || (93 - notApplicable);
+        const pct = caScore.compliance_percentage ?? caScore.overall_percentage ?? 0;
+
+        const gapsList = entries
+          .filter((e: any) => e.status !== 'implemented' && e.status !== 'not_applicable')
+          .map((e: any) => ({
+            control_annex: e.control_annex || e.annex,
+            control_title: e.control_title || e.title || `Control ${e.control_annex}`,
+            clause_id: e.clause_id || e.clauseId || 'A.5',
+            severity: e.status === 'not_started' ? 'critical' : 'high',
+            reason: e.status === 'not_started' ? 'Control implementation not started' : 'Control partially implemented',
+            current_status: e.status || 'not_started',
+            best_evidence_score: 0
+          }));
+
+        return {
+          total_controls: caScore.total_controls || 93,
+          applicable_controls: total,
+          implemented: implemented,
+          partially_implemented: inProgress,
+          missing: notStarted,
+          total_gaps: gapsList.length,
+          compliance_percentage: Math.round(pct),
+          gaps: gapsList,
+          summary: {
+            critical: gapsList.filter((g: any) => g.severity === 'critical').length,
+            high: gapsList.filter((g: any) => g.severity === 'high').length,
+            medium: 0,
+            low: 0
+          }
+        } as any;
+      }
+    } catch {
+      // Fallback silent fail
+    }
     return undefined;
   }
 }

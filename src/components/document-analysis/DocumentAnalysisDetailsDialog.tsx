@@ -51,7 +51,7 @@ export function DocumentAnalysisDetailsDialog({
                     </div>
                     <DialogTitle className="text-xl flex items-center gap-2">
                         <FileText className="h-5 w-5 text-blue-600" />
-                        {analysis.fileName}
+                        {analysis.file_name || analysis.fileName || analysis.document_name || 'Untitled Document'}
                     </DialogTitle>
                     <DialogDescription className="flex items-center gap-4 mt-2">
                         <span className="flex items-center gap-1.5 text-xs">

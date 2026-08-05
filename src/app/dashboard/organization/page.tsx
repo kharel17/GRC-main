@@ -53,7 +53,11 @@ export default function OrganizationPage() {
     if (!org?.id) return;
     setSaving(true);
     try {
-      await updateOrganization(formData);
+      const payload = {
+        ...formData,
+        compliance_frameworks: formData.complianceFrameworks || formData.compliance_frameworks,
+      };
+      await updateOrganization(payload);
       toast.success("Organization updated successfully");
       setIsEditing(false);
       refetch();
@@ -71,12 +75,11 @@ export default function OrganizationPage() {
     }
     setSaving(true);
     try {
-      // Prepare data (convert arrays to comma-separated strings if needed)
       const payload = {
         ...formData,
-        infrastructure: formData.infrastructure.join(','),
-        data_types: formData.data_types.join(','),
-        complianceFrameworks: formData.complianceFrameworks, // This one is already string[] in types
+        infrastructure: Array.isArray(formData.infrastructure) ? formData.infrastructure.join(',') : formData.infrastructure,
+        data_types: Array.isArray(formData.data_types) ? formData.data_types.join(',') : formData.data_types,
+        compliance_frameworks: formData.complianceFrameworks || formData.compliance_frameworks || [],
         onboarding_completed: true,
       };
       await createOrganization(payload);

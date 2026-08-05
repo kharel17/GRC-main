@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/", response_model=schemas.OrganizationResponse)
 async def get_organization(
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """Get the current user's organization."""
     org_id = current_user.organization_id

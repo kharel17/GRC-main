@@ -258,7 +258,7 @@ export default function GapAnalysisPage() {
                     // Bug 8: wrap each action in a Link to the ISO 27001 control detail page
                     <Link
                       key={action.control_annex}
-                      href={`/dashboard/iso27001/${action.control_annex}`}
+                      href={`/dashboard/iso27001/controls/${action.control_annex}`}
                       className="block"
                     >
                       <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border shadow-sm group hover:border-primary transition-colors cursor-pointer">

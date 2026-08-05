@@ -167,61 +167,6 @@ async def initialize_framework_for_current_org(
     }
 
 
-# ── PUT /control-applicability/{id} ────────────────────────
-@router.put("/{ca_id}", response_model=schemas.ControlApplicabilityResponse)
-async def update_control_applicability(
-    ca_id: str,
-    *,
-    db: AsyncSession = Depends(deps.get_db),
-    ca_in: schemas.ControlApplicabilityUpdate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
-) -> Any:
-    """Update a single control applicability record. Scoped to current user's org."""
-    org_id = current_user.organization_id
-    if not org_id:
-        raise HTTPException(status_code=403, detail="User not associated with any organization")
-
-    result = await db.execute(
-        select(models.ControlApplicability)
-        .where(models.ControlApplicability.id == ca_id)
-        .where(models.ControlApplicability.organization_id == org_id)
-    )
-    ca = result.scalars().first()
-    if not ca:
-        raise HTTPException(status_code=404, detail="Control applicability record not found")
-    
-    update_data = ca_in.model_dump(exclude_unset=True)
-    
-    # Validate: justification required if marking not applicable
-    if update_data.get("is_applicable") is False and not (update_data.get("justification") or ca.justification):
-        raise HTTPException(
-            status_code=422,
-            detail="Justification is required when marking a control as not applicable"
-        )
-    
-    for field, value in update_data.items():
-        setattr(ca, field, value)
-    
-    db.add(ca)
-    await db.commit()
-    await db.refresh(ca)
-
-    # ── Notifications & Audit (New) ───────────────────────────
-    if "responsible_id" in update_data and update_data["responsible_id"]:
-        await notify(
-            db=db,
-            user_id=update_data["responsible_id"],
-            title="ISO Control Assigned",
-            message=f"You have been assigned as owner for ISO Control: {ca.control_annex}",
-            entity_type="control_applicability",
-            entity_id=ca.id,
-            link_url=f"/dashboard/iso27001/controls/{ca.control_annex}",
-            notification_type="CONTROL_ASSIGNMENT"
-        )
-    
-    return ca
-
-
 # ── GET /control-applicability/annex/{annex} ───────────────
 @router.get("/annex/{annex}", response_model=schemas.ControlApplicabilityResponse)
 async def get_control_applicability_by_annex(
@@ -229,20 +174,71 @@ async def get_control_applicability_by_annex(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Get applicability record by annex ID (e.g. '5.1'). Scoped to current user's org."""
+    """Get applicability record by annex ID (e.g. '5.1' or 'A.5.1'). Scoped to current user's org."""
     org_id = current_user.organization_id
     if not org_id:
         raise HTTPException(status_code=403, detail="User not associated with any organization")
 
+    clean_annex = annex.replace("Annex ", "").replace("A.", "").strip()
+
     result = await db.execute(
         select(models.ControlApplicability)
         .where(models.ControlApplicability.organization_id == org_id)
-        .where(models.ControlApplicability.control_annex == annex)
+        .where(
+            (models.ControlApplicability.control_annex == annex) |
+            (models.ControlApplicability.control_annex == clean_annex) |
+            (models.ControlApplicability.control_annex == f"A.{clean_annex}")
+        )
     )
     ca = result.scalars().first()
     if not ca:
         raise HTTPException(status_code=404, detail=f"Control applicability for annex {annex} not found")
-    
+
+    return ca
+
+
+# ── GET /control-applicability/{ca_id} ────────────────────
+@router.get("/{ca_id}", response_model=schemas.ControlApplicabilityResponse)
+async def get_control_applicability_by_id(
+    ca_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Get a single control applicability record by UUID or Annex ID. Scoped to current user's org."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    # Try UUID lookup first
+    try:
+        from uuid import UUID as PyUUID
+        ca_uuid = PyUUID(ca_id)
+        result = await db.execute(
+            select(models.ControlApplicability)
+            .where(models.ControlApplicability.id == ca_uuid)
+            .where(models.ControlApplicability.organization_id == org_id)
+        )
+        ca = result.scalars().first()
+        if ca:
+            return ca
+    except ValueError:
+        pass
+
+    # Fallback to annex lookup
+    clean_annex = ca_id.replace("Annex ", "").replace("A.", "").strip()
+    result = await db.execute(
+        select(models.ControlApplicability)
+        .where(models.ControlApplicability.organization_id == org_id)
+        .where(
+            (models.ControlApplicability.control_annex == ca_id) |
+            (models.ControlApplicability.control_annex == clean_annex) |
+            (models.ControlApplicability.control_annex == f"A.{clean_annex}")
+        )
+    )
+    ca = result.scalars().first()
+    if not ca:
+        raise HTTPException(status_code=404, detail="Control applicability record not found")
+
     return ca
 
 

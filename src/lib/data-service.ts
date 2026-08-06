@@ -41,7 +41,10 @@ async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
   try {
     return await api.get<T>(endpoint);
   } catch (err) {
-    console.error(`[DataService] API call ${endpoint} failed:`, err);
+    // Use warn (not error) — this is a gracefully-handled fallback, not a crash.
+    // Common causes: backend not yet seeded (e.g. control-applicability table empty),
+    // or service temporarily unavailable. The UI will render safely with the fallback.
+    console.warn(`[DataService] ${endpoint} unavailable, using fallback:`, (err as Error)?.message ?? err);
     // Return empty array/default on failure to prevent UI crashes.
     return (Array.isArray(fallback) ? [] : fallback) as unknown as T;
   }

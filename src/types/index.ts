@@ -337,6 +337,7 @@ export interface DocumentAnalysis {
   id: string
   organization_id?: string
   organizationId?: string // alias
+  file_name?: string
   document_name?: string
   fileName?: string // alias
   status?: string

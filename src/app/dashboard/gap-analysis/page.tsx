@@ -42,9 +42,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComplianceItem } from "@/types";
+import Link from "next/link";
 
 export default function GapAnalysisPage() {
-  const { data: report, loading } = useApiData(fetchGapReport);
+  // Bug 7: keep a refetch handle so "Regenerate" doesn't hard-reload the page
+  const { data: report, loading, refetch } = useApiData(fetchGapReport);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -123,8 +125,9 @@ export default function GapAnalysisPage() {
               try {
                 const toastId = toast.loading("Recalculating compliance...");
                 await (await import('@/lib/data-service')).recalculateCompliance();
+                // Bug 7: use refetch() instead of page reload
+                await refetch();
                 toast.success("Compliance recalculated successfully", { id: toastId });
-                window.location.reload(); // Refresh to see updated data
               } catch (err) {
                 toast.error("Failed to recalculate compliance");
               }
@@ -252,21 +255,28 @@ export default function GapAnalysisPage() {
                 </CardHeader>
                 <CardContent className="pb-4 space-y-3">
                   {priorityActions.map((action, idx) => (
-                    <div key={action.control_annex} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border shadow-sm group hover:border-primary transition-colors cursor-pointer">
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold">
-                          {idx + 1}
+                    // Bug 8: wrap each action in a Link to the ISO 27001 control detail page
+                    <Link
+                      key={action.control_annex}
+                      href={`/dashboard/iso27001/controls/${action.control_annex}`}
+                      className="block"
+                    >
+                      <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border shadow-sm group hover:border-primary transition-colors cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold">
+                            {idx + 1}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold truncate max-w-[300px]">{action.control_title}</p>
+                            <p className="text-[10px] text-muted-foreground">{action.control_annex || 'Unmapped'}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold truncate max-w-[300px]">{action.control_title}</p>
-                          <p className="text-[10px] text-muted-foreground">{action.control_annex || 'Unmapped'}</p>
+                        <div className="flex items-center gap-2">
+                          {getPriorityBadge(action.severity)}
+                          <LinkIcon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary" />
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {getPriorityBadge(action.severity)}
-                        <LinkIcon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary" />
-                      </div>
-                    </div>
+                    </Link>
                   ))}
                 </CardContent>
               </Card>

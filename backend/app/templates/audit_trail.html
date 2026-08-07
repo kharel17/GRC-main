@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ report_title }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; }
+    .page { max-width: 1100px; margin: 0 auto; background: white; padding: 48px; }
+    .header { border-bottom: 3px solid #8b5cf6; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 26px; color: #0f172a; margin-bottom: 6px; }
+    .header .meta { color: #64748b; font-size: 13px; line-height: 1.6; }
+    .logo { font-size: 20px; font-weight: 800; color: #8b5cf6; letter-spacing: -0.5px; }
+    .summary-bar { display: flex; gap: 16px; margin-bottom: 36px; }
+    .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; flex: 1; text-align: center; }
+    .stat-card .number { font-size: 28px; font-weight: 700; color: #8b5cf6; }
+    .stat-card .label { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    h2 { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 40px; }
+    thead th { background: #f5f3ff; padding: 10px 12px; text-align: left; color: #6d28d9; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tbody td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+    tbody tr:hover td { background: #faf5ff; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-created { background: #dbeafe; color: #1e40af; }
+    .badge-updated { background: #e0f2fe; color: #0369a1; }
+    .badge-deleted { background: #fee2e2; color: #b91c1c; }
+    .badge-login { background: #dcfce7; color: #15803d; }
+    .badge-logout { background: #f1f5f9; color: #475569; }
+    .badge-approved { background: #dcfce7; color: #15803d; }
+    .badge-rejected { background: #fee2e2; color: #b91c1c; }
+    .badge-file_upload, .badge-file-upload { background: #fef3c7; color: #b45309; }
+    .badge-export { background: #ede9fe; color: #6d28d9; }
+    .badge-reviewed { background: #e0f2fe; color: #0369a1; }
+    .note { font-size: 12px; color: #64748b; margin-bottom: 20px; background: #f5f3ff; border-left: 3px solid #8b5cf6; padding: 10px 14px; border-radius: 4px; }
+    .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px; }
+    @media print { body { background: white; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div>
+        <h1>{{ report_title }}</h1>
+        <div class="meta">
+          📅 Generated: {{ generated_date }}<br>
+          👤 By: {{ generated_by }}
+        </div>
+      </div>
+      <div class="logo">GRC Platform</div>
+    </div>
+
+    <div class="summary-bar">
+      <div class="stat-card">
+        <div class="number">{{ total_entries }}</div>
+        <div class="label">Total Log Entries</div>
+      </div>
+    </div>
+
+    <p class="note">⚠️ This report shows the most recent 500 audit log entries. For a complete audit trail, use date-filtered exports.</p>
+
+    <h2>Audit Log Entries</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Timestamp</th>
+          <th>User</th>
+          <th>Action</th>
+          <th>Entity Type</th>
+          <th>Entity</th>
+          <th>Description</th>
+          <th>IP Address</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td style="white-space:nowrap;font-variant-numeric:tabular-nums;">{{ log.timestamp }}</td>
+          <td>{{ log.user }}</td>
+          <td>
+            <span class="badge badge-{{ log.action | lower | replace(' ', '_') }}">{{ log.action }}</span>
+          </td>
+          <td>{{ log.entity_type }}</td>
+          <td>{{ log.entity_name }}</td>
+          <td style="color:#475569;font-size:12px;">{{ log.description }}</td>
+          <td style="font-size:12px;color:#94a3b8;">{{ log.ip }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:32px;">No audit log entries found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="footer">
+      GRC Platform — Confidential Audit Export — {{ generated_date }}
+    </div>
+  </div>
+</body>
+</html>

@@ -128,7 +128,7 @@ async def upload_and_analyze_document(
     db.add(doc_analysis)
     await db.flush()
     
-    # Extract text from PDF
+    # Extract text from PDF / document
     try:
         extracted_text = extract_text_from_pdf(file_bytes)
         if not extracted_text.strip():
@@ -136,7 +136,7 @@ async def upload_and_analyze_document(
             doc_analysis.analysis_result = {"error": "Could not extract text from document"}
             await db.commit()
             await db.refresh(doc_analysis)
-            raise HTTPException(status_code=422, detail="Could not extract any text from the uploaded document")
+            raise HTTPException(status_code=422, detail="Could not extract readable text from the document. Please ensure it is a valid PDF, DOCX, or text file.")
         
         doc_analysis.extracted_text = extracted_text
     except HTTPException:
@@ -146,7 +146,7 @@ async def upload_and_analyze_document(
         doc_analysis.analysis_result = {"error": str(e)}
         await db.commit()
         await db.refresh(doc_analysis)
-        raise HTTPException(status_code=500, detail=f"Error extracting text: {str(e)}")
+        raise HTTPException(status_code=422, detail=f"Text extraction error: {str(e)}")
     
     # Run AI analysis
     try:

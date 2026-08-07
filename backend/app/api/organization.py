@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/", response_model=schemas.OrganizationResponse)
 async def get_organization(
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """Get the current user's organization."""
     org_id = current_user.organization_id
@@ -35,15 +35,23 @@ async def create_organization(
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin])),
 ) -> Any:
     """Create organization (admin only). Returns 409 if user already belongs to an org."""
-    # Check if user already has an organization
+    # Guard: prevent creating a second org for a user who already has one
     if current_user.organization_id:
-        raise HTTPException(status_code=409, detail="User already belongs to an organization. Use PUT to update.")
+        raise HTTPException(
+            status_code=409,
+            detail="User already belongs to an organization. Use PUT /organization/ to update."
+        )
 
-    org = models.Organization(**org_in.model_dump())
+    org_data = org_in.model_dump()
+    # model column 'employee_count' is String, schema sends Optional[int] — cast safely
+    if org_data.get("employee_count") is not None:
+        org_data["employee_count"] = str(org_data["employee_count"])
+
+    org = models.Organization(**org_data)
     db.add(org)
     await db.flush()
 
-    # Associate user with the new organization
+    # Associate the creating user with the new organization
     current_user.organization_id = org.id
     db.add(current_user)
 

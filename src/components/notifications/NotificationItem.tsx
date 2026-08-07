@@ -55,6 +55,7 @@ export function NotificationItem({
       case 'CONTROL_IMPLEMENTED':
         return <ShieldCheck className="h-4 w-4 text-purple-500" />;
       case 'EVIDENCE_VERIFIED':
+      case 'EVIDENCE_UPLOADED':
         return <FileText className="h-4 w-4 text-green-500" />;
       case 'WELCOME':
       case 'USER_JOINED':

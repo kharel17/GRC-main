@@ -56,19 +56,43 @@ export function RiskMapping({
 
   const handleLink = async () => {
     if (!selectedRiskId || !user) return;
-    
+
     setLoading(true);
     try {
+      // 1. Persist to local storage (ISO service layer)
       await isoService.linkRiskToControl(controlId, selectedRiskId, {
         id: user.id,
         name: user.email,
         role: user.role
       });
-      
+
+      // 2. Bug 9: Also persist to the backend database so it survives page reload
+      //    Backend: POST /risks/{riskId}/controls/  with { control_id: controlDbId }
+      //    The controlId prop here is the annex string (e.g. "5.1") — we look up
+      //    the control applicability record from the backend to get its DB UUID.
+      try {
+        const { api } = await import('@/lib/api-client');
+        // Fetch control applicability records to find the DB UUID for this annex
+        const caRecords = await api.get<any[]>('/control-applicability/');
+        const caMatch = Array.isArray(caRecords)
+          ? caRecords.find((ca: any) => ca.annex_id === controlId || ca.control_annex === controlId)
+          : null;
+
+        if (caMatch?.id) {
+          // Create the risk → control mapping in the backend
+          await api.post(`/risks/${selectedRiskId}/controls/`, {
+            control_id: caMatch.id,
+          });
+        }
+      } catch (backendErr) {
+        // Non-fatal: local storage succeeded, backend sync failed
+        console.warn('[RiskMapping] Backend sync failed (non-fatal):', backendErr);
+      }
+
       toast.success("Risk linked successfully");
       setIsLinking(false);
       setSelectedRiskId("");
-      onUpdate();
+      onUpdate(); // triggers loadControl() in parent → refreshes riskIds prop
     } catch (error: any) {
       toast.error(error.message || "Failed to link risk");
     } finally {

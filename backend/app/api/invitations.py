@@ -2,7 +2,7 @@
 Invitation endpoints for the GRC Platform.
 Manages admin and user invitations for the invitation-only access system.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 

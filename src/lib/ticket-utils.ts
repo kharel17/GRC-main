@@ -77,19 +77,22 @@ export function canActOnTicket(ticket: Ticket, userId: string, userRole: UserRol
   
   // If the ticket is escalated, special roles can act
   if (ticket.status === 'escalated') {
-    return ticket.escalatedToId === userId || userRole === 'department_manager' || userRole === 'executive';
+    const escId = ticket.escalatedToId || (ticket as any).escalated_to_id;
+    return escId === userId || userRole === 'department_manager' || userRole === 'executive' || userRole === 'manager';
   }
   
-  // Default: Assigned user can act
-  return ticket.assignedToId === userId;
+  // Default: Assigned user or creator can act
+  const assignedId = ticket.assignedToId || (ticket as any).assigned_to_id;
+  const creatorId = ticket.createdBy || (ticket as any).created_by;
+  return assignedId === userId || creatorId === userId;
 }
 
 export function isTicketOverdue(ticket: Ticket): boolean {
   if (ticket.status === 'resolved' || ticket.status === 'closed') return false;
-  if (!ticket.dueDate) return false;
+  const dateStr = ticket.dueDate || (ticket as any).due_date;
+  if (!dateStr) return false;
   
-  // backend provides ISO string
-  return isPast(parseISO(ticket.dueDate));
+  return isPast(parseISO(dateStr));
 }
 
 export function canTransitionTo(currentStatus: TicketStatus, targetStatus: TicketStatus): boolean {

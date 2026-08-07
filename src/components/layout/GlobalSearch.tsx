@@ -138,7 +138,9 @@ export function GlobalSearch() {
                     <div className="flex items-center">
                       <Shield className="mr-2 h-4 w-4 text-slate-400" />
                       <span>
-                        {control.iso_clause && <span className="font-semibold mr-1">{control.iso_clause}</span>}
+                        {control.iso_clause && (
+                          <span className="font-semibold mr-1">{control.iso_clause}</span>
+                        )}
                         {control.title}
                       </span>
                     </div>

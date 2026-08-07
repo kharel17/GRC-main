@@ -172,13 +172,17 @@ async def link_risks_to_asset(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
-    """Link one or more risks to an asset. Org-scoped."""
+    """Link one or more risks to an asset. Accepts { risk_id } or { risk_ids }. Org-scoped."""
     from app.models.asset_risk import AssetRiskMapping
 
     org_id = current_user.organization_id
     if not org_id:
         raise HTTPException(status_code=403, detail="User not associated with any organization")
-    
+
+    risk_ids = link_in.get_risk_ids()
+    if not risk_ids:
+        raise HTTPException(status_code=400, detail="Provide at least one risk_id or risk_ids list")
+
     result = await db.execute(
         select(models.Asset)
         .where(models.Asset.id == asset_id)
@@ -187,10 +191,18 @@ async def link_risks_to_asset(
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
-    
-    # Simple implementation: insert into mapping table
-    for risk_id in link_in.risk_ids:
-        # Check if already exists
+
+    for risk_id in risk_ids:
+        # Validate risk belongs to user's organization
+        risk_res = await db.execute(
+            select(models.Risk).where(
+                models.Risk.id == risk_id,
+                models.Risk.organization_id == org_id
+            )
+        )
+        if not risk_res.scalars().first():
+            raise HTTPException(status_code=404, detail=f"Risk '{risk_id}' not found in your organization")
+
         mapping_result = await db.execute(
             select(AssetRiskMapping).where(
                 AssetRiskMapping.asset_id == asset.id,
@@ -199,7 +211,7 @@ async def link_risks_to_asset(
         )
         if not mapping_result.scalars().first():
             db.add(AssetRiskMapping(asset_id=asset.id, risk_id=risk_id))
-    
+
     await db.commit()
     await db.refresh(asset)
     return asset

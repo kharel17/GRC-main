@@ -226,6 +226,15 @@ export class ApiStorageAdapter implements StorageService {
         const ca = await api.get<any>(`/control-applicability/annex/${id}`);
         return this.mapCAToControl(ca);
       }
+      // Try control-applicability by UUID first
+      try {
+        const ca = await api.get<any>(`/control-applicability/${id}`);
+        if (ca && ca.control_annex) {
+          return this.mapCAToControl(ca);
+        }
+      } catch {
+        // Fallback to general controls table
+      }
       return await api.get<ISOControl>(`/controls/${id}/`);
     } catch (err) {
       console.warn('[ApiStorageAdapter] getControlById failed, falling back', err);
@@ -262,9 +271,34 @@ export class ApiStorageAdapter implements StorageService {
     }
   }
 
+  private mapEvidenceToISOEvidence(item: any): ISOEvidence {
+    return {
+      id: item.id,
+      title: item.title || item.file_name || 'Evidence File',
+      description: item.description || '',
+      file_url: item.file_url,
+      fileUrl: item.file_url || '',
+      file_name: item.file_name,
+      fileName: item.file_name || item.title || 'Evidence File',
+      file_type: item.file_type,
+      fileType: item.file_type || 'document',
+      file_size: item.file_size,
+      fileSize: item.file_size || 0,
+      control_id: item.related_id,
+      controlId: item.related_id || '',
+      uploaded_by: item.uploaded_by,
+      uploadedBy: item.uploaded_by || '',
+      uploadedByName: item.uploaded_by_name || item.uploaded_by || 'User',
+      uploaded_at: item.uploaded_at || new Date().toISOString(),
+      uploadedAt: item.uploaded_at || new Date().toISOString(),
+      version: item.version || 1,
+    };
+  }
+
   async getEvidence(controlId: string): Promise<ISOEvidence[]> {
     try {
-      return await api.get<ISOEvidence[]>(`/evidence/?control_id=${controlId}`);
+      const list = await api.get<any[]>(`/evidence/?control_id=${controlId}`);
+      return (list || []).map(item => this.mapEvidenceToISOEvidence(item));
     } catch (err) {
       console.warn('[ApiStorageAdapter] getEvidence failed, falling back', err);
       return this.fallback.getEvidence(controlId);
@@ -273,7 +307,29 @@ export class ApiStorageAdapter implements StorageService {
 
   async getAllEvidence(): Promise<ISOEvidence[]> {
     try {
-      return await api.get<ISOEvidence[]>('/evidence/');
+      const list = await api.get<any[]>('/evidence/');
+      const rawList = (list || []).map(item => this.mapEvidenceToISOEvidence(item));
+
+      // Resolve UUID related_ids to human-readable Annex IDs (e.g. "5.1")
+      try {
+        const controls = await this.getControls();
+        const controlMap = new Map<string, string>();
+        controls.forEach((c: any) => {
+          if (c.realId) controlMap.set(c.realId, c.id || c.annex);
+          if (c.id) controlMap.set(c.id, c.id || c.annex);
+        });
+
+        return rawList.map(ev => {
+          const resolved = controlMap.get(ev.controlId) || ev.controlId;
+          return {
+            ...ev,
+            controlId: resolved,
+            control_id: resolved,
+          };
+        });
+      } catch {
+        return rawList;
+      }
     } catch (err) {
       console.warn('[ApiStorageAdapter] getAllEvidence failed, falling back', err);
       return this.fallback.getAllEvidence();
@@ -319,13 +375,35 @@ export class ApiStorageAdapter implements StorageService {
 
   async getComplianceStats(): Promise<ISOComplianceStats> {
     try {
+      const res = await api.get<any>('/control-applicability/compliance-score');
+      if (res) {
+        const implemented = res.implemented ?? res.implemented_count ?? 0;
+        const inProgress = res.in_progress ?? res.in_progress_count ?? 0;
+        const notStarted = res.not_started ?? res.not_started_count ?? 0;
+        const notApplicable = res.not_applicable ?? res.not_applicable_count ?? 0;
+        const total = res.total_controls ?? ((implemented + inProgress + notStarted + notApplicable) || 93);
+        const pct = res.compliance_percentage ?? res.overall_percentage ?? res.complianceScore ?? 0;
+
+        return {
+          totalControls: total,
+          implementedControls: implemented,
+          inProgressControls: inProgress,
+          notStartedControls: notStarted,
+          notApplicableControls: notApplicable,
+          complianceScore: Math.round(pct),
+        };
+      }
+    } catch (err) {
+      console.warn('[ApiStorageAdapter] /control-applicability/compliance-score failed, trying /compliance/stats', err);
+    }
+
+    try {
       return await api.get<ISOComplianceStats>('/compliance/stats');
     } catch (err) {
       console.warn('[ApiStorageAdapter] getComplianceStats failed, falling back', err);
       isUsingFallback = true;
       return this.fallback.getComplianceStats();
     }
-
   }
 }
 

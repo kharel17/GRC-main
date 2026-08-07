@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit, Loader2, Shield } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { EvidenceDropzone } from '@/components/evidence/EvidenceDropzone';
 import { EvidenceList } from '@/components/evidence/EvidenceList';
 
@@ -39,9 +39,11 @@ function getTypeLabel(type: string) {
     }
 }
 
-export default function ControlDetailPage({ params }: { params: { id: string } }) {
-    const fetcher = useCallback(() => fetchControl(params.id), [params.id]);
-    const { data: control, loading, error, refetch } = useApiData(fetcher, [params.id]);
+export default function ControlDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const resolvedParams = React.use(params);
+    const id = resolvedParams.id;
+    const fetcher = useCallback(() => fetchControl(id), [id]);
+    const { data: control, loading, error, refetch } = useApiData(fetcher, [id]);
     const [editOpen, setEditOpen] = useState(false);
     const [evidenceRefresh, setEvidenceRefresh] = useState(0);
 
@@ -134,12 +136,12 @@ export default function ControlDetailPage({ params }: { params: { id: string } }
                 <CardContent className="space-y-4">
                     <EvidenceDropzone
                         relatedTo="control"
-                        relatedId={params.id}
+                        relatedId={id}
                         onUploadSuccess={() => setEvidenceRefresh((k) => k + 1)}
                     />
                     <EvidenceList
                         relatedTo="control"
-                        relatedId={params.id}
+                        relatedId={id}
                         refreshKey={evidenceRefresh}
                     />
                 </CardContent>

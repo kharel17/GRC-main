@@ -167,7 +167,7 @@ export function NewControlDialog({ open, onOpenChange, onSuccess }: NewControlDi
                                 <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select owner..."} />
                             </SelectTrigger>
                             <SelectContent>
-                                {users?.filter(u => ['admin', 'manager', 'analyst'].includes(u.role)).map((u) => (
+                                {users?.filter(u => ['admin', 'manager', 'analyst', 'control_owner', 'risk_owner', 'compliance_officer'].includes(u.role)).map((u) => (
                                     <SelectItem key={u.id} value={u.id}>
                                         <div className="flex flex-col">
                                             <span className="text-sm font-medium">{u.full_name || u.email}</span>

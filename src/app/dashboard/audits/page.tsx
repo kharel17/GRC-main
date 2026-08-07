@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchAuditLogs, fetchUsers } from '@/lib/data-service';
 import { useApiData } from '@/hooks';
 import { AuditLog } from '@/types';
@@ -39,10 +39,17 @@ function getActionColor(action: string) {
 }
 
 export default function AuditPage() {
-  const { data: auditLogs, loading: logsLoading, error: logsError } = useApiData<AuditLog[]>(fetchAuditLogs);
+  const { data: auditLogs, loading: logsLoading, error: logsError, refetch } = useApiData<AuditLog[]>(fetchAuditLogs);
   const { data: users, loading: usersLoading } = useApiData<any[]>(fetchUsers);
   const [actionFilter, setActionFilter] = useState<ActionTypeFilter>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refetch();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [refetch]);
 
   const allLogs = auditLogs ?? [];
   const allUsers = users ?? [];

@@ -41,7 +41,10 @@ async function fetchOrFallback<T>(endpoint: string, fallback: T): Promise<T> {
   try {
     return await api.get<T>(endpoint);
   } catch (err) {
-    console.error(`[DataService] API call ${endpoint} failed:`, err);
+    // Use warn (not error) — this is a gracefully-handled fallback, not a crash.
+    // Common causes: backend not yet seeded (e.g. control-applicability table empty),
+    // or service temporarily unavailable. The UI will render safely with the fallback.
+    console.warn(`[DataService] ${endpoint} unavailable, using fallback:`, (err as Error)?.message ?? err);
     // Return empty array/default on failure to prevent UI crashes.
     return (Array.isArray(fallback) ? [] : fallback) as unknown as T;
   }
@@ -141,9 +144,54 @@ export interface GapReport {
 
 export async function fetchGapReport(): Promise<GapReport | undefined> {
   try {
-    return await api.get<GapReport>('/gap-analysis/');
+    return await api.get<GapReport>('/gap-analysis');
   } catch (err) {
-    console.error(`[DataService] GET /gap-analysis/ failed:`, err);
+    console.warn(`[DataService] GET /gap-analysis failed, building from compliance score:`, err);
+    try {
+      const caScore = await api.get<any>('/control-applicability/compliance-score');
+      const soaRes = await api.get<any>('/control-applicability/soa').catch(() => ({ entries: [] }));
+      const entries = soaRes?.entries || [];
+
+      if (caScore) {
+        const implemented = caScore.implemented ?? 0;
+        const inProgress = caScore.in_progress ?? 0;
+        const notStarted = caScore.not_started ?? 0;
+        const notApplicable = caScore.not_applicable ?? 0;
+        const total = caScore.applicable_controls || (93 - notApplicable);
+        const pct = caScore.compliance_percentage ?? caScore.overall_percentage ?? 0;
+
+        const gapsList = entries
+          .filter((e: any) => e.status !== 'implemented' && e.status !== 'not_applicable')
+          .map((e: any) => ({
+            control_annex: e.control_annex || e.annex,
+            control_title: e.control_title || e.title || `Control ${e.control_annex}`,
+            clause_id: e.clause_id || e.clauseId || 'A.5',
+            severity: e.status === 'not_started' ? 'critical' : 'high',
+            reason: e.status === 'not_started' ? 'Control implementation not started' : 'Control partially implemented',
+            current_status: e.status || 'not_started',
+            best_evidence_score: 0
+          }));
+
+        return {
+          total_controls: caScore.total_controls || 93,
+          applicable_controls: total,
+          implemented: implemented,
+          partially_implemented: inProgress,
+          missing: notStarted,
+          total_gaps: gapsList.length,
+          compliance_percentage: Math.round(pct),
+          gaps: gapsList,
+          summary: {
+            critical: gapsList.filter((g: any) => g.severity === 'critical').length,
+            high: gapsList.filter((g: any) => g.severity === 'high').length,
+            medium: 0,
+            low: 0
+          }
+        } as any;
+      }
+    } catch {
+      // Fallback silent fail
+    }
     return undefined;
   }
 }
@@ -403,11 +451,11 @@ export async function deleteAsset(id: string): Promise<void> {
 }
 
 export async function linkRiskToAsset(assetId: string, riskId: string): Promise<any> {
-  return api.post<any>(`/assets/${assetId}/risks/`, { risk_id: riskId });
+  return api.post<any>(`/assets/${assetId}/risks`, { risk_id: riskId });
 }
 
 export async function unlinkRiskFromAsset(assetId: string, riskId: string): Promise<void> {
-  return api.delete(`/assets/${assetId}/risks/${riskId}/`);
+  return api.delete(`/assets/${assetId}/risks/${riskId}`);
 }
 
 // -- Audit Preparation --────────

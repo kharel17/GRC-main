@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ report_title }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; }
+    .page { max-width: 1100px; margin: 0 auto; background: white; padding: 48px; }
+    .header { border-bottom: 3px solid #f59e0b; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 26px; color: #0f172a; margin-bottom: 6px; }
+    .header .meta { color: #64748b; font-size: 13px; line-height: 1.6; }
+    .logo { font-size: 20px; font-weight: 800; color: #f59e0b; letter-spacing: -0.5px; }
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 36px; }
+    .stat-card { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 18px 14px; text-align: center; }
+    .stat-card .number { font-size: 28px; font-weight: 700; }
+    .stat-card .label { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .blue { color: #2563eb; } .green { color: #16a34a; } .amber { color: #d97706; } .red { color: #dc2626; } .slate { color: #475569; }
+    h2 { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 40px; }
+    thead th { background: #fffbeb; padding: 10px 12px; text-align: left; color: #92400e; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tbody td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+    tbody tr:hover td { background: #fffbeb; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-verified { background: #dcfce7; color: #15803d; }
+    .badge-pending { background: #fef3c7; color: #b45309; }
+    .badge-rejected { background: #fee2e2; color: #b91c1c; }
+    .badge-expired { background: #f1f5f9; color: #475569; }
+    .ai-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; background: #ede9fe; color: #6d28d9; font-weight: 500; }
+    .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px; }
+    @media print { body { background: white; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div>
+        <h1>{{ report_title }}</h1>
+        <div class="meta">
+          📅 Generated: {{ generated_date }}<br>
+          👤 By: {{ generated_by }}
+        </div>
+      </div>
+      <div class="logo">GRC Platform</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="number blue">{{ total }}</div>
+        <div class="label">Total Evidence</div>
+      </div>
+      <div class="stat-card">
+        <div class="number green">{{ verified }}</div>
+        <div class="label">Verified</div>
+      </div>
+      <div class="stat-card">
+        <div class="number amber">{{ pending }}</div>
+        <div class="label">Pending Review</div>
+      </div>
+      <div class="stat-card">
+        <div class="number red">{{ rejected }}</div>
+        <div class="label">Rejected</div>
+      </div>
+      <div class="stat-card">
+        <div class="number slate">{{ expired }}</div>
+        <div class="label">Expired</div>
+      </div>
+    </div>
+
+    <h2>Evidence Items</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Title</th>
+          <th>File Name</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Related To</th>
+          <th>AI Category</th>
+          <th>Uploaded By</th>
+          <th>Uploaded At</th>
+          <th>Valid Until</th>
+          <th>Size</th>
+          <th>Verified By</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in evidence %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ e.title }}</strong></td>
+          <td style="font-size:11px;color:#64748b;">{{ e.file_name }}</td>
+          <td><span style="font-size:10px;padding:2px 6px;background:#e0f2fe;color:#0369a1;border-radius:4px;font-weight:600;">{{ e.file_type }}</span></td>
+          <td>
+            <span class="badge badge-{{ e.status | lower }}">{{ e.status }}</span>
+          </td>
+          <td style="font-size:12px;">{{ e.related_to }}</td>
+          <td>{% if e.ai_category != '—' %}<span class="ai-tag">{{ e.ai_category }}</span>{% else %}—{% endif %}</td>
+          <td>{{ e.uploaded_by }}</td>
+          <td style="white-space:nowrap;">{{ e.uploaded_at }}</td>
+          <td style="white-space:nowrap;">{{ e.valid_until }}</td>
+          <td style="font-size:11px;color:#64748b;">{{ e.size }}</td>
+          <td>{{ e.verified_by }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="12" style="text-align:center;color:#94a3b8;padding:32px;">No evidence records found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="footer">
+      GRC Platform — Confidential Report — {{ generated_date }}
+    </div>
+  </div>
+</body>
+</html>

@@ -83,8 +83,8 @@ export function ISOControlList() {
     </div>;
   }
 
-  // Group clauses for filter
-  const clauses = Array.from(new Set(controls.map(c => c.clauseId))).sort();
+  // Group clauses for filter — exclude controls with missing clauseId
+  const clauses = Array.from(new Set(controls.map(c => c.clauseId).filter(Boolean))).sort();
 
   return (
     <div className="space-y-4">

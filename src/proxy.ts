@@ -60,7 +60,7 @@ function decodeTokenPayload(token: string): { role: UserRole; exp: number } | nu
 // HTTP-only cookies, this middleware would be more strict.
 // =============================================================================
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Only protect /dashboard routes

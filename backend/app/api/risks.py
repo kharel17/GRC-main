@@ -1,17 +1,28 @@
 from typing import Any, List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, update
 from app import schemas, models
-from app.models.risk import Risk
+from app.models.risk import Risk, RiskCategory
 from app.api import deps
 from app.services import audit_service
 from app.models.audit_log import AuditAction, AuditEntityType
 from app.utils.notifications import notify
+import uuid
 
 router = APIRouter()
+
+# Default ISO 27001 risk categories to seed if the table is empty
+_DEFAULT_CATEGORIES = [
+    {"name": "Technology",        "description": "Risks related to IT systems, software, and hardware",      "color": "#3b82f6"},
+    {"name": "Operational",       "description": "Risks from internal processes, people, and systems",       "color": "#f59e0b"},
+    {"name": "Physical",          "description": "Risks related to physical assets and facilities",           "color": "#8b5cf6"},
+    {"name": "Human",             "description": "Risks arising from human error, insider threats, or culture","color": "#ec4899"},
+    {"name": "Legal/Compliance",  "description": "Risks from regulatory, legal, or contractual obligations",  "color": "#ef4444"},
+    {"name": "Financial",         "description": "Risks with financial impact or fraud exposure",              "color": "#10b981"},
+]
 
 @router.get("/categories/", response_model=List[schemas.RiskCategory])
 async def get_risk_categories(
@@ -19,10 +30,33 @@ async def get_risk_categories(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve risk categories.
+    Retrieve risk categories. Auto-seeds ISO 27001 defaults if the table is empty.
     """
     result = await db.execute(select(models.RiskCategory))
-    return result.scalars().all()
+    categories = result.scalars().all()
+
+    # Bug 10: seed defaults if empty so the filter dropdown is never blank
+    if not categories:
+        import logging
+        logger = logging.getLogger("app.api.risks")
+        logger.info("risk_categories table is empty – seeding ISO 27001 defaults")
+        for cat_data in _DEFAULT_CATEGORIES:
+            # Guard against a race condition: only insert if name doesn't already exist
+            existing = await db.execute(
+                select(RiskCategory).where(RiskCategory.name == cat_data["name"])
+            )
+            if not existing.scalar_one_or_none():
+                db.add(RiskCategory(
+                    id=uuid.uuid4(),
+                    name=cat_data["name"],
+                    description=cat_data["description"],
+                    color=cat_data["color"],
+                ))
+        await db.commit()
+        result = await db.execute(select(models.RiskCategory))
+        categories = result.scalars().all()
+
+    return categories
 
 @router.get("/", response_model=List[schemas.Risk])
 async def read_risks(
@@ -52,6 +86,7 @@ async def read_risks(
 async def create_risk(
     *,
     db: AsyncSession = Depends(deps.get_db),
+    background_tasks: BackgroundTasks,
     risk_in: schemas.RiskCreate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
@@ -91,6 +126,17 @@ async def create_risk(
     risk_data['owner_id'] = UUID(owner_id) if isinstance(owner_id, str) and owner_id else (owner_id or current_user.id)
     risk_data['category_id'] = UUID(category_id) if isinstance(category_id, str) and category_id else category_id
     risk_data['asset_id'] = UUID(asset_id) if isinstance(asset_id, str) and asset_id else asset_id
+
+    # Validate asset belongs to user's organization if asset_id is specified
+    if risk_data['asset_id']:
+        asset_res = await db.execute(
+            select(models.Asset).where(
+                models.Asset.id == risk_data['asset_id'],
+                models.Asset.organization_id == current_user.organization_id
+            )
+        )
+        if not asset_res.scalars().first():
+            raise HTTPException(status_code=404, detail="Asset not found in your organization")
     
     # Double check likelihood/impact for risk_score calculation safety
     likelihood = risk_data.get('likelihood', 1)
@@ -142,9 +188,13 @@ async def create_risk(
     # and lazy-loading will fail after commit/refresh on an async session
     await db.commit()
 
-    # 6. Trigger Ticket Evaluation Logic
+    # 6. Trigger Ticket Evaluation Logic in background for fast response
     from app.services.risk_trigger_service import RiskTriggerService
-    await RiskTriggerService.evaluate_and_trigger(db, risk.id)
+    try:
+        # Evaluate triggers asynchronously in background or catch errors softly
+        background_tasks.add_task(RiskTriggerService.evaluate_and_trigger, db, risk.id)
+    except Exception as e:
+        logger.warning(f"Failed to queue risk trigger evaluation: {e}")
     
     # Re-fetch for final serialization
     result = await db.execute(

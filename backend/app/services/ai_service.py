@@ -129,17 +129,58 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extract text content from a PDF file's bytes."""
-    from PyPDF2 import PdfReader
+    """Extract text content from a PDF file's bytes with robust fallback handlers."""
+    # 1. Try PyPDF2 / pypdf with strict=False
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(BytesIO(file_bytes), strict=False)
+        pages_text: list[str] = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                pages_text.append(text.strip())
+        extracted = "\n\n".join(pages_text)
+        if extracted.strip():
+            return extracted
+    except Exception as e:
+        logger.warning(f"PyPDF2 extraction failed ({e}), trying fallback extractors")
 
-    reader = PdfReader(BytesIO(file_bytes))
-    pages_text: list[str] = []
-    for page in reader.pages:
-        text = page.extract_text()
-        if text:
-            pages_text.append(text.strip())
+    # 2. Try pypdf if installed separately
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(BytesIO(file_bytes), strict=False)
+        pages_text: list[str] = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                pages_text.append(text.strip())
+        extracted = "\n\n".join(pages_text)
+        if extracted.strip():
+            return extracted
+    except Exception:
+        pass
 
-    return "\n\n".join(pages_text)
+    # 3. Fallback: UTF-8 / Latin-1 text decode for plain text / markdown / logs
+    try:
+        decoded = file_bytes.decode('utf-8', errors='ignore')
+        # Check if file has readable text characters
+        printable_ratio = sum(1 for c in decoded if c.isprintable() or c in '\n\r\t') / max(len(decoded), 1)
+        if printable_ratio > 0.85 and len(decoded.strip()) > 10:
+            return decoded.strip()
+    except Exception:
+        pass
+
+    # 4. Fallback: docx format parser
+    try:
+        import docx
+        doc = docx.Document(BytesIO(file_bytes))
+        full_text = [p.text for p in doc.paragraphs if p.text.strip()]
+        if full_text:
+            return "\n\n".join(full_text)
+    except Exception:
+        pass
+
+    return ""
 
 
 # ---------------------------------------------------------------------------

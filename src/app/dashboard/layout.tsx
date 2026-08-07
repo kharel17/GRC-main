@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
+import { useSidebarCollapse } from "@/context/SidebarContext";
 
 export default function DashboardLayout({
   children,
@@ -15,6 +16,7 @@ export default function DashboardLayout({
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
+  const { collapsed } = useSidebarCollapse();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Redirect to login if not authenticated
@@ -71,7 +73,11 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-muted/40">
       <Sidebar />
-      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
+      <div
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${
+          collapsed ? 'md:ml-[68px]' : 'md:ml-64'
+        }`}
+      >
         <Header user={user} title="Dashboard" />
         <main className="flex-1 overflow-auto">
           <div className="p-6 max-w-7xl mx-auto">{children}</div>
@@ -80,3 +86,4 @@ export default function DashboardLayout({
     </div>
   );
 }
+

@@ -30,6 +30,7 @@ async def analyze_evidence_background(
     evidence_id: str,
     file_url: str,
     file_name: str,
+    organization_id: str = None,
 ):
     """
     Background task: runs AI analysis on uploaded 
@@ -42,6 +43,13 @@ async def analyze_evidence_background(
     import httpx
     
     async with SessionLocal() as db:
+        # Set RLS context for background session so queries aren't filtered out
+        if organization_id:
+            from sqlalchemy import text as _text
+            await db.execute(
+                _text("SELECT set_config('app.org_id', :org_id, true)"),
+                {"org_id": organization_id}
+            )
         try:
             # Get evidence record
             result = await db.execute(
@@ -207,6 +215,12 @@ async def _upload_to_supabase_storage(
 
         if resp.status_code not in (200, 201):
             logger.error(f"Supabase upload failed: {resp.status_code} {resp.text}")
+            # Bug 5: Propagate 409 Conflict (duplicate filename) as a distinct error
+            if resp.status_code == 409:
+                raise HTTPException(
+                    status_code=409,
+                    detail="A file with this name already exists. Please rename the file and try again."
+                )
             raise HTTPException(
                 status_code=502,
                 detail=f"Failed to upload file to storage: {resp.text}",
@@ -241,7 +255,7 @@ async def create_evidence(
     *,
     db: AsyncSession = Depends(deps.get_db),
     background_tasks: BackgroundTasks,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.get_current_active_user),
     file: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
@@ -259,11 +273,35 @@ async def create_evidence(
             detail=f"related_to must be one of: {[e.value for e in EvidenceRelatedTo]}",
         )
 
-    # Validate related_id as UUID
+    # Bug 4: If related_to=control and related_id is an annex string (e.g. "5.1"),
+    # look up the ControlApplicability by annex to find its real UUID.
+    related_uuid: UUID
+    raw_uuid_valid = False
     try:
         related_uuid = UUID(related_id)
+        raw_uuid_valid = True
     except ValueError:
-        raise HTTPException(status_code=422, detail="related_id must be a valid UUID")
+        pass
+
+    if not raw_uuid_valid:
+        if related_to_enum != EvidenceRelatedTo.control:
+            raise HTTPException(status_code=422, detail="related_id must be a valid UUID for non-control types")
+        # Try to resolve annex string → control UUID
+        from app.models.control_applicability import ControlApplicability
+        org_id = current_user.organization_id
+        ca_result = await db.execute(
+            select(ControlApplicability).where(
+                ControlApplicability.annex_id == related_id,
+                ControlApplicability.organization_id == org_id,
+            )
+        )
+        ca = ca_result.scalar_one_or_none()
+        if not ca:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No control found with annex '{related_id}' in your organization"
+            )
+        related_uuid = ca.id
 
     try:
         # Validate file size (10 MB)
@@ -276,8 +314,17 @@ async def create_evidence(
         # Build storage path:  {user_id}/{related_id}/{filename}
         storage_path = f"{current_user.id}/{related_uuid}/{file.filename}"
 
-        # Upload to Supabase Storage
-        public_url = await _upload_to_supabase_storage(file, storage_path)
+        # Upload to Supabase Storage — raises 502 on generic error, or 409 on duplicate
+        try:
+            public_url = await _upload_to_supabase_storage(file, storage_path)
+        except HTTPException as upload_exc:
+            # Bug 5: Re-map Supabase 409 (duplicate object) to a clear user-facing error
+            if upload_exc.status_code == 409 or "already exists" in str(upload_exc.detail).lower():
+                raise HTTPException(
+                    status_code=409,
+                    detail="A file with this name already exists. Please rename the file and try again."
+                )
+            raise
 
         # Persist metadata row
         evidence = models.Evidence(
@@ -304,6 +351,7 @@ async def create_evidence(
             evidence_id=str(evidence.id),
             file_url=evidence.file_url,
             file_name=evidence.file_name,
+            organization_id=str(current_user.organization_id) if current_user.organization_id else None,
         )
 
         # Audit log
@@ -317,25 +365,32 @@ async def create_evidence(
             new_values={
                 "file_name": file.filename,
                 "related_to": related_to,
-                "related_id": related_id,
+                "related_id": str(related_uuid),
             },
             description=f"Evidence uploaded: {evidence.title}",
+        )
+
+        # Trigger instant notification to uploader
+        await notify(
+            db=db,
+            user_id=str(current_user.id),
+            title="Evidence Uploaded",
+            message=f"Evidence '{evidence.file_name}' uploaded successfully. AI analysis in progress.",
+            entity_type="evidence",
+            entity_id=str(evidence.id),
+            link_url="/dashboard/evidence",
+            notification_type="EVIDENCE_UPLOADED",
         )
         await db.commit()
 
         return evidence
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
         logger.error(f"EVIDENCE UPLOAD CRASH: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"DEBUG CRASH: {str(e)}\n\n{error_msg}")
-
-        return evidence
-    except Exception as e:
-        import traceback
-        error_msg = traceback.format_exc()
-        logger.error(f"EVIDENCE UPLOAD CRASH: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"DEBUG CRASH: {str(e)}\n\n{error_msg}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
 # ── GET  /api/v1/evidence  ────────────────────────────────
@@ -489,12 +544,18 @@ async def delete_evidence(
             )
 
     # 3. Securely handle file deletion (attempt only)
-    # We don't fail the request if the file is missing from storage
     try:
-        # Note: If using Supabase Storage, we should call their API to delete the object.
-        # But for local dev or simple file-based, we'd delete the file.
-        # The prompt suggests a try/except Path unlink approach.
-        pass # Supabase storage deletion logic would go here
+        if evidence.file_url and BUCKET_NAME and BUCKET_NAME in evidence.file_url:
+            headers = {
+                "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
+                "apikey": settings.SUPABASE_SERVICE_KEY,
+            }
+            parts = evidence.file_url.split(f"/{BUCKET_NAME}/")
+            if len(parts) > 1:
+                storage_path = parts[1]
+                delete_url = f"{SUPABASE_STORAGE_URL}/object/{BUCKET_NAME}/{storage_path}"
+                async with httpx.AsyncClient(timeout=10) as client:
+                    await client.delete(delete_url, headers=headers)
     except Exception as e:
         logger.warning(f"Storage object deletion failed for evidence {evidence_id}: {e}")
 

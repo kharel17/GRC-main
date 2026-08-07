@@ -68,7 +68,7 @@ export default function DocumentAnalysisPage() {
         <p className="text-muted-foreground text-sm">Upload security policies and documents for AI-powered compliance GAP analysis.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
         <input 
           type="file" 
           id="doc-upload-input" 
@@ -77,26 +77,58 @@ export default function DocumentAnalysisPage() {
           onChange={handleFileChange}
         />
         <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
-          <Card className="md:col-span-1 border-dashed border-2 hover:border-primary transition-colors cursor-pointer group" onClick={triggerUpload}>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              {isUploading ? (
-                <div className="space-y-4 w-full px-8">
-                  <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
-                  <p className="text-sm font-medium">Analyzing document...</p>
-                  <Progress value={65} className="h-1" />
-                </div>
-              ) : (
-                <>
-                  <div className="p-4 bg-primary/10 rounded-full mb-4 group-hover:bg-primary/20 transition-colors">
-                    <FileUp className="h-8 w-8 text-primary" />
+          <div className="md:col-span-1 md:sticky md:top-6">
+            <Card 
+              className="border-2 border-dashed border-muted-foreground/25 hover:border-primary/60 bg-gradient-to-b from-card to-muted/20 hover:to-primary/5 transition-all duration-300 cursor-pointer group shadow-sm hover:shadow-md rounded-xl overflow-hidden relative" 
+              onClick={triggerUpload}
+            >
+              <CardContent className="flex flex-col items-center justify-center p-6 text-center">
+                {isUploading ? (
+                  <div className="space-y-4 w-full px-2 py-6">
+                    <div className="relative w-12 h-12 mx-auto">
+                      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                      <FileUp className="h-6 w-6 text-primary absolute inset-0 m-auto" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">Analyzing document...</p>
+                      <p className="text-xs text-muted-foreground">Extracting compliance & security policies</p>
+                    </div>
+                    <Progress value={65} className="h-1.5 w-full bg-primary/10" />
                   </div>
-                  <h3 className="font-semibold text-lg">Upload Document</h3>
-                  <p className="text-sm text-muted-foreground mt-1 px-4">Drag and drop your PDF or Word document here to start analysis</p>
-                  <Button variant="outline" className="mt-6" onClick={(e) => { e.stopPropagation(); triggerUpload(); }}>Select File</Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
+                ) : (
+                  <div className="flex flex-col items-center space-y-4 py-3">
+                    <div className="relative">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary to-blue-600 rounded-full blur opacity-25 group-hover:opacity-60 transition duration-300" />
+                      <div className="relative p-4 bg-background border border-border rounded-full shadow-sm group-hover:scale-105 transition-transform duration-300">
+                        <FileUp className="h-8 w-8 text-primary" />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-1.5 max-w-[240px]">
+                      <h3 className="font-bold text-lg text-foreground tracking-tight">Upload Document</h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Drag & drop your security policies or audit reports here to start analysis
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <Badge variant="secondary" className="text-[10px] font-mono font-medium px-2 py-0.5">.PDF</Badge>
+                      <Badge variant="secondary" className="text-[10px] font-mono font-medium px-2 py-0.5">.DOCX</Badge>
+                    </div>
+
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="mt-2 font-medium px-6 shadow-sm group-hover:bg-primary/90 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); triggerUpload(); }}
+                    >
+                      Select File
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </RoleGuard>
 
         <div className="md:col-span-2 space-y-4">
@@ -113,7 +145,9 @@ export default function DocumentAnalysisPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-4 mb-1">
-                    <h4 className="font-bold text-base truncate text-slate-900 dark:text-slate-100">{analysis.fileName}</h4>
+                    <h4 className="font-bold text-base truncate text-slate-900 dark:text-slate-100">
+                      {analysis.file_name || analysis.fileName || analysis.document_name || 'Untitled Document'}
+                    </h4>
                     <Badge 
                       variant={analysis.status === 'completed' ? 'secondary' : 'outline'} 
                       className={analysis.status === 'completed' ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-none uppercase text-[10px]" : "uppercase text-[10px]"}

@@ -11,13 +11,16 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { getStatusColor, getScoreBadgeColor } from '@/features/risk/risk.logic';
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, use } from 'react';
 import { EvidenceDropzone } from '@/components/evidence/EvidenceDropzone';
 import { EvidenceList } from '@/components/evidence/EvidenceList';
 
-export default function RiskDetailPage({ params }: { params: { id: string } }) {
-  const fetcher = useCallback(() => fetchRisk(params.id), [params.id]);
-  const { data: risk, loading, error, refetch } = useApiData(fetcher, [params.id]);
+export default function RiskDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // Next.js 16+: params is a Promise — must be unwrapped before use
+  const { id } = use(params);
+
+  const fetcher = useCallback(() => fetchRisk(id), [id]);
+  const { data: risk, loading, error, refetch } = useApiData(fetcher, [id]);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [mapControlOpen, setMapControlOpen] = useState(false);
@@ -25,9 +28,9 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
 
   // Fetch mapped controls
   const loadControls = useCallback(async () => {
-    const data = await fetchRiskControls(params.id);
+    const data = await fetchRiskControls(id);
     setMappedControls(data);
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     loadControls();
@@ -173,12 +176,12 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
         <CardContent className="space-y-4">
           <EvidenceDropzone
             relatedTo="risk"
-            relatedId={params.id}
+            relatedId={id}
             onUploadSuccess={() => setEvidenceRefresh((k) => k + 1)}
           />
           <EvidenceList
             relatedTo="risk"
-            relatedId={params.id}
+            relatedId={id}
             refreshKey={evidenceRefresh}
           />
         </CardContent>
@@ -194,7 +197,7 @@ export default function RiskDetailPage({ params }: { params: { id: string } }) {
       <MapControlDialog
         open={mapControlOpen}
         onOpenChange={setMapControlOpen}
-        riskId={params.id}
+        riskId={id}
         riskTitle={risk.title}
         existingControlIds={mappedControls.map((mc: any) => mc.control_id || mc.controlId)}
         onSuccess={() => loadControls()}

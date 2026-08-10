@@ -2,13 +2,18 @@ FROM python:3.11-slim AS base
 
 WORKDIR /app
 
-# Install system dependencies for asyncpg
+# Install system dependencies for asyncpg and OCR (tesseract-ocr)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev && \
+    gcc libpq-dev tesseract-ocr && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-download SentenceTransformer & CrossEncoder models into image for air-gapped deployments
+RUN python -c "from sentence_transformers import SentenceTransformer, CrossEncoder; \
+    SentenceTransformer('all-MiniLM-L6-v2'); \
+    CrossEncoder('cross-encoder/ms-marco-MiniLM-L6-v2')"
 
 COPY . .
 

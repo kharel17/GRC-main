@@ -90,8 +90,9 @@ async def create_ticket_from_ai(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Module A: AI Ingestion Layer
-    Creates a ticket based on AI findings with ISO mapping and repeat checks.
+    Module A: Rule-Based Finding Ingestion
+    Creates a ticket based on incoming security findings using deterministic keyword-matching
+    rules for ISO clause mapping and repeat checks.
     """
     return await TicketService.process_ai_finding(
         db=db,

@@ -25,6 +25,29 @@ class Settings(BaseSettings):
     # AI Config
     GEMINI_API_KEY: Optional[str] = None
 
+    # AI Layer Redesign & Data Sovereignty Config
+    DATA_RESIDENCY_MODE: str = "off"  # "off" | "strict"
+    LLM_MODE: str = "local-only"       # "cloud" | "self-hosted" | "local-only"
+    LLM_SELF_HOSTED_BASE_URL: Optional[str] = None
+    LLM_SELF_HOSTED_MODEL: str = "llama3.2"
+    LLM_CLOUD_MODEL: str = "gemini-1.5-flash"
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L6-v2"
+
+    # Qdrant Vector Store Config
+    QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_API_KEY: Optional[str] = None
+    QDRANT_COLLECTION_DOC_CHUNKS: str = "grc_doc_chunks"
+    QDRANT_COLLECTION_ISO_CONTROLS: str = "grc_iso_controls"
+
+    # Retrieval & Confidence Gate Thresholds
+    RETRIEVAL_TOP_K_DENSE: int = 30
+    RETRIEVAL_TOP_K_SPARSE: int = 30
+    RERANK_TOP_N: int = 8
+    CONFIDENCE_GATE_TOP1_THRESHOLD: float = 0.65
+    CONFIDENCE_GATE_MARGIN_THRESHOLD: float = 1.0
+
+
     # SMTP Config
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587

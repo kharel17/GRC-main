@@ -49,4 +49,9 @@ api_router.include_router(audit_logs.router, prefix="/audit-logs", tags=["audit-
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(invitations.router, prefix="/invitations", tags=["invitations"])
-api_router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
+api_router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
+
+# Ingestion Pipeline Status
+from app.ingestion import status_api
+api_router.include_router(status_api.router, prefix="/ingestion", tags=["ingestion"])
+

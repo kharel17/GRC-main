@@ -40,9 +40,10 @@ async def ai_status():
         status="ready" if ai_service.is_ready else "not_initialized",
         model_name=ai_service.LOCAL_MODEL_NAME,
         active_engine=ai_service.active_engine,
-        controls_loaded=len(ai_service._controls),
-        is_ready=ai_service.is_ready,
     )
+
+
+from app.services.orchestrator import run_grc_pipeline
 
 
 @router.post("/analyze-evidence", response_model=EvidenceAnalysisResponse)
@@ -51,10 +52,15 @@ async def analyze_evidence(
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
     """
-    Analyze evidence text and return matched ISO 27001 controls.
+    Analyze evidence text and return matched ISO 27001 controls via LangGraph Orchestrator.
 
-    The AI compares the text semantically against all 93 ISO 27001 controls
-    and returns the top matches with confidence scores.
+    Executes hybrid retrieval (Dense Qdrant + BM25 + RRF + Reranker), confidence gating,
+    LLM generation, and citation verification.
+
+    Verdict gating:
+      accept               → matched_controls from orchestrator's verified top chunks
+      needs_review         → empty matched_controls, response flagged [NEEDS_REVIEW]
+      insufficient_evidence→ empty matched_controls, response flagged [INSUFFICIENT_EVIDENCE]
     """
     if not ai_service.is_ready:
         raise HTTPException(
@@ -63,18 +69,68 @@ async def analyze_evidence(
         )
 
     try:
-        result = ai_service.analyze_evidence(
-            text=request.text,
-            top_n=request.top_n,
-            threshold=request.threshold,
+        # Invoke LangGraph Orchestrator — this is the single analysis path.
+        orchestration = await run_grc_pipeline(
+            query=request.text,
+            org_id=str(current_user.organization_id),
         )
+        verdict = orchestration.get("verdict", "insufficient_evidence")
+        final_out = orchestration.get("final_output") or orchestration
+        generation = final_out.get("result") or {}
+        confidence_reason = (orchestration.get("confidence_decision") or {}).get(
+            "reason", ""
+        )
+
+        if verdict == "accept":
+            # Return the orchestrator's grounded, citation-verified controls.
+            raw_implemented = generation.get("implemented_controls") or []
+            # Normalise shape: cloud/self-hosted return plain strings (annex IDs);
+            # local-only returns dicts with control_annex/title/confidence.
+            matched: list[ControlMatchResponse] = []
+            for c in raw_implemented:
+                if isinstance(c, dict):
+                    # LocalOnly shape: {"control_annex": "5.1", "title": "...", "confidence": 85.0}
+                    matched.append(ControlMatchResponse(
+                        control_id=c.get("control_annex", ""),
+                        title=c.get("title", ""),
+                        description=c.get("title", ""),
+                        confidence=float(c.get("confidence", 1.0)),
+                        excerpt=c.get("excerpt", ""),
+                    ))
+                elif isinstance(c, str) and c.strip():
+                    # Cloud/self-hosted shape: plain annex ID string e.g. "5.1"
+                    matched.append(ControlMatchResponse(
+                        control_id=c.strip(),
+                        title=c.strip(),
+                        description="",
+                        confidence=1.0,
+                        excerpt="",
+                    ))
+                # else: skip malformed entries silently
+            summary = generation.get("summary") or "[ACCEPT] High-confidence match verified."
+            category = generation.get("document_category", "general")
+
+        elif verdict == "needs_review":
+            # Gate fires: return no controls — human must verify before results are trusted.
+            matched = []
+            summary = (
+                f"[NEEDS_REVIEW] Retrieval confidence below threshold — "
+                f"results require human review before use. Reason: {confidence_reason}"
+            )
+            category = "general"
+
+        else:  # insufficient_evidence
+            matched = []
+            summary = (
+                f"[INSUFFICIENT_EVIDENCE] No compliance controls could be matched "
+                f"with sufficient confidence. Reason: {confidence_reason}"
+            )
+            category = "general"
+
         return EvidenceAnalysisResponse(
-            category=result.category,
-            matched_controls=[
-                ControlMatchResponse(**m.to_dict())
-                for m in result.matched_controls
-            ],
-            summary=result.summary,
+            category=category,
+            matched_controls=matched,
+            summary=summary,
         )
     except Exception as e:
         logger.error(f"Evidence analysis failed: {e}")
@@ -89,10 +145,7 @@ async def analyze_evidence_pdf(
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
     """
-    Upload a PDF file, extract its text, and analyze it against ISO 27001 controls.
-
-    This endpoint accepts a multipart file upload and returns the same result
-    as /analyze-evidence but handles PDF text extraction automatically.
+    Upload a PDF file, extract text, and analyze via LangGraph Orchestrator pipeline.
     """
     if not ai_service.is_ready:
         raise HTTPException(
@@ -100,7 +153,6 @@ async def analyze_evidence_pdf(
             detail="AI service is not initialized. Please wait for model loading."
         )
 
-    # Validate file type
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=400,
@@ -113,18 +165,76 @@ async def analyze_evidence_pdf(
         if len(file_bytes) == 0:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-        result = ai_service.analyze_evidence_pdf(
-            file_bytes=file_bytes,
-            top_n=top_n,
-            threshold=threshold,
+        from app.ingestion.extractor import extract_pages_from_bytes
+        pages = extract_pages_from_bytes(file_bytes, file.filename)
+        extracted_text = "\n\n".join([p.text for p in pages if p.text])
+
+        if not extracted_text:
+            result = ai_service.analyze_evidence_pdf(
+                file_bytes=file_bytes,
+                top_n=top_n,
+                threshold=threshold,
+            )
+            return EvidenceAnalysisResponse(
+                category=result.category,
+                matched_controls=[ControlMatchResponse(**m.to_dict()) for m in result.matched_controls],
+                summary=result.summary,
+            )
+
+        orchestration = await run_grc_pipeline(
+            query=extracted_text[:1000],
+            org_id=str(current_user.organization_id),
         )
+        verdict = orchestration.get("verdict", "insufficient_evidence")
+        final_out = orchestration.get("final_output") or orchestration
+        generation = final_out.get("result") or {}
+        confidence_reason = (orchestration.get("confidence_decision") or {}).get(
+            "reason", ""
+        )
+
+        if verdict == "accept":
+            raw_implemented = generation.get("implemented_controls") or []
+            matched: list[ControlMatchResponse] = []
+            for c in raw_implemented:
+                if isinstance(c, dict):
+                    matched.append(ControlMatchResponse(
+                        control_id=c.get("control_annex", ""),
+                        title=c.get("title", ""),
+                        description=c.get("title", ""),
+                        confidence=float(c.get("confidence", 1.0)),
+                        excerpt=c.get("excerpt", ""),
+                    ))
+                elif isinstance(c, str) and c.strip():
+                    matched.append(ControlMatchResponse(
+                        control_id=c.strip(),
+                        title=c.strip(),
+                        description="",
+                        confidence=1.0,
+                        excerpt="",
+                    ))
+            summary = generation.get("summary") or "[ACCEPT] High-confidence match verified."
+            category = generation.get("document_category", "general")
+
+        elif verdict == "needs_review":
+            matched = []
+            summary = (
+                f"[NEEDS_REVIEW] Retrieval confidence below threshold — "
+                f"results require human review before use. Reason: {confidence_reason}"
+            )
+            category = "general"
+
+        else:  # insufficient_evidence
+            matched = []
+            summary = (
+                f"[INSUFFICIENT_EVIDENCE] No compliance controls could be matched "
+                f"with sufficient confidence. Reason: {confidence_reason}"
+            )
+            category = "general"
+
         return EvidenceAnalysisResponse(
-            category=result.category,
-            matched_controls=[
-                ControlMatchResponse(**m.to_dict())
-                for m in result.matched_controls
-            ],
-            summary=result.summary,
+            category=category,
+            matched_controls=matched,
+            summary=summary,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -177,8 +287,10 @@ async def compliance_gaps(
         )
 
     try:
-        # Fetch all evidence descriptions from DB
-        result = await db.execute(select(models.Evidence))
+        # Fetch evidence descriptions for current_user's organization only
+        result = await db.execute(
+            select(models.Evidence).where(models.Evidence.organization_id == current_user.organization_id)
+        )
         all_evidence = result.scalars().all()
 
         evidence_texts = []

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app import schemas, models
 from app.api import deps
-from app.services.ai_service import ai_service, extract_text_from_pdf
+from app.services.ai_service import ai_service, _run_document_analysis
 from app.services.file_service import file_storage
 import logging
 import json
@@ -63,6 +63,8 @@ async def get_document_analysis(
     return analysis
 
 
+from app.ingestion.job_queue import init_job_record, enqueue_ingestion_job
+
 @router.post("/upload", response_model=schemas.DocumentAnalysisResponse)
 async def upload_and_analyze_document(
     file: UploadFile = File(...),
@@ -72,21 +74,25 @@ async def upload_and_analyze_document(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Upload a document (PDF) and trigger AI analysis.
+    Upload a document (PDF/DOCX) and trigger durable pgqueuer background AI ingestion & analysis pipeline.
     
-    The AI will extract:
-    - Implemented controls (found in the document)
-    - Missing controls (expected but not found)
-    - Security practices mentioned
+    The pipeline runs asynchronously via durable Postgres job queue:
+    - Extract text page-by-page (PyMuPDF + Tesseract OCR fallback)
+    - Structural + recursive token chunking (~400 tokens)
+    - Vector embedding & control mapping
     
-    Optionally link the document as Evidence for audit purposes.
+    Returns 202 Accepted status with initial analysis record. Progress can be polled via /api/v1/ingestion/jobs/{analysis_id}.
     """
+    target_org_id = organization_id or str(current_user.organization_id)
+    if not target_org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+
     # Validate file type
     allowed_types = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
-    if file.content_type not in allowed_types and not file.filename.lower().endswith(('.pdf', '.docx')):
-        raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported")
+    if file.content_type not in allowed_types and not file.filename.lower().endswith(('.pdf', '.docx', '.txt')):
+        raise HTTPException(status_code=400, detail="Only PDF, DOCX, and TXT files are supported")
     
-    # Read file
+    # Read file bytes
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
@@ -106,17 +112,17 @@ async def upload_and_analyze_document(
             file_type=file.filename.rsplit(".", 1)[-1] if "." in file.filename else "unknown",
             file_size=len(file_bytes),
             related_to=models.EvidenceRelatedTo.compliance_item,
-            related_id=models.uuid.uuid4(),  # placeholder — can be updated later
+            related_id=models.uuid.uuid4(),
             uploaded_by=current_user.id,
-            organization_id=organization_id,
+            organization_id=target_org_id,
         )
         db.add(evidence)
         await db.flush()
         evidence_id = evidence.id
     
-    # Create DocumentAnalysis record in "processing" state
+    # Create DocumentAnalysis record
     doc_analysis = models.DocumentAnalysis(
-        organization_id=organization_id,
+        organization_id=target_org_id,
         file_name=file.filename,
         file_url=file_url,
         file_size=len(file_bytes),
@@ -128,46 +134,22 @@ async def upload_and_analyze_document(
     db.add(doc_analysis)
     await db.flush()
     
-    # Extract text from PDF / document
-    try:
-        extracted_text = extract_text_from_pdf(file_bytes)
-        if not extracted_text.strip():
-            doc_analysis.status = models.DocumentAnalysisStatus.failed
-            doc_analysis.analysis_result = {"error": "Could not extract text from document"}
-            await db.commit()
-            await db.refresh(doc_analysis)
-            raise HTTPException(status_code=422, detail="Could not extract readable text from the document. Please ensure it is a valid PDF, DOCX, or text file.")
-        
-        doc_analysis.extracted_text = extracted_text
-    except HTTPException:
-        raise
-    except Exception as e:
-        doc_analysis.status = models.DocumentAnalysisStatus.failed
-        doc_analysis.analysis_result = {"error": str(e)}
-        await db.commit()
-        await db.refresh(doc_analysis)
-        raise HTTPException(status_code=422, detail=f"Text extraction error: {str(e)}")
-    
-    # Run AI analysis
-    try:
-        analysis_result = _run_document_analysis(extracted_text)
-        
-        doc_analysis.status = models.DocumentAnalysisStatus.completed
-        doc_analysis.document_category = analysis_result.get("document_category", "general")
-        doc_analysis.analysis_result = analysis_result
-        doc_analysis.implemented_controls = analysis_result.get("implemented_controls", [])
-        doc_analysis.missing_controls = analysis_result.get("missing_controls", [])
-        doc_analysis.security_practices = analysis_result.get("security_practices", [])
-        doc_analysis.analyzed_at = datetime.utcnow()
-        
-    except Exception as e:
-        logger.error(f"AI analysis failed for {file.filename}: {e}")
-        doc_analysis.status = models.DocumentAnalysisStatus.failed
-        doc_analysis.analysis_result = {"error": f"AI analysis failed: {str(e)}"}
-    
+    # Initialize job tracking record
+    await init_job_record(db, doc_analysis)
     await db.commit()
     await db.refresh(doc_analysis)
+
+    # Queue ingestion pipeline — payload is durably persisted to DB before dispatch.
+    await enqueue_ingestion_job(
+        analysis_id=doc_analysis.id,
+        file_bytes=file_bytes,
+        filename=file.filename,
+        organization_id=doc_analysis.organization_id,
+        db=db,
+    )
+
     return doc_analysis
+
 
 
 @router.post("/{analysis_id}/reanalyze", response_model=schemas.DocumentAnalysisResponse)

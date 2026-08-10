@@ -197,51 +197,6 @@ async def get_control_applicability_by_annex(
     return ca
 
 
-# ── GET /control-applicability/{ca_id} ────────────────────
-@router.get("/{ca_id}", response_model=schemas.ControlApplicabilityResponse)
-async def get_control_applicability_by_id(
-    ca_id: str,
-    db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_user),
-) -> Any:
-    """Get a single control applicability record by UUID or Annex ID. Scoped to current user's org."""
-    org_id = current_user.organization_id
-    if not org_id:
-        raise HTTPException(status_code=403, detail="User not associated with any organization")
-
-    # Try UUID lookup first
-    try:
-        from uuid import UUID as PyUUID
-        ca_uuid = PyUUID(ca_id)
-        result = await db.execute(
-            select(models.ControlApplicability)
-            .where(models.ControlApplicability.id == ca_uuid)
-            .where(models.ControlApplicability.organization_id == org_id)
-        )
-        ca = result.scalars().first()
-        if ca:
-            return ca
-    except ValueError:
-        pass
-
-    # Fallback to annex lookup
-    clean_annex = ca_id.replace("Annex ", "").replace("A.", "").strip()
-    result = await db.execute(
-        select(models.ControlApplicability)
-        .where(models.ControlApplicability.organization_id == org_id)
-        .where(
-            (models.ControlApplicability.control_annex == ca_id) |
-            (models.ControlApplicability.control_annex == clean_annex) |
-            (models.ControlApplicability.control_annex == f"A.{clean_annex}")
-        )
-    )
-    ca = result.scalars().first()
-    if not ca:
-        raise HTTPException(status_code=404, detail="Control applicability record not found")
-
-    return ca
-
-
 # ── GET /control-applicability/soa ─────────────────────────
 @router.get("/soa", response_model=SoAResponse)
 async def get_statement_of_applicability(
@@ -357,3 +312,48 @@ async def get_compliance_score(
         compliance_percentage=compliance_pct,
         by_clause=by_clause,
     )
+
+
+# ── GET /control-applicability/{ca_id} ────────────────────
+@router.get("/{ca_id}", response_model=schemas.ControlApplicabilityResponse)
+async def get_control_applicability_by_id(
+    ca_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Get a single control applicability record by UUID or Annex ID. Scoped to current user's org."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    # Try UUID lookup first
+    try:
+        from uuid import UUID as PyUUID
+        ca_uuid = PyUUID(ca_id)
+        result = await db.execute(
+            select(models.ControlApplicability)
+            .where(models.ControlApplicability.id == ca_uuid)
+            .where(models.ControlApplicability.organization_id == org_id)
+        )
+        ca = result.scalars().first()
+        if ca:
+            return ca
+    except ValueError:
+        pass
+
+    # Fallback to annex lookup
+    clean_annex = ca_id.replace("Annex ", "").replace("A.", "").strip()
+    result = await db.execute(
+        select(models.ControlApplicability)
+        .where(models.ControlApplicability.organization_id == org_id)
+        .where(
+            (models.ControlApplicability.control_annex == ca_id) |
+            (models.ControlApplicability.control_annex == clean_annex) |
+            (models.ControlApplicability.control_annex == f"A.{clean_annex}")
+        )
+    )
+    ca = result.scalars().first()
+    if not ca:
+        raise HTTPException(status_code=404, detail="Control applicability record not found")
+
+    return ca

@@ -1,6 +1,7 @@
 """
 Document Ingestion Worker Pipeline — Orchestrates extract -> chunk -> embed -> status update.
 """
+import asyncio
 import logging
 from uuid import UUID
 from app.database import SessionLocal
@@ -27,7 +28,7 @@ async def process_document_job(
         try:
             # 1. Extraction phase
             await update_job_progress(db, analysis_id, IngestionStep.extracting, progress=20)
-            pages = extract_pages_from_bytes(file_bytes, filename)
+            pages = await asyncio.to_thread(extract_pages_from_bytes, file_bytes, filename)
 
             if not pages:
                 raise ValueError("Could not extract any readable text or content from the document.")
@@ -36,7 +37,8 @@ async def process_document_job(
 
             # 2. Chunking phase
             await update_job_progress(db, analysis_id, IngestionStep.chunking, progress=50)
-            chunks = chunk_document(
+            chunks = await asyncio.to_thread(
+                chunk_document,
                 pages=pages,
                 document_id=str(analysis_id),
                 org_id=str(organization_id),
@@ -48,28 +50,36 @@ async def process_document_job(
             await update_job_progress(db, analysis_id, IngestionStep.embedding, progress=70, chunk_count=len(chunks))
 
             from app.services.vector_store import vector_store
+            if chunks and not vector_store.is_ready:
+                raise RuntimeError(
+                    "Vector indexing failed: Qdrant vector store is not ready. "
+                    "Document cannot be marked ready until chunks are indexed."
+                )
+
             chunks_indexed = 0
-            if vector_store.is_ready and chunks:
+            if chunks:
                 try:
                     chunk_texts = [c.text for c in chunks]
-                    embeddings = ai_service._embed_texts(chunk_texts)
+                    embeddings = await asyncio.to_thread(ai_service._embed_texts, chunk_texts)
                     await vector_store.upsert_chunks(chunks, embeddings)
                     chunks_indexed = len(chunks)
                     logger.info(f"Vector Store: Indexed {chunks_indexed} chunks for document {analysis_id}")
                 except Exception as vs_err:
                     # Vector store failure is non-fatal — pipeline continues, control mapping still works
-                    logger.warning(f"Vector Store: Chunk upsert failed ({vs_err}), continuing without vector index")
+                    logger.warning(f"Vector Store: Chunk upsert failed ({vs_err}); failing ingestion job")
+                    raise RuntimeError(f"Vector indexing failed: {vs_err}") from vs_err
             elif not vector_store.is_ready:
                 logger.info("Vector Store: Not ready — skipping vector indexing (Qdrant not configured)")
 
 
             # 4. Final analysis & completion phase
-            analysis_data = _run_document_analysis(full_text)
+            analysis_data = await asyncio.to_thread(_run_document_analysis, full_text)
             
             # Enrich analysis_data with chunk metadata
             analysis_data["chunk_summary"] = {
                 "total_pages": len(pages),
                 "total_chunks": len(chunks),
+                "chunks_indexed": chunks_indexed,
                 "avg_tokens_per_chunk": round(sum(c.token_count for c in chunks) / max(len(chunks), 1)),
             }
 

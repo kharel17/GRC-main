@@ -127,8 +127,15 @@ def _split_by_headings(page_text: str) -> List[tuple[str, str]]:
 def _split_text_with_overlap(text: str, target_tokens: int, overlap_tokens: int) -> List[str]:
     """Recursively split oversized text blocks by paragraph/sentence with overlapping context."""
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if len(paragraphs) <= 1:
+        normalized = re.sub(r"\s+", " ", text).strip()
+        paragraphs = [
+            p.strip()
+            for p in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", normalized)
+            if p.strip()
+        ]
     if not paragraphs:
-        paragraphs = [text]
+        paragraphs = [text.strip()]
 
     chunks: List[str] = []
     current_paras: List[str] = []
@@ -136,6 +143,13 @@ def _split_text_with_overlap(text: str, target_tokens: int, overlap_tokens: int)
 
     for para in paragraphs:
         para_tokens = estimate_tokens(para)
+        if para_tokens > target_tokens:
+            if current_paras:
+                chunks.append("\n\n".join(current_paras))
+                current_paras = []
+                current_tokens = 0
+            chunks.extend(_split_long_text_by_words(para, target_tokens, overlap_tokens))
+            continue
 
         if current_tokens + para_tokens > target_tokens and current_paras:
             # Emit chunk
@@ -161,5 +175,35 @@ def _split_text_with_overlap(text: str, target_tokens: int, overlap_tokens: int)
 
     if current_paras:
         chunks.append("\n\n".join(current_paras))
+
+    return chunks
+
+
+def _split_long_text_by_words(text: str, target_tokens: int, overlap_tokens: int) -> List[str]:
+    """Split a single oversized sentence/line when PDF extraction has no paragraph boundaries."""
+    words = text.split()
+    if not words:
+        return []
+
+    chunks: List[str] = []
+    current_words: List[str] = []
+
+    for word in words:
+        candidate = " ".join(current_words + [word])
+        if current_words and estimate_tokens(candidate) > target_tokens:
+            chunks.append(" ".join(current_words))
+            overlap_words: List[str] = []
+            for existing in reversed(current_words):
+                candidate_overlap = [existing] + overlap_words
+                if estimate_tokens(" ".join(candidate_overlap)) <= overlap_tokens:
+                    overlap_words = candidate_overlap
+                else:
+                    break
+            current_words = overlap_words + [word]
+        else:
+            current_words.append(word)
+
+    if current_words:
+        chunks.append(" ".join(current_words))
 
     return chunks

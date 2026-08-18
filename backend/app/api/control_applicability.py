@@ -1,10 +1,11 @@
-from typing import Any, List, Optional
+﻿from typing import Any, List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import json
 from pathlib import Path
+from uuid import UUID
 from app import schemas, models
 from app.api import deps
 from app.services.control_applicability_service import (
@@ -15,7 +16,7 @@ from app.utils.notifications import notify
 router = APIRouter()
 
 
-# ── Load ISO 27001 controls from JSON ─────────────────────
+# â”€â”€ Load ISO 27001 controls from JSON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _CONTROLS_PATH = Path(__file__).resolve().parents[2] / "data" / "iso27001-controls.json"
 _ISO_CONTROLS: list[dict] = []
 _ISO_CLAUSES: list[dict] = []
@@ -31,7 +32,7 @@ def _load_controls():
 _load_controls()
 
 
-# ── Response Models ────────────────────────────────────────
+# â”€â”€ Response Models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class SoAEntry(BaseModel):
     control_annex: str
     control_title: str
@@ -73,7 +74,7 @@ class InitializeFrameworkRequest(BaseModel):
     framework_id: str
 
 
-# ── GET /control-applicability ─────────────────────────────
+# â”€â”€ GET /control-applicability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.get("/", response_model=List[schemas.ControlApplicabilityResponse])
 async def list_control_applicability(
     db: AsyncSession = Depends(deps.get_db),
@@ -96,7 +97,7 @@ async def list_control_applicability(
     return result.scalars().all()
 
 
-# ── POST /control-applicability/initialize ─────────────────
+# â”€â”€ POST /control-applicability/initialize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.post("/initialize", response_model=dict)
 async def initialize_control_applicability(
     *,
@@ -167,7 +168,7 @@ async def initialize_framework_for_current_org(
     }
 
 
-# ── GET /control-applicability/annex/{annex} ───────────────
+# â”€â”€ GET /control-applicability/annex/{annex} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.get("/annex/{annex}", response_model=schemas.ControlApplicabilityResponse)
 async def get_control_applicability_by_annex(
     annex: str,
@@ -197,52 +198,7 @@ async def get_control_applicability_by_annex(
     return ca
 
 
-# ── GET /control-applicability/{ca_id} ────────────────────
-@router.get("/{ca_id}", response_model=schemas.ControlApplicabilityResponse)
-async def get_control_applicability_by_id(
-    ca_id: str,
-    db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_user),
-) -> Any:
-    """Get a single control applicability record by UUID or Annex ID. Scoped to current user's org."""
-    org_id = current_user.organization_id
-    if not org_id:
-        raise HTTPException(status_code=403, detail="User not associated with any organization")
-
-    # Try UUID lookup first
-    try:
-        from uuid import UUID as PyUUID
-        ca_uuid = PyUUID(ca_id)
-        result = await db.execute(
-            select(models.ControlApplicability)
-            .where(models.ControlApplicability.id == ca_uuid)
-            .where(models.ControlApplicability.organization_id == org_id)
-        )
-        ca = result.scalars().first()
-        if ca:
-            return ca
-    except ValueError:
-        pass
-
-    # Fallback to annex lookup
-    clean_annex = ca_id.replace("Annex ", "").replace("A.", "").strip()
-    result = await db.execute(
-        select(models.ControlApplicability)
-        .where(models.ControlApplicability.organization_id == org_id)
-        .where(
-            (models.ControlApplicability.control_annex == ca_id) |
-            (models.ControlApplicability.control_annex == clean_annex) |
-            (models.ControlApplicability.control_annex == f"A.{clean_annex}")
-        )
-    )
-    ca = result.scalars().first()
-    if not ca:
-        raise HTTPException(status_code=404, detail="Control applicability record not found")
-
-    return ca
-
-
-# ── GET /control-applicability/soa ─────────────────────────
+# â”€â”€ GET /control-applicability/{ca_id} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.get("/soa", response_model=SoAResponse)
 async def get_statement_of_applicability(
     db: AsyncSession = Depends(deps.get_db),
@@ -294,7 +250,7 @@ async def get_statement_of_applicability(
     )
 
 
-# ── GET /control-applicability/compliance-score ────────────
+# â”€â”€ GET /control-applicability/compliance-score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.get("/compliance-score", response_model=ComplianceScoreResponse)
 async def get_compliance_score(
     db: AsyncSession = Depends(deps.get_db),
@@ -357,3 +313,25 @@ async def get_compliance_score(
         compliance_percentage=compliance_pct,
         by_clause=by_clause,
     )
+
+@router.get("/{ca_id}", response_model=schemas.ControlApplicabilityResponse)
+async def get_control_applicability_by_id(
+    ca_id: UUID,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Get a single control applicability record by UUID. Scoped to current user's org."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.ControlApplicability)
+        .where(models.ControlApplicability.id == ca_id)
+        .where(models.ControlApplicability.organization_id == org_id)
+    )
+    ca = result.scalars().first()
+    if not ca:
+        raise HTTPException(status_code=404, detail="Control applicability record not found")
+
+    return ca

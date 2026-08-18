@@ -304,7 +304,7 @@ async def compliance_gaps(
                 evidence_texts.append(". ".join(text_parts))
 
         # Run gap analysis
-        gaps = ai_service.get_compliance_gaps(evidence_texts)
+        gaps = await ai_service.get_compliance_gaps(evidence_texts)
         total_controls = len(ai_service._controls)
         gap_count = len(gaps)
         covered = total_controls - gap_count

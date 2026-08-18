@@ -702,14 +702,13 @@ Guidelines:
     # Compliance Gap Analysis
     # ------------------------------------------------------------------
 
-    # TODO: [CACHE MIGRATION] Migrate get_compliance_gaps to query the Qdrant grc_iso_controls
-    # collection directly via VectorStoreService, and retire _local_control_embeddings in-memory cache.
-    def get_compliance_gaps(
+    async def get_compliance_gaps(
         self, evidence_texts: list[str], threshold: float = 0.40
     ) -> list[dict]:
         """
         Given all evidence texts in the system, identify which controls
-        have NO matching evidence (compliance gaps).
+        have NO matching evidence (compliance gaps). Uses Qdrant's
+        grc_iso_controls collection as the source of truth.
         """
         if not self._is_ready:
             raise RuntimeError("AI Service not initialized. Call initialize() first.")
@@ -720,17 +719,35 @@ Guidelines:
                 for c in self._controls
             ]
 
-        # Encode all evidence
-        evidence_embeddings = self._embed_texts(evidence_texts)
-        control_embeddings = self._get_control_embeddings()
+        from app.services.vector_store import vector_store
+        if not vector_store.is_ready:
+            initialized = await vector_store.initialize_collections()
+            if initialized:
+                control_embeddings = self._embed_texts(self._control_texts)
+                await vector_store.upsert_iso_controls(self._controls, control_embeddings)
+            else:
+                raise RuntimeError("Qdrant vector store is not ready for compliance gap analysis.")
 
-        # For each control, check if ANY evidence matches above threshold
+        control_best_scores: dict[str, float] = {c["id"]: 0.0 for c in self._controls}
+        for evidence_text in evidence_texts:
+            evidence_embedding = self._embed_text(evidence_text)
+            hits = await vector_store.dense_search(
+                query_vector=evidence_embedding,
+                collection_name=settings.QDRANT_COLLECTION_ISO_CONTROLS,
+                top_k=len(self._controls),
+            )
+            for hit in hits:
+                payload = hit.get("payload", {})
+                control_id = payload.get("control_id")
+                if control_id in control_best_scores:
+                    control_best_scores[control_id] = max(
+                        control_best_scores[control_id],
+                        float(hit.get("score", 0.0)),
+                    )
+
         gaps = []
-        for idx, control in enumerate(self._controls):
-            control_emb = control_embeddings[idx].reshape(1, -1)
-            sims = cosine_similarity(control_emb, evidence_embeddings)[0]
-            max_sim = float(np.max(sims))
-
+        for control in self._controls:
+            max_sim = control_best_scores.get(control["id"], 0.0)
             if max_sim < threshold:
                 gaps.append({
                     "control_id": control["id"],

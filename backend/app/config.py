@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     RETRIEVAL_TOP_K_SPARSE: int = 30
     RERANK_TOP_N: int = 8
     CONFIDENCE_GATE_TOP1_THRESHOLD: float = 0.65
-    CONFIDENCE_GATE_MARGIN_THRESHOLD: float = 1.0
+    CONFIDENCE_GATE_MARGIN_THRESHOLD: float = 0.25
 
 
     # SMTP Config

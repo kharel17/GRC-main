@@ -77,8 +77,9 @@ def _extract_pdf_pages(file_bytes: bytes) -> List[PageContent]:
     except Exception as e:
         logger.warning(f"PyPDF2 fallback failed: {e}")
 
-    # 3. Plaintext fallback if PDF headers contained plain text
-    return _extract_plaintext_pages(file_bytes)
+    # PDF bytes should not be decoded as plaintext; that turns unreadable or
+    # scanned PDFs into binary garbage that looks like extracted content.
+    return []
 
 def _ocr_pdf_page(fitz_page) -> Optional[str]:
     """Perform OCR on a single PyMuPDF page using pytesseract if installed."""

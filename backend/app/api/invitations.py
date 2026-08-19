@@ -34,7 +34,12 @@ PLATFORM_TEAM_EMAILS = ["bcolorc17@gmail.com", "grchelios@gmail.com"]
 class InviteAdminRequest(BaseModel):
     email: EmailStr
     full_name: str
-    organization_name: str
+    organization_name: Optional[str] = None
+    organization_id: Optional[UUID] = None
+
+class InviteSuperAdminRequest(BaseModel):
+    email: EmailStr
+    full_name: str
 
 class InviteUserRequest(BaseModel):
     email: EmailStr
@@ -104,8 +109,9 @@ async def invite_admin(
     current_user: models.User = Depends(RoleChecker([models.UserRole.superadmin])),
 ):
     """
-    Invite a new customer admin. Only callable by superadmin users.
-    Creates an organization and user row, then sends an invite email.
+    Invite a customer admin. Only callable by superadmin users.
+    Creates a new organization if organization_id is not supplied,
+    or attaches the admin to an existing organization if organization_id is supplied.
     """
 
     # Check if email already exists
@@ -115,15 +121,24 @@ async def invite_admin(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail=f"User with email {body.email} already exists")
 
-    # Create organization
-    org = models.Organization(
-        id=uuid.uuid4(),
-        name=body.organization_name,
-        onboarding_completed=False,
-        created_by=current_user.id,
-    )
-    db.add(org)
-    await db.flush()
+    org = None
+    if body.organization_id:
+        org = await db.get(models.Organization, body.organization_id)
+        if not org:
+            raise HTTPException(status_code=404, detail="Target organization not found")
+        org_name = org.name
+    else:
+        if not body.organization_name:
+            raise HTTPException(status_code=400, detail="organization_name is required when creating a new organization")
+        org_name = body.organization_name
+        org = models.Organization(
+            id=uuid.uuid4(),
+            name=org_name,
+            onboarding_completed=False,
+            created_by=current_user.id,
+        )
+        db.add(org)
+        await db.flush()
 
     # Generate secure token
     raw_token = secrets.token_urlsafe(32)
@@ -143,7 +158,7 @@ async def invite_admin(
         invited_by=current_user.id,
         invited_at=datetime.utcnow(),
         organization_id=org.id,
-        organization_name=body.organization_name,
+        organization_name=org_name,
         is_active=True,
     )
     db.add(new_user)
@@ -154,24 +169,23 @@ async def invite_admin(
         email_to=body.email,
         token=raw_token,
         full_name=body.full_name,
-        org_name=body.organization_name
+        org_name=org_name
     )
 
     # Audit log
     await _log_audit(
         db, current_user.id, "ADMIN_INVITED", new_user.id,
-        body.email, f"Admin invited: {body.email} for org {body.organization_name}"
+        body.email, f"Admin invited: {body.email} for org {org_name}"
     )
 
     await db.commit()
 
-    # 4. Notifications
-    # Notify New Admin (Welcome)
+    # Notifications
     await notify(
         db=db,
         user_id=new_user.id,
         title="Welcome to the platform",
-        message=f"Welcome! You have been invited as admin to {body.organization_name}",
+        message=f"Welcome! You have been invited as admin to {org_name}",
         entity_type="user",
         entity_id=new_user.id,
         link_url="/dashboard",
@@ -179,6 +193,79 @@ async def invite_admin(
     )
 
     return InvitationResponse(success=True, message=f"Invitation sent to {body.email}")
+
+
+# ── 1B. POST /invite-superadmin ─────────────────────────────
+
+@router.post("/invite-superadmin", response_model=InvitationResponse)
+async def invite_super_admin(
+    body: InviteSuperAdminRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(RoleChecker([models.UserRole.superadmin])),
+):
+    """
+    Invite a co-Super Admin operator. Only callable by existing superadmin users.
+    Attaches to Platform Team organization.
+    """
+    # Check if email already exists
+    existing = await db.execute(
+        select(models.User).where(models.User.email == body.email)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail=f"User with email {body.email} already exists")
+
+    # Get or create Platform Team org
+    platform_org_res = await db.execute(
+        select(models.Organization).where(models.Organization.name == "Platform Team")
+    )
+    platform_org = platform_org_res.scalar_one_or_none()
+    if not platform_org:
+        platform_org = models.Organization(
+            id=uuid.uuid4(),
+            name="Platform Team",
+            onboarding_completed=True,
+            created_by=current_user.id,
+        )
+        db.add(platform_org)
+        await db.flush()
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    expires_at = datetime.utcnow() + timedelta(days=7)
+
+    new_user = models.User(
+        id=uuid.uuid4(),
+        email=body.email,
+        full_name=body.full_name,
+        hashed_password="PENDING_INVITATION",
+        role=models.UserRole.superadmin,
+        invitation_status="pending",
+        invitation_token_hash=token_hash,
+        invitation_expires_at=expires_at,
+        invited_by=current_user.id,
+        invited_at=datetime.utcnow(),
+        organization_id=platform_org.id,
+        organization_name=platform_org.name,
+        is_active=True,
+    )
+    db.add(new_user)
+    await db.flush()
+
+    await send_invitation_email(
+        email_to=body.email,
+        token=raw_token,
+        full_name=body.full_name,
+        org_name="Platform Team (Super Admin)"
+    )
+
+    await _log_audit(
+        db, current_user.id, "SUPERADMIN_INVITED", new_user.id,
+        body.email, f"Super Admin invited: {body.email}"
+    )
+
+    await db.commit()
+
+    return InvitationResponse(success=True, message=f"Super Admin invitation sent to {body.email}")
 
 
 # ── 2. POST /invite-user ─────────────────────────────────────
@@ -194,14 +281,15 @@ async def invite_user(
     Guards: Admin can invite manager/analyst. Manager can invite analyst only.
     """
     # Validate role
-    if body.role not in ("manager", "analyst"):
-        raise HTTPException(status_code=400, detail="Role must be 'manager' or 'analyst'")
+    allowed_invitable_roles = ("admin", "manager", "analyst", "compliance_officer", "control_owner", "risk_owner", "auditor")
+    if body.role not in allowed_invitable_roles:
+        raise HTTPException(status_code=400, detail=f"Role must be one of {allowed_invitable_roles}")
 
     # Guard: role hierarchy
     user_role = str(current_user.role.value) if hasattr(current_user.role, 'value') else str(current_user.role)
-    if user_role == "manager" and body.role != "analyst":
-        raise HTTPException(status_code=403, detail="Managers can only invite analysts")
-    if user_role not in ("admin", "manager"):
+    if user_role == "manager" and body.role not in ("analyst", "control_owner", "risk_owner"):
+        raise HTTPException(status_code=403, detail="Managers cannot invite admins or compliance officers")
+    if user_role not in ("admin", "superadmin", "manager"):
         raise HTTPException(status_code=403, detail="Only admins and managers can invite users")
 
     # Analyst requires manager_id

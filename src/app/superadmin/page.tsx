@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Shield, Users, Loader2, Plus, UserCheck, Search, KeyRound } from "lucide-react";
+import { Building2, Shield, Users, Loader2, Plus, UserCheck, Search, KeyRound, ArrowUpCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { api } from "@/lib/api-client";
 
 interface TenantSummary {
   id: string;
@@ -34,25 +35,35 @@ export default function SuperAdminPage() {
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Provisioning dialog state
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isSuperAdminInviteOpen, setIsSuperAdminInviteOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  
   const [inviteForm, setInviteForm] = useState({
     email: "",
     full_name: "",
     organization_name: "",
+    organization_id: "",
   });
+
+  const [superAdminForm, setSuperAdminForm] = useState({
+    email: "",
+    full_name: "",
+  });
+
+  // Promote dialog state
+  const [isPromoteOpen, setIsPromoteOpen] = useState(false);
+  const [promoteEmail, setPromoteEmail] = useState("");
+  const [promoteResult, setPromoteResult] = useState<{ id: string; email: string; full_name: string; role: string } | null>(null);
+  const [promoteSearching, setPromoteSearching] = useState(false);
 
   const fetchTenants = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/v1/superadmin/organizations", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      });
-      if (!res.ok) throw new Error("Failed to load tenant overview");
-      const data = await res.json();
-      setTenants(data);
+      const data = await api.get<TenantSummary[]>("/superadmin/organizations");
+      setTenants(data || []);
     } catch (err: any) {
       toast.error(err.message || "Could not load superadmin data");
     } finally {
@@ -68,21 +79,22 @@ export default function SuperAdminPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch("/api/v1/invitations/invite-admin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-        body: JSON.stringify(inviteForm),
-      });
+      const payload: any = {
+        email: inviteForm.email,
+        full_name: inviteForm.full_name,
+      };
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to invite tenant admin");
+      if (inviteForm.organization_id && inviteForm.organization_id !== "new") {
+        payload.organization_id = inviteForm.organization_id;
+      } else {
+        payload.organization_name = inviteForm.organization_name;
+      }
+
+      await api.post("/invitations/invite-admin", payload);
 
       toast.success(`Invitation sent to ${inviteForm.email}`);
       setIsInviteOpen(false);
-      setInviteForm({ email: "", full_name: "", organization_name: "" });
+      setInviteForm({ email: "", full_name: "", organization_name: "", organization_id: "" });
       fetchTenants();
     } catch (err: any) {
       toast.error(err.message || "Failed to send invitation");
@@ -91,20 +103,60 @@ export default function SuperAdminPage() {
     }
   };
 
+  const handleInviteSuperAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await api.post("/invitations/invite-superadmin", superAdminForm);
+
+      toast.success(`Super Admin invitation sent to ${superAdminForm.email}`);
+      setIsSuperAdminInviteOpen(false);
+      setSuperAdminForm({ email: "", full_name: "" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send Super Admin invitation");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePromoteSearch = async () => {
+    if (!promoteEmail.trim()) return;
+    setPromoteSearching(true);
+    setPromoteResult(null);
+    try {
+      const users = await api.get<any[]>(`/superadmin/users/search?email=${encodeURIComponent(promoteEmail.trim())}`);
+      const found = Array.isArray(users) && users.length > 0 ? users.find((u: any) => u.email === promoteEmail.trim()) || users[0] : null;
+      if (!found) throw new Error("No user found with that email");
+      setPromoteResult({ id: found.id, email: found.email, full_name: found.full_name || found.email, role: found.role });
+    } catch (err: any) {
+      toast.error(err.message || "Could not find user");
+    } finally {
+      setPromoteSearching(false);
+    }
+  };
+
+  const handlePromoteConfirm = async () => {
+    if (!promoteResult) return;
+    setSubmitting(true);
+    try {
+      const data: any = await api.post(`/superadmin/promote/${promoteResult.id}`);
+      toast.success(data?.message || `${promoteResult.email} promoted to Super Admin`);
+      setIsPromoteOpen(false);
+      setPromoteEmail("");
+      setPromoteResult(null);
+      fetchTenants();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to promote user");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleImpersonate = async (orgId: string, orgName: string) => {
     try {
-      const res = await fetch(`/api/v1/superadmin/impersonate/${orgId}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      });
-
-      if (!res.ok) throw new Error("Impersonation request denied");
-      const data = await res.json();
+      const data: any = await api.post(`/superadmin/impersonate/${orgId}`);
 
       toast.success(`Support session initiated for ${orgName}`);
-      // Store temporary support session token
       sessionStorage.setItem("support_access_token", data.access_token);
       window.location.href = "/dashboard";
     } catch (err: any) {
@@ -130,68 +182,211 @@ export default function SuperAdminPage() {
           </p>
         </div>
 
-        <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
-              <Plus className="h-4 w-4" />
-              Onboard New Tenant
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <form onSubmit={handleInviteAdmin}>
+        <div className="flex items-center gap-3">
+          {/* Promote Existing User */}
+          <Dialog open={isPromoteOpen} onOpenChange={(open) => { setIsPromoteOpen(open); if (!open) { setPromoteEmail(""); setPromoteResult(null); } }}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-50">
+                <ArrowUpCircle className="h-4 w-4" />
+                Promote User
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
               <DialogHeader>
-                <DialogTitle>Provision Customer Tenant</DialogTitle>
+                <DialogTitle>Promote Existing User to Super Admin</DialogTitle>
                 <DialogDescription>
-                  Invite a Primary Tenant Administrator to onboard a new organization.
+                  Search for an existing platform user by email and promote them to Super Admin. This will move them to the Platform Team and revoke their current sessions.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="org-name">Organization Name</Label>
+                <div className="flex gap-2">
                   <Input
-                    id="org-name"
-                    placeholder="e.g. Acme Commercial Bank"
-                    value={inviteForm.organization_name}
-                    onChange={(e) => setInviteForm({ ...inviteForm, organization_name: e.target.value })}
-                    required
+                    placeholder="Enter user email..."
+                    value={promoteEmail}
+                    onChange={(e) => setPromoteEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handlePromoteSearch()}
                   />
+                  <Button type="button" variant="outline" onClick={handlePromoteSearch} disabled={promoteSearching}>
+                    {promoteSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="admin-name">Primary Admin Name</Label>
-                  <Input
-                    id="admin-name"
-                    placeholder="e.g. Jane Doe"
-                    value={inviteForm.full_name}
-                    onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="admin-email">Primary Admin Email</Label>
-                  <Input
-                    id="admin-email"
-                    type="email"
-                    placeholder="jane.doe@acmebank.com"
-                    value={inviteForm.email}
-                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                    required
-                  />
-                </div>
+
+                {promoteResult && (
+                  <div className="border rounded-lg p-4 space-y-2 bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">{promoteResult.full_name}</p>
+                        <p className="text-sm text-muted-foreground">{promoteResult.email}</p>
+                      </div>
+                      <Badge variant="outline" className="capitalize">{promoteResult.role}</Badge>
+                    </div>
+                    {promoteResult.role === "superadmin" ? (
+                      <p className="text-sm text-amber-600 font-medium">This user is already a Super Admin.</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Will be promoted from <strong className="capitalize">{promoteResult.role}</strong> → <strong>Super Admin</strong> and moved to Platform Team.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setIsInviteOpen(false)}>
+                <Button type="button" variant="ghost" onClick={() => setIsPromoteOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserCheck className="h-4 w-4 mr-2" />}
-                  Send Invitation
+                <Button
+                  onClick={handlePromoteConfirm}
+                  disabled={submitting || !promoteResult || promoteResult.role === "superadmin"}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ArrowUpCircle className="h-4 w-4 mr-2" />}
+                  Confirm Promotion
                 </Button>
               </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+
+          {/* Invite Co-SuperAdmin */}
+          <Dialog open={isSuperAdminInviteOpen} onOpenChange={setIsSuperAdminInviteOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                <Shield className="h-4 w-4" />
+                Add Super Admin
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form onSubmit={handleInviteSuperAdmin}>
+                <DialogHeader>
+                  <DialogTitle>Invite Co-Super Admin Operator</DialogTitle>
+                  <DialogDescription>
+                    Grant full platform administrative privileges to a co-operator.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="sa-name">Full Name</Label>
+                    <Input
+                      id="sa-name"
+                      placeholder="e.g. Alex Rivera"
+                      value={superAdminForm.full_name}
+                      onChange={(e) => setSuperAdminForm({ ...superAdminForm, full_name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sa-email">Email Address</Label>
+                    <Input
+                      id="sa-email"
+                      type="email"
+                      placeholder="alex.rivera@platform.com"
+                      value={superAdminForm.email}
+                      onChange={(e) => setSuperAdminForm({ ...superAdminForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" variant="ghost" onClick={() => setIsSuperAdminInviteOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={submitting} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserCheck className="h-4 w-4 mr-2" />}
+                    Send Super Admin Invite
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Provision Tenant Admin */}
+          <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
+                <Plus className="h-4 w-4" />
+                Invite Tenant Admin
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form onSubmit={handleInviteAdmin}>
+                <DialogHeader>
+                  <DialogTitle>Invite Tenant Administrator</DialogTitle>
+                  <DialogDescription>
+                    Create a new organization or add an additional admin to an existing bank tenant.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="target-org">Target Organization</Label>
+                    <select
+                      id="target-org"
+                      className="w-full px-3 py-2 border rounded-md bg-background text-sm"
+                      value={inviteForm.organization_id}
+                      onChange={(e) => setInviteForm({ ...inviteForm, organization_id: e.target.value })}
+                    >
+                      <option value="">-- Create New Organization --</option>
+                      {tenants.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          Existing: {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(!inviteForm.organization_id || inviteForm.organization_id === "") && (
+                    <div className="space-y-2">
+                      <Label htmlFor="org-name">New Organization Name</Label>
+                      <Input
+                        id="org-name"
+                        placeholder="e.g. Acme Commercial Bank"
+                        value={inviteForm.organization_name}
+                        onChange={(e) => setInviteForm({ ...inviteForm, organization_name: e.target.value })}
+                        required={!inviteForm.organization_id}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-name">Admin Full Name</Label>
+                    <Input
+                      id="admin-name"
+                      placeholder="e.g. Jane Doe"
+                      value={inviteForm.full_name}
+                      onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email">Admin Email Address</Label>
+                    <Input
+                      id="admin-email"
+                      type="email"
+                      placeholder="jane.doe@acmebank.com"
+                      value={inviteForm.email}
+                      onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" variant="ghost" onClick={() => setIsInviteOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={submitting} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserCheck className="h-4 w-4 mr-2" />}
+                    Send Invitation
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

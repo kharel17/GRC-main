@@ -171,8 +171,13 @@ export default function UsersPage() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
+                                            <SelectItem value="admin">Admin</SelectItem>
                                             <SelectItem value="manager">Manager</SelectItem>
-                                            <SelectItem value="analyst">Analyst</SelectItem>
+                                            <SelectItem value="analyst">Risk Analyst</SelectItem>
+                                            <SelectItem value="compliance_officer">Compliance Officer</SelectItem>
+                                            <SelectItem value="control_owner">Control Owner</SelectItem>
+                                            <SelectItem value="risk_owner">Risk Owner</SelectItem>
+                                            <SelectItem value="auditor">External Auditor</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

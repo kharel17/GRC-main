@@ -82,6 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
+  { href: '/superadmin', labelKey: 'superadmin', defaultLabel: 'Super Admin', icon: Shield, roles: ['superadmin'] },
   { href: '/dashboard/users', labelKey: 'users', defaultLabel: 'Users', icon: Users, roles: ['admin', 'superadmin'] },
   { href: '/dashboard/settings', labelKey: 'settings', defaultLabel: 'Settings', icon: Settings, roles: ['admin', 'superadmin'] },
 ];

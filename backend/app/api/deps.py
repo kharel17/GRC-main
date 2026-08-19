@@ -203,9 +203,9 @@ async def get_current_user(
         "alice@company.com":   models.UserRole.admin,
         "carol@company.com":   models.UserRole.manager,
         "bob@company.com":     models.UserRole.analyst,
-        # Platform team (all environments)
-        "bcolorc17@gmail.com": models.UserRole.admin,
-        "grchelios@gmail.com": models.UserRole.admin,
+        # Platform team (Super Admins across all environments)
+        "bcolorc17@gmail.com": models.UserRole.superadmin,
+        "grchelios@gmail.com": models.UserRole.superadmin,
     }
 
     # Step 1: Check platform team / seed override

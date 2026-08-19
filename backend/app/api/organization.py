@@ -90,7 +90,7 @@ async def update_organization(
         db=db,
         user=current_user,
         action=AuditAction.updated,
-        entity_type=AuditEntityType.user, # Organization doesn't have its own type in AuditEntityType enum yet, using user or compliance
+        entity_type=AuditEntityType.organization,
         entity_id=org.id,
         entity_name=org.name,
         description="Updated organization profile and ISO context",

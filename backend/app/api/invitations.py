@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import models
 from app.config import settings
 from app.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, RoleChecker
 from app.utils.notifications import notify
 import logging
 import uuid
@@ -101,15 +101,12 @@ async def _log_audit(
 async def invite_admin(
     body: InviteAdminRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(RoleChecker([models.UserRole.superadmin])),
 ):
     """
-    Invite a new customer admin. Only callable by platform team emails.
-    Creates an organization and user row, then sends a Supabase invite email.
+    Invite a new customer admin. Only callable by superadmin users.
+    Creates an organization and user row, then sends an invite email.
     """
-    # Guard: only platform team
-    if current_user.email not in PLATFORM_TEAM_EMAILS:
-        raise HTTPException(status_code=403, detail="Only platform team can invite admins")
 
     # Check if email already exists
     existing = await db.execute(

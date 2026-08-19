@@ -50,6 +50,7 @@ export interface Organization {
   website?: string
   country?: string
   compliance_target_date?: string
+  isms_scope?: string
   primaryContactId?: string
   complianceFrameworks?: string[]
   compliance_frameworks?: string[]

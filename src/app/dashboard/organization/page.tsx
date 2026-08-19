@@ -64,6 +64,7 @@ export default function OrganizationPage() {
         infrastructure: Array.isArray(formData.infrastructure) ? formData.infrastructure.join(',') : formData.infrastructure,
         data_types: Array.isArray(formData.data_types) ? formData.data_types.join(',') : formData.data_types,
         compliance_frameworks: formData.complianceFrameworks || formData.compliance_frameworks,
+        compliance_target_date: formData.compliance_target_date || null,
       };
       await updateOrganization(payload);
       toast.success("Organization updated successfully");
@@ -88,6 +89,7 @@ export default function OrganizationPage() {
         infrastructure: Array.isArray(formData.infrastructure) ? formData.infrastructure.join(',') : formData.infrastructure,
         data_types: Array.isArray(formData.data_types) ? formData.data_types.join(',') : formData.data_types,
         compliance_frameworks: formData.complianceFrameworks || formData.compliance_frameworks || [],
+        compliance_target_date: formData.compliance_target_date || null,
         onboarding_completed: true,
       };
       await createOrganization(payload);

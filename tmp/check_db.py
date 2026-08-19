@@ -13,6 +13,14 @@ async def check_columns():
             print(f"Users columns: {columns}")
             
             # Check organizations table
+            # Check organizations table
+            # Check organizations table
+            # Check organizations table
+            # Check organizations table
+            # Check organizations table
+            # Check organizations table
+            # Check organizations table
+            
             result = await conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'organizations'"))
             columns = [row[0] for row in result]
             print(f"Organizations columns: {columns}")

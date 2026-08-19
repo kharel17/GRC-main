@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ report_title }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; }
+    .page { max-width: 1060px; margin: 0 auto; background: white; padding: 48px; }
+    .header { border-bottom: 3px solid #3b82f6; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 26px; color: #0f172a; margin-bottom: 6px; }
+    .header .meta { color: #64748b; font-size: 13px; line-height: 1.6; }
+    .logo { font-size: 20px; font-weight: 800; color: #3b82f6; letter-spacing: -0.5px; }
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 36px; }
+    .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 14px; text-align: center; }
+    .stat-card .number { font-size: 30px; font-weight: 700; }
+    .stat-card .label { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .blue { color: #2563eb; } .green { color: #16a34a; } .amber { color: #d97706; } .red { color: #dc2626; } .slate { color: #475569; }
+    .progress-wrap { margin-bottom: 36px; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 13px; color: #475569; margin-bottom: 6px; }
+    .progress-bar { height: 12px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #06b6d4); border-radius: 99px; transition: width 0.4s; }
+    h2 { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 40px; }
+    thead th { background: #f1f5f9; padding: 10px 14px; text-align: left; color: #475569; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tbody td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+    tbody tr:hover td { background: #f8fafc; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-implemented { background: #dcfce7; color: #15803d; }
+    .badge-in-progress, .badge-in_progress { background: #fef3c7; color: #b45309; }
+    .badge-not-started, .badge-not_started { background: #f1f5f9; color: #475569; }
+    .badge-not-applicable, .badge-not_applicable { background: #ede9fe; color: #7c3aed; }
+    .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px; }
+    @media print { body { background: white; } .page { box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div>
+        <h1>{{ report_title }}</h1>
+        <div class="meta">
+          📅 Generated: {{ generated_date }}<br>
+          👤 By: {{ generated_by }}
+        </div>
+      </div>
+      <div class="logo">GRC Platform</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="number blue">{{ total }}</div>
+        <div class="label">Total Controls</div>
+      </div>
+      <div class="stat-card">
+        <div class="number green">{{ implemented }}</div>
+        <div class="label">Implemented</div>
+      </div>
+      <div class="stat-card">
+        <div class="number amber">{{ in_progress }}</div>
+        <div class="label">In Progress</div>
+      </div>
+      <div class="stat-card">
+        <div class="number red">{{ not_started }}</div>
+        <div class="label">Not Started</div>
+      </div>
+      <div class="stat-card">
+        <div class="number slate">{{ not_applicable }}</div>
+        <div class="label">Not Applicable</div>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Overall Implementation Progress</span>
+        <strong>{{ effectiveness_pct }}%</strong>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: {{ effectiveness_pct }}%;"></div>
+      </div>
+    </div>
+
+    <h2>Control Implementation Details</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Annex</th>
+          <th>Control Title</th>
+          <th>Status</th>
+          <th>Applicable</th>
+          <th>Owner</th>
+          <th>Last Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in controls %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ c.annex }}</strong></td>
+          <td>{{ c.title }}</td>
+          <td>
+            <span class="badge badge-{{ c.status | lower | replace(' ', '-') }}">{{ c.status }}</span>
+          </td>
+          <td>{{ c.applicable }}</td>
+          <td>{{ c.owner }}</td>
+          <td>{{ c.updated }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:32px;">No control applicability data found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="footer">
+      GRC Platform — Confidential Report — {{ generated_date }}
+    </div>
+  </div>
+</body>
+</html>

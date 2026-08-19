@@ -9,6 +9,7 @@ import { EscalationBadge } from './EscalationBadge';
 import { getPriorityStyles, getStatusStyles, getCategoryLabel } from './TicketCard';
 import { SLACountdown } from './SLACountdown';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks';
 import { updateTicket, escalateTicket, resolveTicket, createTicketComment, fetchTicket, requestEvidence } from '@/lib/data-service';
 import { canActOnTicket, isTicketOverdue } from '@/lib/ticket-utils';
@@ -38,6 +39,7 @@ interface TicketDetailProps {
 
 export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDetailProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const [ticket, setTicket] = useState<Ticket>(initialTicket);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showResolveNotes, setShowResolveNotes] = useState(false);
@@ -95,7 +97,11 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
     try {
       const updated = await updateTicket(ticket.id, { isAutoEscalationEnabled: enabled });
       setTicket(updated);
-      toast.success(enabled ? 'Auto-escalation enabled' : 'Auto-escalation disabled');
+      if (!enabled) {
+        toast.success('Auto-escalation disabled for this ticket');
+      } else {
+        toast.success('Auto-escalation enabled');
+      }
     } catch (error) {
       toast.error('Failed to update auto-escalation');
     } finally {
@@ -279,10 +285,17 @@ export function TicketDetail({ ticket: initialTicket, sourceAuditLog }: TicketDe
               </div>
             )}
             
-            {canAct && ticket.status === 'resolved' && (
-              <Button size="sm" variant="outline" className="gap-1.5">
-                <XCircle className="h-4 w-4" />
-                Close
+            {(ticket.status === 'resolved' || ticket.status === 'closed') && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="gap-1.5"
+                asChild
+              >
+                <Link href="/dashboard/tickets">
+                  <XCircle className="h-4 w-4" />
+                  Close
+                </Link>
               </Button>
             )}
           </div>

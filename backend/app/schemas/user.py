@@ -39,3 +39,17 @@ class User(UserInDBBase):
 # Additional properties stored in DB
 class UserInDB(UserInDBBase):
     hashed_password: str
+
+# Schema for accepting an invitation
+class UserAcceptInvite(BaseModel):
+    token: str
+    password: str
+
+# Schema for requesting a password reset
+class ForgotPassword(BaseModel):
+    email: EmailStr
+
+# Schema for resetting password with a token
+class ResetPassword(BaseModel):
+    token: str
+    password: str

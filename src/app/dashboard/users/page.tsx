@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useApiData } from "@/hooks";
-import { fetchUsers, createUser, inviteUser } from "@/lib";
+import { useApiData, useAuth } from "@/hooks";
+import { fetchUsers, inviteUser, deleteUser } from "@/lib";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,25 +22,13 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Loader2, AlertTriangle, Send } from "lucide-react";
+import { Loader2, AlertTriangle, Send, Trash2 } from "lucide-react";
 import { RoleGuard } from "@/components/auth";
-import { useAuth } from "@/hooks";
+import { api } from "@/lib/api-client";
 
 export default function UsersPage() {
     const { data: users, loading, error, refetch } = useApiData(fetchUsers);
     const { user: currentUser } = useAuth();
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    const [formError, setFormError] = useState<string | null>(null);
-
-    // Form state
-    const [email, setEmail] = useState("");
-    const [fullName, setFullName] = useState("");
-    const [password, setPassword] = useState("");
-    const [role, setRole] = useState("analyst");
-    const [department, setDepartment] = useState("");
-    const [managerId, setManagerId] = useState("");
-    const [isActingAdmin, setIsActingAdmin] = useState(0);
 
     // Invite dialog state
     const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -51,45 +40,10 @@ export default function UsersPage() {
     const [inviteManagerId, setInviteManagerId] = useState("");
     const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
 
-    const resetForm = () => {
-        setEmail("");
-        setFullName("");
-        setPassword("");
-        setRole("analyst");
-        setDepartment("");
-        setManagerId("");
-        setIsActingAdmin(0);
-        setFormError(null);
-    };
-
-    const handleSubmit = useCallback(async () => {
-        setFormError(null);
-
-        if (!email || !fullName || !password) {
-            setFormError("Email, full name, and password are required.");
-            return;
-        }
-
-        setSubmitting(true);
-        try {
-            await createUser({
-                email,
-                full_name: fullName,
-                password,
-                role,
-                department: department || undefined,
-                manager_id: managerId || undefined,
-                is_acting_admin: isActingAdmin,
-            });
-            resetForm();
-            setDialogOpen(false);
-            refetch();
-        } catch (err: any) {
-            setFormError(err?.message || "Failed to create user.");
-        } finally {
-            setSubmitting(false);
-        }
-    }, [email, fullName, password, role, department, managerId, isActingAdmin, refetch]);
+    // Remove user state
+    const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+    const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+    const [confirmRemoveName, setConfirmRemoveName] = useState<string | null>(null);
 
     const resetInviteForm = () => {
         setInviteEmail("");
@@ -128,6 +82,26 @@ export default function UsersPage() {
         }
     }, [inviteEmail, inviteFullName, inviteRole, inviteManagerId, refetch]);
 
+    const handleRemoveUser = useCallback(async (userId: string) => {
+        if (userId === currentUser?.id) {
+            toast.error("You cannot delete your own account");
+            return;
+        }
+
+        setRemovingUserId(userId);
+        try {
+            await deleteUser(userId);
+            toast.success("User deleted");
+            refetch();
+        } catch (err: any) {
+            toast.error(err?.message || "Failed to remove user.");
+        } finally {
+            setRemovingUserId(null);
+            setConfirmRemoveId(null);
+            setConfirmRemoveName(null);
+        }
+    }, [refetch, currentUser?.id]);
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-24">
@@ -153,136 +127,9 @@ export default function UsersPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 mb-1">User Management</h1>
-                    <p className="text-sm text-slate-600">
-                        Manage system users and their roles
-                    </p>
+                    <p className="text-sm text-slate-600">Manage system users and their roles</p>
                 </div>
                 <RoleGuard allowedRoles={['admin']}>
-                    <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-                        <DialogTrigger asChild>
-                            <Button className="gap-2 w-full sm:w-auto">
-                                <Plus className="h-4 w-4" />
-                                Add User
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader>
-                                <DialogTitle>Add New User</DialogTitle>
-                                <DialogDescription>
-                                    Create a new user account. They can use these credentials to log in.
-                                </DialogDescription>
-                            </DialogHeader>
-
-                            <div className="grid gap-4 py-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-700">Full Name *</label>
-                                    <Input
-                                        placeholder="e.g. Jane Doe"
-                                        value={fullName}
-                                        onChange={(e) => setFullName(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-700">Email *</label>
-                                    <Input
-                                        type="email"
-                                        placeholder="e.g. jane@company.com"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-700">Password *</label>
-                                    <Input
-                                        type="password"
-                                        placeholder="Minimum 6 characters"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-700">Role</label>
-                                    <Select value={role} onValueChange={setRole}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="admin">Administrator</SelectItem>
-                                            <SelectItem value="analyst">Risk Analyst</SelectItem>
-                                            <SelectItem value="control_owner">Control Owner</SelectItem>
-                                            <SelectItem value="risk_owner">Risk Owner</SelectItem>
-                                            <SelectItem value="compliance_officer">Compliance Officer</SelectItem>
-                                            <SelectItem value="department_manager">Department Manager</SelectItem>
-                                            <SelectItem value="executive">Executive (CISO/CTO)</SelectItem>
-                                            <SelectItem value="auditor">Auditor (Read-only)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-700">Department</label>
-                                    <Input
-                                        placeholder="e.g. IT, Finance, Operations"
-                                        value={department}
-                                        onChange={(e) => setDepartment(e.target.value)}
-                                    />
-                                </div>
-                                
-                                {currentUser?.role === 'admin' && (
-                                    <>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium text-slate-700">Manager</label>
-                                            <Select value={managerId} onValueChange={setManagerId}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select a manager" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none">None</SelectItem>
-                                                    {users?.filter((u: any) => u.role === 'admin' || u.role === 'manager').map((m: any) => (
-                                                        <SelectItem key={m.id} value={m.id}>{m.full_name} ({m.role})</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="flex items-center gap-2 py-2">
-                                            <input 
-                                                type="checkbox" 
-                                                id="acting-admin"
-                                                checked={isActingAdmin === 1}
-                                                onChange={(e) => setIsActingAdmin(e.target.checked ? 1 : 0)}
-                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <label htmlFor="acting-admin" className="text-sm font-medium text-slate-700">
-                                                Grant Acting Admin Privileges
-                                            </label>
-                                        </div>
-                                    </>
-                                )}
-
-                                {formError && (
-                                    <div className="rounded-md bg-red-50 border border-red-200 p-3">
-                                        <p className="text-sm text-red-700">{formError}</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
-                                    Cancel
-                                </Button>
-                                <Button onClick={handleSubmit} disabled={submitting}>
-                                    {submitting ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                            Creating…
-                                        </>
-                                    ) : (
-                                        "Create User"
-                                    )}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-
                     {/* Invite User Dialog */}
                     <Dialog open={inviteDialogOpen} onOpenChange={(open) => { setInviteDialogOpen(open); if (!open) resetInviteForm(); }}>
                         <DialogTrigger asChild>
@@ -390,13 +237,14 @@ export default function UsersPage() {
                                 <th className="px-6 py-4">Role</th>
                                 <th className="px-6 py-4">Department</th>
                                 <th className="px-6 py-4 text-right">Status</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
                             {users?.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                                        No users found. Click &quot;Add User&quot; to create one.
+                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                                        No users found. Use &quot;Invite User&quot; to add someone.
                                     </td>
                                 </tr>
                             ) : (
@@ -414,23 +262,13 @@ export default function UsersPage() {
                                         <td className="px-6 py-2 sm:py-4">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${{
                                                 admin: 'bg-purple-100 text-purple-700',
+                                                manager: 'bg-green-100 text-green-700',
                                                 analyst: 'bg-blue-100 text-blue-700',
-                                                control_owner: 'bg-teal-100 text-teal-700',
-                                                risk_owner: 'bg-orange-100 text-orange-700',
-                                                compliance_officer: 'bg-indigo-100 text-indigo-700',
-                                                department_manager: 'bg-green-100 text-green-700',
-                                                executive: 'bg-rose-100 text-rose-700',
-                                                auditor: 'bg-slate-100 text-slate-700',
                                             }[user.role as string] || 'bg-slate-100 text-slate-700'}`}>
                                                 {{
                                                     admin: 'Administrator',
+                                                    manager: 'Manager',
                                                     analyst: 'Risk Analyst',
-                                                    control_owner: 'Control Owner',
-                                                    risk_owner: 'Risk Owner',
-                                                    compliance_officer: 'Compliance Officer',
-                                                    department_manager: 'Dept. Manager',
-                                                    executive: 'Executive',
-                                                    auditor: 'Auditor',
                                                 }[user.role as string] || user.role}
                                             </span>
                                         </td>
@@ -438,10 +276,60 @@ export default function UsersPage() {
                                             {user.department || '—'}
                                         </td>
                                         <td className="px-6 py-2 sm:py-4 sm:text-right">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                                }`}>
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs ${
+                                                user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                            }`}>
                                                 {user.is_active ? 'Active' : 'Inactive'}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-2 sm:py-4 sm:text-right">
+                                            {confirmRemoveId === user.id ? (
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <span className="text-xs font-medium text-red-600">
+                                                        Are you sure you want to delete {user.full_name || user.email}? This cannot be undone.
+                                                    </span>
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            disabled={removingUserId === user.id}
+                                                            onClick={() => handleRemoveUser(user.id)}
+                                                        >
+                                                            {removingUserId === user.id ? (
+                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                            ) : (
+                                                                "Delete"
+                                                            )}
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setConfirmRemoveId(null);
+                                                                setConfirmRemoveName(null);
+                                                            }}
+                                                        >
+                                                            Cancel
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    onClick={() => {
+                                                        if (user.id === currentUser?.id) {
+                                                            toast.error("You cannot delete your own account");
+                                                            return;
+                                                        }
+                                                        setConfirmRemoveId(user.id);
+                                                        setConfirmRemoveName(user.full_name || user.email);
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

@@ -1,0 +1,102 @@
+{
+  "description": "ISO 27001 Golden Set Evaluation Dataset for GRC Retrieval & Confidence Gate Calibration",
+  "version": "2.1",
+  "test_cases": [
+    {
+      "id": "tc_001",
+      "query": "multi-factor authentication and role-based access control policy",
+      "expected_annexes": ["A.5.15", "A.5.17", "A.5.18", "A.8.2", "A.8.5"],
+      "expected_keywords": ["mfa", "access control", "rbac", "multi-factor"],
+      "expected_verdict": "accept",
+      "domain": "Access Control"
+    },
+    {
+      "id": "tc_002",
+      "query": "data encryption at rest AES-256 and TLS 1.3 transit requirements",
+      "expected_annexes": ["A.8.24"],
+      "expected_keywords": ["encryption", "aes-256", "tls", "cryptography"],
+      "expected_verdict": "accept",
+      "domain": "Cryptography"
+    },
+    {
+      "id": "tc_003",
+      "query": "security incident response procedure 4 hour reporting window",
+      "expected_annexes": ["A.5.24", "A.5.25", "A.5.26"],
+      "expected_keywords": ["incident response", "incident management", "reporting"],
+      "expected_verdict": "accept",
+      "domain": "Incident Management"
+    },
+    {
+      "id": "tc_004",
+      "query": "background screening non-disclosure agreement human resource security",
+      "expected_annexes": ["A.6.1", "A.6.2"],
+      "expected_keywords": ["screening", "background check", "nda", "human resource"],
+      "expected_verdict": "accept",
+      "domain": "Human Resource Security"
+    },
+    {
+      "id": "tc_005",
+      "query": "audit log monitoring SIEM privileged access logging integrity",
+      "expected_annexes": ["A.8.15", "A.8.16"],
+      "expected_keywords": ["logging", "audit log", "monitoring", "siem"],
+      "expected_verdict": "accept",
+      "domain": "Logging & Monitoring"
+    },
+    {
+      "id": "tc_006",
+      "query": "biometric access control CCTV server room physical security perimeter",
+      "expected_annexes": ["A.7.1", "A.7.2", "A.7.4"],
+      "expected_keywords": ["physical security", "perimeter", "cctv", "biometric"],
+      "expected_verdict": "accept",
+      "domain": "Physical Security"
+    },
+    {
+      "id": "tc_007",
+      "query": "disaster recovery quarterly drill RTO 4 hours business continuity",
+      "expected_annexes": ["A.5.29", "A.5.30"],
+      "expected_keywords": ["business continuity", "disaster recovery", "rto"],
+      "expected_verdict": "accept",
+      "domain": "Business Continuity"
+    },
+    {
+      "id": "tc_008",
+      "query": "automated vulnerability scan 72 hour patch management penetration testing",
+      "expected_annexes": ["A.8.8"],
+      "expected_keywords": ["vulnerability management", "patching", "vulnerability scan"],
+      "expected_verdict": "accept",
+      "domain": "Vulnerability Management"
+    },
+    {
+      "id": "tc_amb_009",
+      "query": "role-based access control policy and password authentication credentials rules",
+      "expected_annexes": ["A.5.15", "A.5.17"],
+      "expected_keywords": ["access control", "authentication", "credentials", "rbac"],
+      "expected_verdict": "needs_review",
+      "domain": "Ambiguous Access Control"
+    },
+    {
+      "id": "tc_amb_010",
+      "query": "information classification labeling and data backup recovery guidelines",
+      "expected_annexes": ["A.5.12", "A.8.13"],
+      "expected_keywords": ["classification", "labeling", "backup"],
+      "expected_verdict": "needs_review",
+      "domain": "Ambiguous Data Management"
+    },
+    {
+      "id": "tc_neg_011",
+      "query": "cafeteria lunch menu options and office coffee machine maintenance schedule",
+      "expected_annexes": [],
+      "expected_keywords": [],
+      "expected_verdict": "insufficient_evidence",
+      "domain": "Out-of-Domain / Negative"
+    },
+    {
+      "id": "tc_neg_012",
+      "query": "company annual holiday party reservation and employee travel expense policy",
+      "expected_annexes": [],
+      "expected_keywords": [],
+      "expected_verdict": "insufficient_evidence",
+      "domain": "Out-of-Domain / Negative"
+    }
+  ]
+}

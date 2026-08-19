@@ -31,8 +31,11 @@ class Control(Base):
     effectiveness = Column(SAEnum(ControlEffectiveness), nullable=False)
     status = Column(SAEnum(ControlStatus), default=ControlStatus.planned)
     
+    linked_risk_id = Column(UUID(as_uuid=True), ForeignKey("risks.id"), nullable=True)
+    
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -40,6 +43,7 @@ class Control(Base):
     # Relationships
     owner = relationship("User", foreign_keys=[owner_id])
     creator = relationship("User", foreign_keys=[created_by])
+    organization = relationship("Organization")
     risk_mappings = relationship("RiskControlMapping", back_populates="control")
 
 

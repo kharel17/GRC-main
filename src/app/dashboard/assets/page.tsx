@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { RoleGuard } from "@/components/auth/RoleGuard";
+import { NewAssetDialog } from "@/features/asset/NewAssetDialog";
 import type { Asset, AssetType, AssetCriticality, AssetClassification, TicketActivity } from "@/types";
 import { Ticket } from "@/types"; // Just in case, ensuring they are exported from index.ts
 
@@ -42,6 +44,7 @@ export default function AssetsPage() {
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedRiskId, setSelectedRiskId] = useState<string>("");
   const [linking, setLinking] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const handleLinkRisk = async () => {
     if (!selectedAssetId || !selectedRiskId) return;
@@ -84,37 +87,87 @@ export default function AssetsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Asset Identification</h1>
           <p className="text-muted-foreground text-sm">Inventory of all critical organizational assets and their classifications.</p>
         </div>
+        <RoleGuard allowedRoles={['admin', 'manager']}>
+          <Button onClick={() => setIsRegistering(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Register Asset
+          </Button>
+        </RoleGuard>
       </div>
 
+      {/* Dynamic Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="shadow-sm hover:shadow-md transition-shadow border-slate-200 dark:border-slate-800">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{assets?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">Total Assets</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Assets</p>
+                <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">
+                  {assets?.length || 0}
+                </div>
+              </div>
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl">
+                <Boxes className="h-6 w-6" />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-3">Registered organization assets</p>
           </CardContent>
         </Card>
-        <Card>
+
+        <Card className="shadow-sm hover:shadow-md transition-shadow border-slate-200 dark:border-slate-800">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-red-600">
-              {assets?.filter(a => a.criticality === 'critical').length || 0}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Critical & High Assets</p>
+                <div className="text-3xl font-extrabold text-red-600 dark:text-red-400 mt-1">
+                  {assets?.filter(a => {
+                    const c = (a.criticality || '').toLowerCase();
+                    return c === 'critical' || c === 'high';
+                  }).length || 0}
+                </div>
+              </div>
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl">
+                <ShieldAlert className="h-6 w-6" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Critical Assets</p>
+            <p className="text-[11px] text-muted-foreground mt-3">High risk exposure priority</p>
           </CardContent>
         </Card>
-        <Card>
+
+        <Card className="shadow-sm hover:shadow-md transition-shadow border-slate-200 dark:border-slate-800">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-orange-600">
-              {assets?.filter(a => a.classification === 'restricted').length || 0}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Restricted & Confidential</p>
+                <div className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
+                  {assets?.filter(a => {
+                    const cls = (a.classification || '').toLowerCase();
+                    return cls === 'restricted' || cls === 'confidential';
+                  }).length || 0}
+                </div>
+              </div>
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl">
+                <Database className="h-6 w-6" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Restricted Data Items</p>
+            <p className="text-[11px] text-muted-foreground mt-3">Sensitive data & IP items</p>
           </CardContent>
         </Card>
-        <Card>
+
+        <Card className="shadow-sm hover:shadow-md transition-shadow border-slate-200 dark:border-slate-800">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">
-              {assets?.filter(a => a.status === 'active').length || 0}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active Assets</p>
+                <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
+                  {assets?.filter(a => (a.status || 'active').toLowerCase() === 'active').length || 0}
+                </div>
+              </div>
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                <HardDrive className="h-6 w-6" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Active Assets</p>
+            <p className="text-[11px] text-muted-foreground mt-3">Currently in operational use</p>
           </CardContent>
         </Card>
       </div>
@@ -207,8 +260,18 @@ export default function AssetsPage() {
               ))}
               {(!assets || assets.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                    No assets found in the register.
+                  <TableCell colSpan={8} className="text-center py-20">
+                    <Boxes className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">No assets registered</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                      Register hardware, software, and data assets to assess their risk
+                    </p>
+                    <RoleGuard allowedRoles={['admin', 'manager']}>
+                      <Button onClick={() => toast.info("Asset registration logic coming in next update")} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Register First Asset
+                      </Button>
+                    </RoleGuard>
                   </TableCell>
                 </TableRow>
               )}
@@ -257,6 +320,12 @@ export default function AssetsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewAssetDialog 
+        open={isRegistering} 
+        onOpenChange={setIsRegistering} 
+        onSuccess={refetchAssets} 
+      />
     </div>
   );
 }

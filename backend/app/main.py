@@ -75,52 +75,145 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Global Exception Handler ──────────────────────────────
+# Ensures CORS headers are present even on unhandled 500 errors.
+# Without this, the browser blocks 500 responses as CORS violations,
+# causing "Failed to fetch" instead of showing the actual error.
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    origin = request.headers.get("origin", "")
+    headers = {}
+    cors_origins = settings.BACKEND_CORS_ORIGINS or allowed_origins
+    if origin in cors_origins or "*" in cors_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"},
+        headers=headers,
+    )
+
 # ── AI Service Initialization ─────────────────────────────
 from app.services.ai_service import ai_service
 
+import threading
+
 @app.on_event("startup")
 async def startup_ai_service():
-    """Initialize the AI semantic engine on server startup."""
-    try:
-        ai_service.initialize()
-        logger.info("AI Service initialized successfully")
-    except Exception as e:
-        logger.warning(f"AI Service failed to initialize: {e}. AI endpoints will return 503.")
+    """Initialize the AI semantic engine on server startup in background."""
 
-# ── Platform Team Role Fix ─────────────────────────────────
+    # ── Data Residency — runs synchronously, before any model loads ────────────
+    # If DATA_RESIDENCY_MODE=strict, this hard-fails the process on any violation.
+    from app.services.data_residency import validate_data_residency
+    validate_data_residency(settings)  # raises DataResidencyError (RuntimeError) on violation
+
+    def run_init():
+        try:
+            ai_service.initialize()
+            logger.info("AI Service initialized successfully in background")
+            asyncio.run(ai_service.sync_vector_store())
+
+            # Initialize CrossEncoder reranker after the main model loads
+            from app.services.retrieval_service import retrieval_service
+            retrieval_service.initialize()
+        except Exception as e:
+            logger.warning(f"AI Service background initialization failed: {e}. AI endpoints will return 503.")
+
+    # Run in a separate thread so it doesn't block the FastAPI startup event
+    # and prevents ERR_CONNECTION_REFUSED while the model downloads/loads.
+    threading.Thread(target=run_init, daemon=True).start()
+    logger.info("AI Service initialization triggered in background thread")
+
+
+import asyncio
+
+# ── Real User Role Fix ──────────────────────────────────────
 @app.on_event("startup")
-async def fix_platform_team_roles():
-    """Ensure platform team accounts always have correct admin roles."""
+async def real_user_role_fix_startup():
+    """Wrapper to run role fix in background to avoid blocking server startup."""
+    asyncio.create_task(fix_real_user_roles())
+    logger.info("Real user role fix scheduled in background")
+
+async def fix_real_user_roles():
+    """Ensure active developer/admin accounts always have correct admin roles and are linked to the real organization."""
     from sqlalchemy import select
     from app.database import SessionLocal
     from app import models
 
+    REAL_ORG_ID = uuid.UUID("24de3639-ee40-4563-a207-dd66436a0da8")
     ROLE_OVERRIDE_MAP = {
-        "alice@company.com":   models.UserRole.admin,
-        "carol@company.com":   models.UserRole.manager,
-        "bob@company.com":     models.UserRole.analyst,
         "bcolorc17@gmail.com": models.UserRole.admin,
         "grchelios@gmail.com": models.UserRole.admin,
     }
 
     try:
         async with SessionLocal() as db:
+            # Check if real organization exists
+            org_result = await db.execute(
+                select(models.Organization).where(models.Organization.id == REAL_ORG_ID)
+            )
+            real_org = org_result.scalar_one_or_none()
+
             for email, role in ROLE_OVERRIDE_MAP.items():
                 result = await db.execute(
                     select(models.User).where(models.User.email == email)
                 )
                 user = result.scalar_one_or_none()
-                if user and user.role != role:
-                    user.role = role
-                    user.invitation_status = 'active'
-                    await db.commit()
-                    logger.info(f"Fixed role: {email} → {role.value}")
-                elif user and user.invitation_status != 'active':
-                    user.invitation_status = 'active'
-                    await db.commit()
-                    logger.info(f"Activated user: {email}")
+                
+                if user:
+                    needs_update = False
+                    if user.role != role:
+                        user.role = role
+                        needs_update = True
+                        logger.info(f"Startup check: Fixed role for {email} → {role.value}")
+                    
+                    if user.invitation_status != 'active':
+                        user.invitation_status = 'active'
+                        needs_update = True
+                        logger.info(f"Startup check: Activated user {email}")
+                    
+                    # Associate real users with the real organization
+                    if real_org:
+                        if user.organization_id != REAL_ORG_ID:
+                            user.organization_id = REAL_ORG_ID
+                            user.organization_name = real_org.name
+                            needs_update = True
+                            logger.info(f"Startup check: Associated {email} with real organization ({real_org.name})")
+
+                    if needs_update:
+                        await db.flush()
+            
+            await db.commit()
     except Exception as e:
-        logger.warning(f"Platform team role fix skipped: {e}")
+        logger.warning(f"Real user role fix skipped: {e}")
+
+
+# ── Job Queue Recovery ─────────────────────────────────────
+@app.on_event("startup")
+async def recover_ingestion_jobs_on_startup():
+    """
+    On startup, re-enqueue any document ingestion jobs that were interrupted
+    by the previous server shutdown (i.e. status=processing with a
+    queued_payload in analysis_result).  Runs asynchronously so it does not
+    delay the server being ready to accept requests.
+    """
+    asyncio.create_task(_run_job_recovery())
+    logger.info("Job queue recovery scheduled in background")
+
+
+async def _run_job_recovery():
+    from app.database import SessionLocal
+    from app.ingestion.job_queue import recover_pending_jobs
+    try:
+        async with SessionLocal() as db:
+            count = await recover_pending_jobs(db)
+            if count:
+                logger.info(f"Job queue recovery: {count} job(s) re-enqueued ✓")
+    except Exception as exc:
+        logger.warning(f"Job queue recovery failed: {exc}")
 
 
 # ── Health Check ───────────────────────────────────────────

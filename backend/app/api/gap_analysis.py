@@ -40,6 +40,7 @@ async def get_gap_analysis(
 ) -> Any:
     """
     Generate a comprehensive gap analysis report.
+    Scoped to current user's organization.
     
     Combines:
     - Control applicability status
@@ -48,13 +49,11 @@ async def get_gap_analysis(
     
     Returns missing controls, weak controls, and priority fixes.
     """
-    # Get organization
-    org_result = await db.execute(select(models.Organization).limit(1))
-    org = org_result.scalars().first()
-    if not org:
-        raise HTTPException(status_code=404, detail="No organization configured")
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
     
-    report = await generate_gap_report(db, org.id)
+    report = await generate_gap_report(db, org_id)
     return report.to_dict()
 
 
@@ -69,19 +68,19 @@ async def create_tickets_from_gap_analysis(
 ) -> Any:
     """
     Create remediation tickets from gap findings (Step 6 integration).
+    Scoped to current user's organization.
     
     By default creates tickets for all critical and high severity gaps.
     Optionally specify specific control annexes to create tickets for.
     Skips controls that already have active tickets.
     """
-    org_result = await db.execute(select(models.Organization).limit(1))
-    org = org_result.scalars().first()
-    if not org:
-        raise HTTPException(status_code=404, detail="No organization configured")
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
     
     tickets = await create_tickets_from_gaps(
         db=db,
-        organization_id=org.id,
+        organization_id=org_id,
         created_by=current_user,
         gap_annexes=request.gap_annexes,
         max_tickets=request.max_tickets,

@@ -235,16 +235,17 @@ export default function TicketsPage() {
         Showing {filteredTickets.length} of {allTickets.length} tickets
       </div>
 
-      {/* Tickets Grid or Empty State */}
       {filteredTickets.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <Ticket className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-            <h3 className="text-sm font-medium text-foreground mb-1">No tickets found</h3>
-            <p className="text-sm text-muted-foreground mb-4">
+            <Ticket className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
+              {hasActiveFilters ? 'No tickets found' : 'No tickets open'}
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
               {hasActiveFilters
                 ? 'Try adjusting your filters to see more results.'
-                : 'Create your first escalation ticket to get started.'}
+                : 'Issues and gaps will appear here for resolution'}
             </p>
             {hasActiveFilters && (
               <Button variant="outline" size="sm" onClick={clearFilters}>

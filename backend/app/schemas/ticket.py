@@ -118,6 +118,8 @@ class TicketUpdate(BaseModel):
     resolved_at: Optional[datetime] = None
     escalated_at: Optional[datetime] = None
 
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
 class TicketResolution(BaseModel):
     resolution_notes: str
 
@@ -125,6 +127,7 @@ class EvidenceRequest(BaseModel):
     comment_text: str
 
 class TicketInDBBase(TicketBase):
+    source_audit_log_id: Optional[UUID] = None
     id: UUID
     created_at: datetime
     updated_at: datetime

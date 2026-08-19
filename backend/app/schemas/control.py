@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 from uuid import UUID
 from app.models.control import ControlType, ControlEffectiveness, ControlStatus
 
@@ -10,7 +11,10 @@ class ControlBase(BaseModel):
     control_type: ControlType
     effectiveness: ControlEffectiveness
     status: ControlStatus = ControlStatus.planned
-    owner_id: str
+    linked_risk_id: Optional[UUID] = None
+    owner_id: Optional[UUID] = None
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 class ControlCreate(ControlBase):
     pass
@@ -21,16 +25,18 @@ class ControlUpdate(BaseModel):
     control_type: Optional[ControlType] = None
     effectiveness: Optional[ControlEffectiveness] = None
     status: Optional[ControlStatus] = None
-    owner_id: Optional[str] = None
+    linked_risk_id: Optional[UUID] = None
+    owner_id: Optional[UUID] = None
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 class ControlInDBBase(ControlBase):
     id: UUID
-    created_by: UUID
+    created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 class Control(ControlInDBBase):
     pass

@@ -36,6 +36,22 @@ def _get_client_ip(request: Optional[Request] = None) -> Optional[str]:
     return None
 
 
+def serialize_data(data: Any) -> Any:
+    """Recursively convert non-serializable objects (UUIDs, Enums, datetimes) to JSON-safe formats."""
+    if isinstance(data, dict):
+        return {k: serialize_data(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [serialize_data(i) for i in data]
+    elif isinstance(data, UUID):
+        return str(data)
+    elif isinstance(data, datetime):
+        return data.isoformat()
+    elif hasattr(data, "value") and not isinstance(data, (str, int, float, bool, type(None))):
+        # Handle Enum members by taking their .value
+        return data.value
+    return data
+
+
 async def log_action(
     db: AsyncSession,
     user: models.User,
@@ -69,14 +85,18 @@ async def log_action(
     """
     resolved_ip = ip_address or _get_client_ip(request)
 
+    # Convert potentially non-serializable objects to strings/primitives
+    safe_old_values = serialize_data(old_values) if old_values else None
+    safe_new_values = serialize_data(new_values) if new_values else None
+
     audit_log = models.AuditLog(
         user_id=user.id,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
         entity_name=entity_name,
-        old_values=old_values,
-        new_values=new_values,
+        old_values=safe_old_values,
+        new_values=safe_new_values,
         description=description,
         ip_address=resolved_ip,
     )
@@ -133,6 +153,20 @@ async def get_readiness_score(db: AsyncSession, organization_id: UUID) -> Dict[s
     }
 
 
+def _clean_pdf_text(text: Optional[Any]) -> str:
+    """Sanitize string for FPDF standard latin-1 font rendering."""
+    if text is None:
+        return ""
+    val = str(text)
+    replacements = {
+        '“': '"', '”': '"', '‘': "'", '’': "'",
+        '—': '-', '–': '-', '…': '...', '•': '*', '\u200b': ''
+    }
+    for orig, repl in replacements.items():
+        val = val.replace(orig, repl)
+    return val.encode('latin-1', errors='replace').decode('latin-1')
+
+
 async def export_soa_report(db: AsyncSession, organization_id: UUID, format: str = "pdf") -> bytes:
     """Export a professional Statement of Applicability (SoA) artifact."""
     ca_result = await db.execute(
@@ -144,7 +178,7 @@ async def export_soa_report(db: AsyncSession, organization_id: UUID, format: str
     # Get organization info
     org_res = await db.execute(select(models.Organization).where(models.Organization.id == organization_id))
     organization = org_res.scalar()
-    org_name = organization.name if organization else "Unknown Organization"
+    org_name = organization.name if organization else "Organization"
 
     if format == "csv":
         output = io.StringIO()
@@ -153,16 +187,17 @@ async def export_soa_report(db: AsyncSession, organization_id: UUID, format: str
         writer.writerow([])
         writer.writerow(["Annex", "Applicable", "Status", "Justification"])
         for annex, ca in sorted(ca_records.items()):
-            writer.writerow([annex, ca.applicable, ca.status.value, ca.justification])
+            status_val = ca.status.value if (ca and ca.status and hasattr(ca.status, 'value')) else str(getattr(ca, 'status', 'not_started'))
+            writer.writerow([annex, getattr(ca, 'applicable', True), status_val, getattr(ca, 'justification', '')])
         return output.getvalue().encode('utf-8')
 
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", "B", 18)
-    pdf.cell(0, 15, "Statement of Applicability (SoA)", ln=True, align="C")
+    pdf.cell(0, 15, _clean_pdf_text("Statement of Applicability (SoA)"), ln=True, align="C")
     pdf.set_font("helvetica", "", 12)
-    pdf.cell(0, 10, f"Organization: {org_name}", ln=True, align="C")
-    pdf.cell(0, 10, f"Scope: ISO 27001:2022", ln=True, align="C")
+    pdf.cell(0, 10, _clean_pdf_text(f"Organization: {org_name}"), ln=True, align="C")
+    pdf.cell(0, 10, _clean_pdf_text("Scope: ISO 27001:2022"), ln=True, align="C")
     pdf.ln(10)
 
     pdf.set_font("helvetica", "B", 10)
@@ -173,12 +208,17 @@ async def export_soa_report(db: AsyncSession, organization_id: UUID, format: str
 
     pdf.set_font("helvetica", "", 8)
     for annex, ca in sorted(ca_records.items()):
-        pdf.cell(30, 8, annex, border=1)
-        pdf.cell(30, 8, "Yes" if ca.applicable else "No", border=1)
-        pdf.cell(40, 8, ca.status.value.upper(), border=1)
-        pdf.cell(90, 8, (str(ca.justification) or "N/A")[:60], border=1, ln=True)
+        is_app = getattr(ca, 'applicable', True)
+        st = ca.status.value if (ca and ca.status and hasattr(ca.status, 'value')) else str(getattr(ca, 'status', 'not_started'))
+        just = getattr(ca, 'justification', '') or "N/A"
+        
+        pdf.cell(30, 8, _clean_pdf_text(annex), border=1)
+        pdf.cell(30, 8, "Yes" if is_app else "No", border=1)
+        pdf.cell(40, 8, _clean_pdf_text(st.upper()), border=1)
+        pdf.cell(90, 8, _clean_pdf_text(just[:60]), border=1, ln=True)
 
-    return pdf.output()
+    out = pdf.output()
+    return bytes(out) if isinstance(out, (bytearray, bytes)) else str(out).encode('latin-1', errors='replace')
 
 
 async def export_risk_register(db: AsyncSession, organization_id: UUID, format: str = "pdf") -> bytes:
@@ -190,7 +230,7 @@ async def export_risk_register(db: AsyncSession, organization_id: UUID, format: 
     
     org_res = await db.execute(select(models.Organization).where(models.Organization.id == organization_id))
     organization = org_res.scalar()
-    org_name = organization.name if organization else "Unknown Organization"
+    org_name = organization.name if organization else "Organization"
 
     if format == "csv":
         output = io.StringIO()
@@ -199,15 +239,16 @@ async def export_risk_register(db: AsyncSession, organization_id: UUID, format: 
         writer.writerow([])
         writer.writerow(["ID", "Title", "Likelihood", "Impact", "Score", "Status"])
         for r in risks:
-            writer.writerow([str(r.id)[:8], r.title, r.likelihood, r.impact, r.risk_score, r.status.value])
+            st = r.status.value if (r.status and hasattr(r.status, 'value')) else str(r.status or 'open')
+            writer.writerow([str(r.id)[:8], r.title, r.likelihood, r.impact, r.risk_score, st])
         return output.getvalue().encode('utf-8')
 
     pdf = FPDF()
     pdf.add_page("L") # Landscape for risk register
     pdf.set_font("helvetica", "B", 18)
-    pdf.cell(0, 15, "Organizational Risk Register", ln=True, align="C")
+    pdf.cell(0, 15, _clean_pdf_text("Organizational Risk Register"), ln=True, align="C")
     pdf.set_font("helvetica", "", 12)
-    pdf.cell(0, 10, f"Organization: {org_name}", ln=True, align="C")
+    pdf.cell(0, 10, _clean_pdf_text(f"Organization: {org_name}"), ln=True, align="C")
     pdf.ln(10)
 
     pdf.set_font("helvetica", "B", 10)
@@ -220,14 +261,16 @@ async def export_risk_register(db: AsyncSession, organization_id: UUID, format: 
 
     pdf.set_font("helvetica", "", 9)
     for r in risks:
-        pdf.cell(20, 10, str(r.id)[:8], border=1)
-        pdf.cell(100, 10, (str(r.title) or "")[:60], border=1)
-        pdf.cell(30, 10, str(r.likelihood), border=1, align="C")
-        pdf.cell(30, 10, str(r.impact), border=1, align="C")
-        pdf.cell(30, 10, str(r.risk_score), border=1, align="C")
-        pdf.cell(50, 10, r.status.value.upper() if hasattr(r.status, "value") else str(r.status).upper(), border=1, ln=True)
+        st = r.status.value if (r.status and hasattr(r.status, 'value')) else str(r.status or 'open')
+        pdf.cell(20, 10, _clean_pdf_text(str(r.id)[:8]), border=1)
+        pdf.cell(100, 10, _clean_pdf_text((r.title or "")[:60]), border=1)
+        pdf.cell(30, 10, str(r.likelihood or 1), border=1, align="C")
+        pdf.cell(30, 10, str(r.impact or 1), border=1, align="C")
+        pdf.cell(30, 10, str(r.risk_score or 1), border=1, align="C")
+        pdf.cell(50, 10, _clean_pdf_text(st.upper()), border=1, ln=True)
 
-    return pdf.output()
+    out = pdf.output()
+    return bytes(out) if isinstance(out, (bytearray, bytes)) else str(out).encode('latin-1', errors='replace')
 
 
 async def export_audit_report(db: AsyncSession, organization_id: UUID, format: str = "pdf") -> bytes:
@@ -242,7 +285,7 @@ async def export_audit_report(db: AsyncSession, organization_id: UUID, format: s
     # Get organization info
     org_res = await db.execute(select(models.Organization).where(models.Organization.id == organization_id))
     organization = org_res.scalar()
-    org_name = organization.name if organization else "Unknown Organization"
+    org_name = organization.name if organization else "Organization"
 
     if format == "csv":
         output = io.StringIO()
@@ -250,8 +293,8 @@ async def export_audit_report(db: AsyncSession, organization_id: UUID, format: s
         writer.writerow(["ISO 27001 Readiness Report", org_name, datetime.utcnow().isoformat()])
         writer.writerow([])
         writer.writerow(["Summary"])
-        writer.writerow(["Compliance %", readiness["compliance_percentage"]])
-        writer.writerow(["Weighted Readiness", readiness["weighted_readiness"]])
+        writer.writerow(["Compliance %", readiness.get("compliance_percentage", 0)])
+        writer.writerow(["Weighted Readiness", readiness.get("weighted_readiness", 0)])
         writer.writerow([])
         writer.writerow(["Gap Findings"])
         writer.writerow(["Control Annex", "Control Title", "Severity", "Status", "Reason"])
@@ -265,9 +308,9 @@ async def export_audit_report(db: AsyncSession, organization_id: UUID, format: s
     
     # Header
     pdf.set_font("helvetica", "B", 20)
-    pdf.cell(0, 10, "ISO 27001 Readiness Report", ln=True, align="C")
+    pdf.cell(0, 10, _clean_pdf_text("ISO 27001 Readiness Report"), ln=True, align="C")
     pdf.set_font("helvetica", "", 12)
-    pdf.cell(0, 10, f"Organization: {org_name}", ln=True, align="C")
+    pdf.cell(0, 10, _clean_pdf_text(f"Organization: {org_name}"), ln=True, align="C")
     pdf.cell(0, 10, f"Date: {datetime.utcnow().strftime('%Y-%m-%d')}", ln=True, align="C")
     pdf.ln(10)
     
@@ -275,10 +318,10 @@ async def export_audit_report(db: AsyncSession, organization_id: UUID, format: s
     pdf.set_font("helvetica", "B", 16)
     pdf.cell(0, 10, "1. Executive Summary", ln=True)
     pdf.set_font("helvetica", "", 12)
-    pdf.cell(0, 8, f"Compliance Percentage: {readiness['compliance_percentage']}%", ln=True)
-    pdf.cell(0, 8, f"Risk-Weighted Readiness: {readiness['weighted_readiness']}%", ln=True)
-    pdf.cell(0, 8, f"Applicable Controls: {readiness['applicable_controls']}", ln=True)
-    pdf.cell(0, 8, f"Implemented Controls: {readiness['implemented_controls']}", ln=True)
+    pdf.cell(0, 8, f"Compliance Percentage: {readiness.get('compliance_percentage', 0)}%", ln=True)
+    pdf.cell(0, 8, f"Risk-Weighted Readiness: {readiness.get('weighted_readiness', 0)}%", ln=True)
+    pdf.cell(0, 8, f"Applicable Controls: {readiness.get('applicable_controls', 0)}", ln=True)
+    pdf.cell(0, 8, f"Implemented Controls: {readiness.get('implemented_controls', 0)}", ln=True)
     pdf.ln(10)
     
     # Gaps Section
@@ -293,13 +336,14 @@ async def export_audit_report(db: AsyncSession, organization_id: UUID, format: s
     
     pdf.set_font("helvetica", "", 9)
     for gap in report.gaps[:20]: # Show top 20 gaps
-        pdf.cell(30, 8, gap.control_annex, border=1)
-        pdf.cell(90, 8, gap.control_title[:50], border=1)
-        pdf.cell(30, 8, gap.severity.upper(), border=1)
-        pdf.cell(40, 8, gap.current_status, border=1, ln=True)
+        pdf.cell(30, 8, _clean_pdf_text(gap.control_annex), border=1)
+        pdf.cell(90, 8, _clean_pdf_text((gap.control_title or "")[:50]), border=1)
+        pdf.cell(30, 8, _clean_pdf_text((gap.severity or "").upper()), border=1)
+        pdf.cell(40, 8, _clean_pdf_text(gap.current_status or "Not Started"), border=1, ln=True)
         
     pdf.ln(10)
     pdf.set_font("helvetica", "I", 8)
     pdf.cell(0, 10, "Generated by GRC Platform Advanced Audit Module", align="C")
     
-    return pdf.output()
+    out = pdf.output()
+    return bytes(out) if isinstance(out, (bytearray, bytes)) else str(out).encode('latin-1', errors='replace')

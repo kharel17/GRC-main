@@ -52,6 +52,7 @@ export interface Organization {
   compliance_target_date?: string
   primaryContactId?: string
   complianceFrameworks?: string[]
+  compliance_frameworks?: string[]
   created_at?: string
   createdAt?: string // alias
   updated_at?: string
@@ -153,7 +154,7 @@ export interface ComplianceItem {
 export type ComplianceItemPriority = 'critical' | 'high' | 'medium' | 'low' | string
 
 export type EvidenceStatus = 
-  'submitted' | 'under_review' | 
+  'submitted' | 'under_review' | 'pending' |
   'verified' | 'rejected' | 'expired' | 'active'
 
 export interface Evidence {
@@ -174,6 +175,8 @@ export interface Evidence {
   uploadedByName?: string // alias
   uploaded_at: string
   confidence_score: number
+  ai_summary?: string
+  matched_iso_clause?: string
   status: EvidenceStatus
   valid_until?: string
   verified?: boolean
@@ -209,8 +212,8 @@ export interface AuditLog {
   description?: string
   userName?: string
   timestamp?: string
-  oldValues?: any
-  newValues?: any
+  oldValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
   ipAddress?: string
   created_at?: string
   createdAt?: string // alias
@@ -334,6 +337,7 @@ export interface DocumentAnalysis {
   id: string
   organization_id?: string
   organizationId?: string // alias
+  file_name?: string
   document_name?: string
   fileName?: string // alias
   status?: string
@@ -341,9 +345,23 @@ export interface DocumentAnalysis {
   analyzedAt?: string
   iso_clauses?: string[]
   confidence_score?: number
-  findings?: string[]
-  implementedControls?: any[]
-  missingControls?: any[]
+  findings?: Array<{
+    clause: string
+    finding: string
+    action: string
+    severity: 'high' | 'medium' | 'low'
+  }>
+  implemented_controls?: Array<{
+    annex: string
+    title: string
+    evidence_found?: string
+  }>
+  missing_controls?: Array<{
+    annex: string
+    title: string
+    reason?: string
+  }>
+  summary?: string
   created_at?: string
   createdAt?: string // alias
 }

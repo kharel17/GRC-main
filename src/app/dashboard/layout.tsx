@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
+import { useSidebarCollapse } from "@/context/SidebarContext";
 
 export default function DashboardLayout({
   children,
@@ -15,6 +16,7 @@ export default function DashboardLayout({
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
+  const { collapsed } = useSidebarCollapse();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Redirect to login if not authenticated
@@ -31,10 +33,13 @@ export default function DashboardLayout({
         setOnboardingChecked(true);
         return;
       }
+      
+      const isOnOrganizationPage = window.location.pathname === '/dashboard/organization';
+      
       try {
         const status = await api.get<{ completed: boolean }>("/onboarding/status");
-        if (!status.completed) {
-          router.push("/onboarding");
+        if (!status.completed && !isOnOrganizationPage) {
+          router.push("/dashboard/organization");
           return;
         }
       } catch {
@@ -48,8 +53,8 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, user, router]);
 
-  // Show loading state while checking auth or onboarding
-  if (isLoading || (!onboardingChecked && isAuthenticated)) {
+  // Show loading state ONLY while waiting for base authentication to initialize
+  if (isLoading) {
     return (
       <div className="h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -68,7 +73,11 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-muted/40">
       <Sidebar />
-      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
+      <div
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${
+          collapsed ? 'md:ml-[68px]' : 'md:ml-64'
+        }`}
+      >
         <Header user={user} title="Dashboard" />
         <main className="flex-1 overflow-auto">
           <div className="p-6 max-w-7xl mx-auto">{children}</div>
@@ -77,3 +86,4 @@ export default function DashboardLayout({
     </div>
   );
 }
+

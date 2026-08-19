@@ -23,10 +23,16 @@ async def read_tickets(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Retrieve tickets.
+    Retrieve tickets. Scoped to current user's organization.
     """
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     # Server-side role scoping (Spec Section 3 & 6)
-    query = select(models.Ticket).options(
+    query = select(models.Ticket).where(
+        models.Ticket.organization_id == org_id
+    ).options(
         selectinload(models.Ticket.comments).joinedload(models.TicketComment.author),
         selectinload(models.Ticket.activities),
         selectinload(models.Ticket.assignee),
@@ -39,8 +45,6 @@ async def read_tickets(
         query = query.where(models.Ticket.assigned_to_id == current_user.id)
     elif current_user.role == models.UserRole.manager:
         # Manager sees team tickets
-        # 1. Assigned to self
-        # 2. Assigned to subordinates
         sub_query = select(models.User.id).where(models.User.manager_id == current_user.id)
         sub_res = await db.execute(sub_query)
         sub_ids = [uid for uid in sub_res.scalars().all()]
@@ -48,7 +52,7 @@ async def read_tickets(
             (models.Ticket.assigned_to_id == current_user.id) | 
             (models.Ticket.assigned_to_id.in_(sub_ids))
         )
-    # Admin sees all (no filter)
+    # Admin sees all within org (no additional filter)
 
     result = await db.execute(query.offset(skip).limit(limit))
     return result.scalars().all()
@@ -61,11 +65,20 @@ async def create_ticket(
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
-    Create new ticket.
+    Create new ticket. Org ID is injected from current user.
     """
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    # Override organization_id from user context
+    ticket_data = ticket_in.model_dump()
+    ticket_data['organization_id'] = org_id
+    scoped_ticket_in = schemas.TicketCreate(**ticket_data)
+
     return await TicketService.create_ticket(
         db=db,
-        ticket_in=ticket_in,
+        ticket_in=scoped_ticket_in,
         current_user_id=current_user.id
     )
 
@@ -77,8 +90,9 @@ async def create_ticket_from_ai(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Module A: AI Ingestion Layer
-    Creates a ticket based on AI findings with ISO mapping and repeat checks.
+    Module A: Rule-Based Finding Ingestion
+    Creates a ticket based on incoming security findings using deterministic keyword-matching
+    rules for ISO clause mapping and repeat checks.
     """
     return await TicketService.process_ai_finding(
         db=db,
@@ -97,11 +111,16 @@ async def read_ticket(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
-    Get ticket by ID.
+    Get ticket by ID. Scoped to current user's organization.
     """
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
     result = await db.execute(
         select(models.Ticket)
         .where(models.Ticket.id == id)
+        .where(models.Ticket.organization_id == org_id)
         .options(
             selectinload(models.Ticket.comments).joinedload(models.TicketComment.author),
             selectinload(models.Ticket.activities),
@@ -121,10 +140,31 @@ async def update_ticket(
     db: AsyncSession = Depends(deps.get_db),
     id: UUID,
     ticket_in: schemas.TicketUpdate,
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
     Update a ticket.
+    """
+    ticket = await TicketService.update_ticket(
+        db=db,
+        ticket_id=id,
+        ticket_in=ticket_in,
+        current_user_id=current_user.id
+    )
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+@router.patch("/{id}/", response_model=schemas.Ticket)
+async def patch_ticket(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    id: UUID,
+    ticket_in: schemas.TicketUpdate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Partial update a ticket.
     """
     ticket = await TicketService.update_ticket(
         db=db,
@@ -184,7 +224,7 @@ async def request_evidence(
     db: AsyncSession = Depends(deps.get_db),
     id: UUID,
     evidence_in: schemas.EvidenceRequest,
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
     """
     Request evidence for a ticket (Sets status to PENDING_EVIDENCE).
@@ -207,8 +247,18 @@ async def create_ticket_comment(
     """
     Add a comment to a ticket.
     """
-    # ensure ticket exists
-    # ...
+    # Verify ticket belongs to user's org
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    ticket_check = await db.execute(
+        select(models.Ticket.id)
+        .where(models.Ticket.id == id)
+        .where(models.Ticket.organization_id == org_id)
+    )
+    if not ticket_check.scalars().first():
+        raise HTTPException(status_code=404, detail="Ticket not found")
     
     comment = models.TicketComment(
         ticket_id=id,

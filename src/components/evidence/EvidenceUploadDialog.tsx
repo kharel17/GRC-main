@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useApiData } from '@/hooks';
 import { fetchRisks, fetchControls } from '@/lib/data-service';
 import { EvidenceDropzone } from '@/components/evidence';
-import { Risk, Control } from '@/types';
 import { toast } from 'sonner';
 import {
     Dialog,
@@ -42,9 +41,9 @@ export function EvidenceUploadDialog({ open, onOpenChange, onSuccess }: Evidence
     // Filter controls based on selected risk
     const relatedControls = React.useMemo(() => {
         // Fallback: Currently the API does not embed risk IDs in controls directly, 
-        // so we just return all controls for now to avoid the TS error about missing riskId property.
+        // so we just return all controls for now
         return controls;
-    }, [selectedRisk, controls]);
+    }, [controls]);
 
     const targetType = selectedControl ? 'control' : (selectedRisk ? 'risk' : '');
     const targetId = selectedControl || selectedRisk;

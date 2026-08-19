@@ -83,8 +83,8 @@ export function ISOControlList() {
     </div>;
   }
 
-  // Group clauses for filter
-  const clauses = Array.from(new Set(controls.map(c => c.clauseId))).sort();
+  // Group clauses for filter — exclude controls with missing clauseId
+  const clauses = Array.from(new Set(controls.map(c => c.clauseId).filter(Boolean))).sort();
 
   return (
     <div className="space-y-4">
@@ -130,16 +130,18 @@ export function ISOControlList() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-muted/50 border-border">
-              <TableHead className="w-[100px] text-muted-foreground">ID</TableHead>
+              <TableHead className="w-[80px] text-muted-foreground">ID</TableHead>
               <TableHead className="text-muted-foreground">Control Title</TableHead>
-              <TableHead className="w-[150px] text-muted-foreground">Status</TableHead>
-              <TableHead className="w-[80px]"></TableHead>
+              <TableHead className="w-[120px] text-muted-foreground">Status</TableHead>
+              <TableHead className="w-[100px] text-muted-foreground text-center">Evidence</TableHead>
+              <TableHead className="w-[150px] text-muted-foreground">Owner</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredControls.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                   No controls found.
                 </TableCell>
               </TableRow>
@@ -149,11 +151,23 @@ export function ISOControlList() {
                   <TableCell className="font-medium text-muted-foreground">{control.id}</TableCell>
                   <TableCell>
                     <div className="font-medium text-foreground">{control.title}</div>
-                    <div className="text-xs text-muted-foreground truncate max-w-[500px]">
+                    <div className="text-xs text-muted-foreground truncate max-w-[400px]">
                       {control.description}
                     </div>
                   </TableCell>
                   <TableCell>{getStatusBadge(control.status)}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="outline" className="font-mono bg-slate-50/50">
+                      {control.evidenceCount || 0}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm max-w-[150px] truncate">
+                    {control.ownerName ? (
+                       <span className="text-foreground">{control.ownerName}</span>
+                    ) : (
+                      <span className="text-muted-foreground italic text-xs">Unassigned</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Link href={`/dashboard/iso27001/controls/${control.id}`}>
                       <Button variant="ghost" size="sm" className="hover:bg-muted">

@@ -12,13 +12,24 @@ router = APIRouter()
 
 @router.get("/", response_model=List[schemas.AssetResponse])
 async def list_assets(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    skip: int = 0,
+    limit: int = 100,
     type: Optional[str] = Query(None, description="Filter by asset type"),
     classification: Optional[str] = Query(None, description="Filter by classification"),
     criticality: Optional[str] = Query(None, description="Filter by criticality"),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """List all assets with optional filtering."""
-    query = select(models.Asset).where(models.Asset.status != models.AssetStatus.decommissioned)
+    """List all assets with optional filtering. Scoped to current user's organization."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    query = select(models.Asset).where(
+        models.Asset.organization_id == org_id,
+        models.Asset.status != models.AssetStatus.decommissioned
+    )
     
     if type:
         query = query.where(models.Asset.type == type)
@@ -32,15 +43,31 @@ async def list_assets(
     return result.scalars().all()
 
 
-@router.post("/", response_model=schemas.AssetResponse)
+@router.post("/", response_model=schemas.AssetResponse, status_code=200)
 async def create_asset(
     *,
     db: AsyncSession = Depends(deps.get_db),
     asset_in: schemas.AssetCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
-    """Create a new asset."""
-    asset = models.Asset(**asset_in.model_dump())
+    """Create a new asset. Org ID always from authenticated user."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    asset = models.Asset(
+        name=asset_in.name,
+        description=asset_in.description,
+        type=asset_in.type,
+        classification=asset_in.classification,
+        criticality=asset_in.criticality,
+        location=asset_in.location,
+        confidentiality=asset_in.confidentiality,
+        integrity=asset_in.integrity,
+        availability=asset_in.availability,
+        owner_id=asset_in.owner_id or current_user.id,
+        organization_id=org_id
+    )
     db.add(asset)
     await db.commit()
     await db.refresh(asset)
@@ -49,10 +76,10 @@ async def create_asset(
         db=db,
         user=current_user,
         action=AuditAction.created,
-        entity_type=AuditEntityType.control,  # Using 'control' as closest fit; can extend enum later
+        entity_type=AuditEntityType.asset,
         entity_id=asset.id,
         entity_name=asset.name,
-        description=f"Asset created: {asset.name} ({asset.type.value})"
+        description=f"Asset created: {asset.name} ({asset.type.value if hasattr(asset.type, 'value') else asset.type})"
     )
     await db.commit()
     return asset
@@ -64,8 +91,16 @@ async def get_asset(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Get asset details."""
-    result = await db.execute(select(models.Asset).where(models.Asset.id == asset_id))
+    """Get asset details. Scoped to current user's organization."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Asset)
+        .where(models.Asset.id == asset_id)
+        .where(models.Asset.organization_id == org_id)
+    )
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
@@ -80,8 +115,16 @@ async def update_asset(
     asset_in: schemas.AssetUpdate,
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
 ) -> Any:
-    """Update an asset."""
-    result = await db.execute(select(models.Asset).where(models.Asset.id == asset_id))
+    """Update an asset. Scoped to current user's organization."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Asset)
+        .where(models.Asset.id == asset_id)
+        .where(models.Asset.organization_id == org_id)
+    )
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
@@ -102,8 +145,16 @@ async def decommission_asset(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin])),
 ) -> Any:
-    """Decommission an asset (soft delete — sets status to decommissioned)."""
-    result = await db.execute(select(models.Asset).where(models.Asset.id == asset_id))
+    """Decommission an asset (soft delete — sets status to decommissioned). Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Asset)
+        .where(models.Asset.id == asset_id)
+        .where(models.Asset.organization_id == org_id)
+    )
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
@@ -119,19 +170,39 @@ async def link_risks_to_asset(
     asset_id: str,
     link_in: schemas.AssetRiskLinkRequest,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
-    """Link one or more risks to an asset."""
+    """Link one or more risks to an asset. Accepts { risk_id } or { risk_ids }. Org-scoped."""
     from app.models.asset_risk import AssetRiskMapping
-    
-    result = await db.execute(select(models.Asset).where(models.Asset.id == asset_id))
+
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    risk_ids = link_in.get_risk_ids()
+    if not risk_ids:
+        raise HTTPException(status_code=400, detail="Provide at least one risk_id or risk_ids list")
+
+    result = await db.execute(
+        select(models.Asset)
+        .where(models.Asset.id == asset_id)
+        .where(models.Asset.organization_id == org_id)
+    )
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
-    
-    # Simple implementation: insert into mapping table
-    for risk_id in link_in.risk_ids:
-        # Check if already exists
+
+    for risk_id in risk_ids:
+        # Validate risk belongs to user's organization
+        risk_res = await db.execute(
+            select(models.Risk).where(
+                models.Risk.id == risk_id,
+                models.Risk.organization_id == org_id
+            )
+        )
+        if not risk_res.scalars().first():
+            raise HTTPException(status_code=404, detail=f"Risk '{risk_id}' not found in your organization")
+
         mapping_result = await db.execute(
             select(AssetRiskMapping).where(
                 AssetRiskMapping.asset_id == asset.id,
@@ -140,7 +211,7 @@ async def link_risks_to_asset(
         )
         if not mapping_result.scalars().first():
             db.add(AssetRiskMapping(asset_id=asset.id, risk_id=risk_id))
-    
+
     await db.commit()
     await db.refresh(asset)
     return asset
@@ -151,13 +222,21 @@ async def unlink_risk_from_asset(
     asset_id: str,
     risk_id: str,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.analyst])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
 ) -> Any:
-    """Unlink a risk from an asset."""
+    """Unlink a risk from an asset. Org-scoped."""
     from app.models.asset_risk import AssetRiskMapping
     from sqlalchemy import delete
+
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
     
-    result = await db.execute(select(models.Asset).where(models.Asset.id == asset_id))
+    result = await db.execute(
+        select(models.Asset)
+        .where(models.Asset.id == asset_id)
+        .where(models.Asset.organization_id == org_id)
+    )
     asset = result.scalars().first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")

@@ -69,18 +69,18 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
         </div>
         
         {/* Filter Tabs */}
-        <div className="flex flex-wrap gap-2 mt-3">
+        <div className="flex flex-wrap gap-2 mt-4">
           {filterButtons.map((btn) => (
             <button
               key={btn.value}
               onClick={() => setFilter(btn.value)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full transition-all border ${
                 filter === btn.value
-                  ? 'bg-blue-600 text-white dark:bg-blue-500'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  ? 'bg-primary text-white border-primary shadow-md scale-105'
+                  : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800 hover:border-primary/50'
               }`}
             >
-              {btn.label} ({btn.count})
+              {btn.label} <span className="opacity-50 ml-1">{btn.count}</span>
             </button>
           ))}
         </div>
@@ -97,35 +97,35 @@ export function RiskHighlights({ risks }: RiskHighlightsProps) {
               <Link
                 key={risk.id}
                 href={`/dashboard/risks/${risk.id}`}
-                className="block p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
+                className="block p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950/50 hover:border-primary/30 hover:shadow-md transition-all group"
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {risk.title}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate group-hover:text-primary transition-colors">
+                        {risk.title}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
                       {risk.category && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{
-                            backgroundColor: risk.category.color + '15',
-                            color: risk.category.color,
-                          }}
-                        >
+                        <span className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                           {risk.category.name}
                         </span>
                       )}
-                      <span className="text-xs text-muted-foreground">
-                        L:{risk.likelihood || risk.probability} × I:{risk.impact}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center -space-x-1">
+                          <div className={`w-2 h-2 rounded-full border border-white dark:border-slate-950 ${risk.likelihood > 3 ? 'bg-red-500' : 'bg-amber-500'}`} />
+                          <div className={`w-2 h-2 rounded-full border border-white dark:border-slate-950 ${risk.impact > 3 ? 'bg-red-500' : 'bg-amber-500'}`} />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
+                          L:{risk.likelihood || risk.probability} × I:{risk.impact}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <Badge 
-                    className={`font-semibold text-xs px-2 py-1 border ${getScoreStyles(risk.score)}`}
-                  >
-                    {risk.score}
-                  </Badge>
+                  <div className={`flex items-center justify-center px-2 py-1 rounded-md border font-bold text-xs shrink-0 shadow-sm ${getScoreStyles(risk.score)}`}>
+                    Score: {risk.score}
+                  </div>
                 </div>
               </Link>
             ))}

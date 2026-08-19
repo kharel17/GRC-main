@@ -1,0 +1,6 @@
+Connected to postgresql://postgres.htgojajcceunavgchrgc:VVGHSBUjYyvYWuhF@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?ssl=require
+Risk counts by Org: [<Record organization_id=UUID('00000000-0000-0000-0000-000000000010') c=5>, <Record organization_id=UUID('24de3639-ee40-4563-a207-dd66436a0da8') c=1>]
+Org Candidate: Acme Corporation (00000000-0000-0000-0000-000000000010)
+UPDATING USER bcolorc17@gmail.com to Acme Corporation
+USER UPDATED SUCCESSFULLY
+DONE

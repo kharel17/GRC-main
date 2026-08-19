@@ -8,12 +8,135 @@ from app import models, schemas
 from app.config import settings
 from app.database import get_db
 import logging
+import uuid
+import httpx
+import json
+from jose import jwk
+from collections import defaultdict
+import time
 
 logger = logging.getLogger("grc.deps")
+
+# Simple in-memory rate limiting
+# In a real production environment with multiple workers/instances, 
+# this should be moved to Redis or a middleware.
+login_attempts = defaultdict(list)
+
+def rate_limit(limit: int, window: int):
+    """
+    Simple rate limiter dependency.
+    limit: max attempts
+    window: time window in seconds
+    """
+    def dependency(request: Request):
+        client_ip = request.client.host
+        now = time.time()
+        
+        # Clean up old attempts
+        login_attempts[client_ip] = [t for t in login_attempts[client_ip] if now - t < window]
+        
+        if len(login_attempts[client_ip]) >= limit:
+            logger.warning(f"Rate limit exceeded for IP: {client_ip}")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many attempts. Please try again later."
+            )
+        
+        login_attempts[client_ip].append(now)
+        return True
+    return dependency
 
 # Support both cookie and Bearer header auth
 reusable_oauth2_cookie = APIKeyCookie(name="access_token", auto_error=False)
 reusable_oauth2_header = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
+
+JWKS_URL = f"https://{settings.SUPABASE_PROJECT_ID if hasattr(settings, 'SUPABASE_PROJECT_ID') else 'htgojajcceunavgchrgc'}.supabase.co/auth/v1/.well-known/jwks.json"
+
+# Cache the JWKS at module level (fetched once on startup)
+_jwks_cache = None
+
+async def get_jwks():
+    global _jwks_cache
+    if _jwks_cache is None:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(JWKS_URL)
+                _jwks_cache = response.json()
+        except Exception as e:
+            logger.error(f"Failed to fetch JWKS from {JWKS_URL}: {e}")
+            return None
+    return _jwks_cache
+
+async def verify_supabase_token(token: str) -> dict:
+    # Get the kid from token header
+    try:
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        alg = header.get("alg", "HS256")
+    except Exception as e:
+        logger.error(f"Could not read JWT header: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token format",
+        )
+    
+    # If no kid, try legacy HS256 with secret
+    if not kid:
+        logger.debug("No kid in header, trying legacy HS256 decode")
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+    
+    # Get JWKS and find matching key
+    jwks = await get_jwks()
+    if not jwks:
+        # Fallback to legacy secret if JWKS fetch failed
+        logger.warning("JWKS not available, falling back to legacy HS256")
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+    
+    # Find the key matching the kid
+    matching_key = None
+    for key in jwks.get("keys", []):
+        if key.get("kid") == kid:
+            matching_key = key
+            break
+    
+    # If no kid match found, try legacy HS256 with secret
+    if matching_key is None:
+        logger.warning(f"No matching key for kid: {kid}, falling back to legacy HS256")
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+    
+    # Verify with the matched JWK
+    try:
+        public_key = jwk.construct(matching_key)
+        return jwt.decode(
+            token,
+            public_key,
+            algorithms=[alg],
+            options={"verify_aud": False}
+        )
+    except Exception as e:
+        logger.error(f"JWKS decode attempt failed: {e}")
+        # Final fallback attempt with HS256
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
 
 async def get_current_user(
     request: Request,
@@ -39,49 +162,12 @@ async def get_current_user(
     last_error = None
 
     try:
-        header = jwt.get_unverified_header(token)
-        alg = header.get("alg", "HS256")
-        logger.debug(f"JWT header alg: {alg}")
+        payload = await verify_supabase_token(token)
+        logger.debug("JWT verified via verify_supabase_token")
     except Exception as e:
-        logger.error(f"Could not read JWT header: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token format",
-        )
-
-    # --- Attempt 1: Supabase secret, HS256 ---
-    try:
-        payload = jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
-        logger.debug("JWT decoded via Supabase HS256")
-    except JWTError as e:
         last_error = e
-        logger.debug(f"HS256 decode failed: {e}")
-
-    # --- Attempt 2: ES256 with PEM wrapping ---
-    if payload is None and alg == "ES256":
-        key = settings.SUPABASE_JWT_SECRET
-        keys_to_try = [key]
-        if not key.startswith("-----BEGIN"):
-            keys_to_try.insert(0, f"-----BEGIN PUBLIC KEY-----\n{key}\n-----END PUBLIC KEY-----")
-        for k in keys_to_try:
-            try:
-                payload = jwt.decode(
-                    token, k, algorithms=["ES256"], options={"verify_aud": False}
-                )
-                logger.debug("JWT decoded via ES256")
-                break
-            except JWTError as e:
-                last_error = e
-                logger.debug(f"ES256 decode attempt failed: {e}")
-
-    # --- Attempt 3: Internal SECRET_KEY fallback ---
-    if payload is None:
-        logger.warning("Supabase decode failed. Trying internal SECRET_KEY...")
+        # --- Fallback: Internal SECRET_KEY ---
+        logger.warning(f"Supabase verification failed: {e}. Trying internal SECRET_KEY...")
         try:
             payload = jwt.decode(
                 token,
@@ -90,9 +176,9 @@ async def get_current_user(
                 options={"verify_aud": False}
             )
             logger.debug("JWT decoded via internal SECRET_KEY")
-        except JWTError as e:
-            last_error = e
-            logger.error(f"All JWT decode attempts failed. Last error: {e}")
+        except JWTError as inner_e:
+            last_error = inner_e
+            logger.error(f"All JWT decode attempts failed. Last error: {inner_e}")
 
     if payload is None:
         # Return 401 (not 403) — the token is unreadable, not a permissions issue
@@ -124,6 +210,36 @@ async def get_current_user(
 
     # Step 1: Check platform team / seed override
     if email in ROLE_OVERRIDE_MAP:
+        from sqlalchemy import select
+        # Ensure Platform organization exists
+        platform_org_res = await db.execute(select(models.Organization).where(models.Organization.name == "Platform Team"))
+        platform_org = platform_org_res.scalar_one_or_none()
+        
+        if not platform_org:
+            platform_org = models.Organization(
+                id=uuid.uuid4(),
+                name="Platform Team",
+                onboarding_completed=True,
+                ticket_settings={
+                    "severity_threshold": "medium",
+                    "suppression_window_hours": 24,
+                    "auto_escalation_enabled": True,
+                    "sla_config": {
+                        "critical": 24,
+                        "high": 48,
+                        "medium": 120,
+                        "low": 240
+                    }
+                }
+            )
+            db.add(platform_org)
+            try:
+                await db.flush()
+            except Exception:
+                await db.rollback()
+                platform_org_res = await db.execute(select(models.Organization).where(models.Organization.name == "Platform Team"))
+                platform_org = platform_org_res.scalar_one_or_none()
+
         if not user_orm:
             new_user = models.User(
                 id=user_id,
@@ -132,18 +248,40 @@ async def get_current_user(
                 hashed_password="SUPABASE_AUTH",
                 role=ROLE_OVERRIDE_MAP[email],
                 is_active=True,
-                invitation_status='active'
+                invitation_status='active',
+                organization_id=platform_org.id,
+                organization_name=platform_org.name
             )
             db.add(new_user)
             try:
                 await db.commit()
                 await db.refresh(new_user)
                 user_orm = new_user
-                logger.info(f"Auto-provisioned override user: {email} with role: {ROLE_OVERRIDE_MAP[email]}")
+                logger.info(f"Auto-provisioned override user: {email} with org: Platform Team")
             except Exception as e:
                 await db.rollback()
-                logger.error(f"Error auto-provisioning override user: {e}")
-                raise HTTPException(status_code=500, detail="Error creating override user profile")
+                # Check if a concurrent request already created the user
+                user_res = await db.execute(select(models.User).where(models.User.email == email))
+                user_orm = user_res.scalar_one_or_none()
+                if not user_orm:
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    raise HTTPException(status_code=500, detail=f"Error creating override user profile: {str(e)}")
+        elif not user_orm.organization_id:
+            # Fix existing platform user missing org (ONLY if they have none)
+            user_orm.organization_id = platform_org.id
+            user_orm.organization_name = platform_org.name
+            user_orm.role = ROLE_OVERRIDE_MAP[email]
+            await db.commit()
+            await db.refresh(user_orm)
+            logger.info(f"Fixed missing organization for existing platform user: {email}")
+        
+        # Ensure role is always admin for platform team even if org isn't changed
+        if user_orm.role != ROLE_OVERRIDE_MAP[email]:
+            user_orm.role = ROLE_OVERRIDE_MAP[email]
+            await db.commit()
+            await db.refresh(user_orm)
+
         return user_orm
 
     from sqlalchemy import select
@@ -152,11 +290,7 @@ async def get_current_user(
     
     # Associate Supabase ID with existing allowed email if first login
     if user_by_email and not user_orm and user_by_email.id != user_id:
-        user_by_email.id = user_id # Align IDs (might need handling based on current schema constraints, but usually Supabase matches or overrides id)
-        # Instead of replacing ID directly, let's just use the email matched user.
-        # Ideally, invitation creates the user with a temporary ID or matches email during OAuth
-        # Since Supabase handles the actual UUID creation during auth/signup, 
-        # let's assume the DB record ID needs to be synchronized or we look it up by email.
+        user_by_email.id = user_id # Align IDs
     
     # We will strictly look up by email for the invitation system to ensure we catch invited users.
     if not user_orm and user_by_email:
@@ -197,7 +331,18 @@ async def get_current_user(
             await db.rollback()
             logger.error(f"Error activating user: {e}")
 
+    # Set organization context for RLS
+    from app.database import org_id_var
+    from sqlalchemy import text
+    org_id_var.set(user_orm.organization_id)
+    if user_orm.organization_id:
+        await db.execute(
+            text("SELECT set_config('app.org_id', :org_id, true)"),
+            {"org_id": str(user_orm.organization_id)}
+        )
+
     return user_orm
+
 
 
 

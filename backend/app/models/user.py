@@ -38,6 +38,13 @@ class User(Base):
 
     # Invitation System
     invitation_status = Column(String, default="pending", nullable=False) # pending, active, deactivated
+    invitation_token_hash = Column(String, nullable=True, index=True)
+    invitation_expires_at = Column(DateTime, nullable=True)
+    
+    # Password Reset System
+    reset_token_hash = Column(String, nullable=True, index=True)
+    reset_token_expires_at = Column(DateTime, nullable=True)
+
     invited_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     invited_at = Column(DateTime, nullable=True)
     organization_name = Column(String, nullable=True) # Used during onboarding
@@ -50,4 +57,8 @@ class User(Base):
     audit_logs = relationship("AuditLog", back_populates="user")
     organization = relationship("Organization", foreign_keys=[organization_id])
     
-    manager = relationship("User", remote_side=[id], backref="subordinates")
+    manager = relationship("User", remote_side=[id], foreign_keys=[manager_id], back_populates="subordinates")
+    subordinates = relationship("User", back_populates="manager", foreign_keys=[manager_id])
+    
+    invited_by_user = relationship("User", remote_side=[id], foreign_keys=[invited_by], back_populates="invites_sent")
+    invites_sent = relationship("User", back_populates="invited_by_user", foreign_keys=[invited_by])

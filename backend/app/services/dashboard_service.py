@@ -56,16 +56,14 @@ class DashboardService:
         ticket_result = await db.execute(ticket_stmt)
         ticket_stats = ticket_result.one()
         
-        # 4. Recent Activity
+        # 4. Recent Activity — scoped to users in this organization
         activity_stmt = (
             select(AuditLog)
+            .join(User, AuditLog.user_id == User.id)
+            .where(User.organization_id == organization_id)
             .order_by(desc(AuditLog.timestamp))
             .limit(5)
         )
-        # Note: If AuditLog doesn't have organization_id, we might need a different filter
-        # or just globally for now. Based on Phase 1-7, AuditLog was linked to User/Entity.
-        # Let's check models/audit_log.py
-        
         activity_result = await db.execute(activity_stmt)
         recent_logs = activity_result.scalars().all()
         

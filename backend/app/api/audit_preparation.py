@@ -97,15 +97,21 @@ async def get_risk_register(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Export the full risk register for audit preparation."""
-    org_result = await db.execute(select(models.Organization).limit(1))
+    """Export the full risk register for audit preparation. Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    org_result = await db.execute(
+        select(models.Organization).where(models.Organization.id == org_id)
+    )
     org = org_result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="No organization configured")
     
     # Get all risks for this org
     risk_result = await db.execute(
-        select(models.Risk).where(models.Risk.organization_id == org.id)
+        select(models.Risk).where(models.Risk.organization_id == org_id)
     )
     risks = risk_result.scalars().all()
     
@@ -160,14 +166,20 @@ async def get_evidence_inventory(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Export the complete evidence inventory for audit preparation."""
-    org_result = await db.execute(select(models.Organization).limit(1))
+    """Export the complete evidence inventory for audit preparation. Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    org_result = await db.execute(
+        select(models.Organization).where(models.Organization.id == org_id)
+    )
     org = org_result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="No organization configured")
     
     evidence_result = await db.execute(
-        select(models.Evidence).where(models.Evidence.organization_id == org.id)
+        select(models.Evidence).where(models.Evidence.organization_id == org_id)
     )
     evidence_list = evidence_result.scalars().all()
     
@@ -210,8 +222,14 @@ async def get_compliance_report(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Generate a full compliance report combining control status, gaps, and evidence."""
-    org_result = await db.execute(select(models.Organization).limit(1))
+    """Generate a full compliance report combining control status, gaps, and evidence. Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    org_result = await db.execute(
+        select(models.Organization).where(models.Organization.id == org_id)
+    )
     org = org_result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="No organization configured")
@@ -219,7 +237,7 @@ async def get_compliance_report(
     # Get control applicability
     ca_result = await db.execute(
         select(models.ControlApplicability)
-        .where(models.ControlApplicability.organization_id == org.id)
+        .where(models.ControlApplicability.organization_id == org_id)
     )
     ca_records = {ca.control_annex: ca for ca in ca_result.scalars().all()}
     
@@ -266,7 +284,7 @@ async def get_compliance_report(
     # Gap summary
     gap_report = None
     try:
-        gap_report = await generate_gap_report(db, org.id)
+        gap_report = await generate_gap_report(db, org_id)
     except Exception:
         pass
     
@@ -294,19 +312,25 @@ async def get_compliance_report(
     )
 
 
-@router.get("/soa/export")
+@router.get("/soa/export/")
 async def export_soa(
     format: str = Query("pdf", description="Export format (pdf or csv)"),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Export ISO 27001 Statement of Applicability (SoA) as PDF or CSV."""
-    result = await db.execute(select(models.Organization).limit(1))
+    """Export ISO 27001 Statement of Applicability (SoA) as PDF or CSV. Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Organization).where(models.Organization.id == org_id)
+    )
     org = result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    report_bytes = await audit_service.export_soa_report(db, org.id, format=format)
+    report_bytes = await audit_service.export_soa_report(db, org_id, format=format)
     
     media_type = "application/pdf" if format == "pdf" else "text/csv"
     filename = f"ISO27001_SoA_{org.name.replace(' ', '_')}.{format}"
@@ -314,23 +338,29 @@ async def export_soa(
     return Response(
         content=report_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
 
-@router.get("/risk-register/export")
+@router.get("/risk-register/export/")
 async def export_risks(
     format: str = Query("pdf", description="Export format (pdf or csv)"),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Export the corporate Risk Register as PDF or CSV."""
-    result = await db.execute(select(models.Organization).limit(1))
+    """Export the corporate Risk Register as PDF or CSV. Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Organization).where(models.Organization.id == org_id)
+    )
     org = result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    report_bytes = await audit_service.export_risk_register(db, org.id, format=format)
+    report_bytes = await audit_service.export_risk_register(db, org_id, format=format)
     
     media_type = "application/pdf" if format == "pdf" else "text/csv"
     filename = f"Risk_Register_{org.name.replace(' ', '_')}.{format}"
@@ -338,7 +368,7 @@ async def export_risks(
     return Response(
         content=report_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
 
@@ -347,29 +377,40 @@ async def get_readiness(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Get weighted readiness score using audit service."""
-    # Find organization singleton
-    result = await db.execute(select(models.Organization).limit(1))
+    """Get weighted readiness score using audit service. Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Organization).where(models.Organization.id == org_id)
+    )
     org = result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    return await audit_service.get_readiness_score(db, org.id)
+    return await audit_service.get_readiness_score(db, org_id)
 
 
-@router.get("/export")
+@router.get("/export/")
 async def export_report(
     format: str = Query("pdf", description="Export format (pdf or csv)"),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Export ISO 27001 readiness report as PDF or CSV."""
-    result = await db.execute(select(models.Organization).limit(1))
+    """Export ISO 27001 readiness report as PDF or CSV. Org-scoped."""
+    org_id = current_user.organization_id
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User not associated with any organization")
+
+    result = await db.execute(
+        select(models.Organization).where(models.Organization.id == org_id)
+    )
     org = result.scalars().first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    report_bytes = await audit_service.export_audit_report(db, org.id, format=format)
+    report_bytes = await audit_service.export_audit_report(db, org_id, format=format)
     
     media_type = "application/pdf" if format == "pdf" else "text/csv"
     filename = f"ISO27001_Readiness_{org.name.replace(' ', '_')}.{format}"
@@ -377,5 +418,5 @@ async def export_report(
     return Response(
         content=report_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )

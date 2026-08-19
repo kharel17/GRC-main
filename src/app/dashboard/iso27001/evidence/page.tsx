@@ -2,6 +2,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 
 export default function ISOEvidencePage() {
+  const router = useRouter();
   const [evidence, setEvidence] = useState<ISOEvidence[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,21 +41,34 @@ export default function ISOEvidencePage() {
     }
   };
 
-  const filteredEvidence = evidence.filter(item =>
-    item.fileName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.controlId?.includes(searchTerm)
-  );
+  const filteredEvidence = evidence.filter(item => {
+    const name = item.fileName || item.file_name || item.title || "";
+    const desc = item.description || "";
+    const ctrl = item.controlId || item.control_id || "";
+    const term = searchTerm.toLowerCase();
+    return name.toLowerCase().includes(term) || desc.toLowerCase().includes(term) || ctrl.toLowerCase().includes(term);
+  });
 
   if (loading) {
-    return <div className="space-y-4">
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-20 w-full" />
-    </div>;
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-20 w-full" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={() => router.push("/dashboard/iso27001")}
+        className="gap-2 text-slate-600 -ml-2"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to ISO 27001
+      </Button>
       <div>
         <h1 className="text-2xl font-bold text-slate-900 mb-1">Evidence Repository</h1>
         <p className="text-sm text-slate-600">
@@ -91,37 +107,45 @@ export default function ISOEvidencePage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredEvidence.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-500" />
-                      <div className="flex flex-col">
-                        <span className="font-medium text-sm">{item.fileName}</span>
-                        {item.description && <span className="text-xs text-slate-500">{item.description}</span>}
+              filteredEvidence.map((item) => {
+                const name = item.fileName || item.file_name || item.title || 'Evidence File';
+                const cId = item.controlId || item.control_id || 'General';
+                const uName = item.uploadedByName || item.uploadedBy || item.uploaded_by || 'User';
+                const uDate = item.uploadedAt || item.uploaded_at;
+                const fUrl = item.fileUrl || item.file_url || '#';
+
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-blue-500" />
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm">{name}</span>
+                          {item.description && <span className="text-xs text-slate-500">{item.description}</span>}
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/dashboard/iso27001/controls/${item.controlId}`} className="flex items-center gap-1 text-blue-600 hover:underline">
-                      {item.controlId} <ExternalLink className="h-3 w-3" />
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-sm">{item.uploadedByName || item.uploadedBy}</TableCell>
-                  <TableCell className="text-sm text-slate-500">
-                    {new Date(item.uploadedAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end">
-                      <Button variant="ghost" size="icon" asChild>
-                        <a href={item.fileUrl} target="_blank" rel="noopener noreferrer" download>
-                          <Download className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/dashboard/iso27001/controls/${cId}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+                        {/^\d+\.\d+$/.test(cId) || cId.startsWith('A.') ? `Annex ${cId}` : cId.length > 20 ? `${cId.substring(0, 8)}...` : cId} <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-sm">{uName}</TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {uDate ? new Date(uDate).toLocaleDateString() : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end">
+                        <Button variant="ghost" size="icon" asChild>
+                          <a href={fUrl} target="_blank" rel="noopener noreferrer" download>
+                            <Download className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

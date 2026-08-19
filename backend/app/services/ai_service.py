@@ -1,11 +1,11 @@
 """
-AI Service – Hybrid Gemini + Local NLP Engine for ISO 27001 GRC Platform.
+AI Service – Hybrid AI Strategy: Local NLP Embeddings + Gemini Generation.
 
-Primary:  Google Gemini API (text-embedding-004 for embeddings, gemini-2.5-flash for generation)
-Fallback: Local sentence-transformers model (all-MiniLM-L6-v2)
+Primary:  NLP (all-MiniLM-L6-v2) for all embeddings and semantic matching.
+Primary:  Google Gemini API (gemini-1.5-flash) for advanced text generation.
 
-If GEMINI_API_KEY is set, Gemini is used. If the key is missing or any Gemini
-call fails at runtime, the service automatically falls back to the local model.
+Embeddings are always computed locally for speed and reliability. Gemini is used
+for deeper document analysis and risk scoring whenever a key is present.
 """
 
 import json
@@ -15,6 +15,10 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
+from app.config import settings
+
+from google import genai
+from google.genai import types
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -125,17 +129,58 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extract text content from a PDF file's bytes."""
-    from PyPDF2 import PdfReader
+    """Extract text content from a PDF file's bytes with robust fallback handlers."""
+    # 1. Try PyPDF2 / pypdf with strict=False
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(BytesIO(file_bytes), strict=False)
+        pages_text: list[str] = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                pages_text.append(text.strip())
+        extracted = "\n\n".join(pages_text)
+        if extracted.strip():
+            return extracted
+    except Exception as e:
+        logger.warning(f"PyPDF2 extraction failed ({e}), trying fallback extractors")
 
-    reader = PdfReader(BytesIO(file_bytes))
-    pages_text: list[str] = []
-    for page in reader.pages:
-        text = page.extract_text()
-        if text:
-            pages_text.append(text.strip())
+    # 2. Try pypdf if installed separately
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(BytesIO(file_bytes), strict=False)
+        pages_text: list[str] = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                pages_text.append(text.strip())
+        extracted = "\n\n".join(pages_text)
+        if extracted.strip():
+            return extracted
+    except Exception:
+        pass
 
-    return "\n\n".join(pages_text)
+    # 3. Fallback: UTF-8 / Latin-1 text decode for plain text / markdown / logs
+    try:
+        decoded = file_bytes.decode('utf-8', errors='ignore')
+        # Check if file has readable text characters
+        printable_ratio = sum(1 for c in decoded if c.isprintable() or c in '\n\r\t') / max(len(decoded), 1)
+        if printable_ratio > 0.85 and len(decoded.strip()) > 10:
+            return decoded.strip()
+    except Exception:
+        pass
+
+    # 4. Fallback: docx format parser
+    try:
+        import docx
+        doc = docx.Document(BytesIO(file_bytes))
+        full_text = [p.text for p in doc.paragraphs if p.text.strip()]
+        if full_text:
+            return "\n\n".join(full_text)
+    except Exception:
+        pass
+
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +204,7 @@ class AIService:
 
     LOCAL_MODEL_NAME = "all-MiniLM-L6-v2"
     GEMINI_EMBED_MODEL = "text-embedding-004"
-    GEMINI_GENERATE_MODEL = "gemini-2.5-flash"
+    GEMINI_GENERATE_MODEL = "gemini-1.5-flash"
     DEFAULT_TOP_N = 5
     DEFAULT_THRESHOLD = 0.30
 
@@ -194,17 +239,28 @@ class AIService:
     def initialize(self) -> None:
         """Load models and pre-compute control embeddings. Call once at startup."""
         logger.info("AI Service: Loading ISO 27001 controls...")
-        self._load_controls()
+        try:
+            self._load_controls()
+        except Exception as e:
+            logger.error(f"AI Service: Failed to load controls ({e})")
+            return
 
-        # --- Try Gemini ---
+        # --- Try Gemini first (Lightweight) ---
         self._init_gemini()
 
-        # --- Always load local model as fallback ---
+        # --- Load local model for embeddings ---
+        # Note: Even if Gemini is available for generation, we still use local embeddings
+        # for semantic matching and gap analysis tasks.
         self._init_local_model()
 
-        self._is_ready = True
-        engine = "Gemini (primary) + Local NLP (fallback)" if self._gemini_available else "Local NLP only"
-        logger.info(f"AI Service: Ready ✓  Engine: {engine}")
+        if self._gemini_available or self._local_model is not None:
+            self._is_ready = True
+            engines = []
+            if self._gemini_available: engines.append("Gemini (Generation)")
+            if self._local_model: engines.append("Local NLP (Embeddings)")
+            logger.info(f"AI Service: Ready ✓  Engines: {', '.join(engines)}")
+        else:
+            logger.error("AI Service: Initialization failed. No AI engines available.")
 
     def _load_controls(self) -> None:
         """Load and parse the ISO 27001 controls JSON."""
@@ -220,37 +276,19 @@ class AIService:
         ]
 
     def _init_gemini(self) -> None:
-        """Try to initialize the Gemini client and pre-embed controls."""
-        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        """Try to initialize the Gemini client for text generation."""
+        api_key = (settings.GEMINI_API_KEY or "").strip()
         if not api_key:
-            logger.info("AI Service: No GEMINI_API_KEY found. Gemini disabled.")
+            logger.info("AI Service: No GEMINI_API_KEY found. Gemini generation disabled.")
             return
 
         try:
-            from google import genai
-
             self._gemini_client = genai.Client(api_key=api_key)
-
-            # Pre-embed all controls using Gemini
-            logger.info(f"AI Service: Pre-embedding {len(self._controls)} controls with Gemini...")
-            embeddings = []
-            # Batch in groups of 20 to respect rate limits
-            batch_size = 20
-            for i in range(0, len(self._control_texts), batch_size):
-                batch = self._control_texts[i : i + batch_size]
-                response = self._gemini_client.models.embed_content(
-                    model=self.GEMINI_EMBED_MODEL,
-                    contents=batch,
-                )
-                for emb in response.embeddings:
-                    embeddings.append(emb.values)
-
-            self._gemini_control_embeddings = np.array(embeddings, dtype=np.float32)
             self._gemini_available = True
-            logger.info("AI Service: Gemini initialized ✓")
+            logger.info("AI Service: Gemini generation client initialized ✓")
 
         except Exception as e:
-            logger.warning(f"AI Service: Gemini init failed ({e}). Will use local NLP.")
+            logger.warning(f"AI Service: Gemini init failed ({e}). Generator disabled.")
             self._gemini_available = False
 
     def _init_local_model(self) -> None:
@@ -274,66 +312,46 @@ class AIService:
                     "AI Service: Neither Gemini nor local model available. Cannot start."
                 )
 
+    async def sync_vector_store(self) -> None:
+        """
+        Async hook: Initializes Qdrant collections and populates grc_iso_controls.
+        Call during startup after initialize().
+        """
+        from app.services.vector_store import vector_store
+        try:
+            success = await vector_store.initialize_collections()
+            if success and self._controls and self._local_control_embeddings is not None:
+                await vector_store.upsert_iso_controls(self._controls, self._local_control_embeddings)
+                logger.info("AI Service: Synced ISO control embeddings to Qdrant ✓")
+        except Exception as e:
+            logger.warning(f"AI Service: Qdrant sync skipped ({e})")
+
     @property
     def is_ready(self) -> bool:
         return self._is_ready
 
     @property
     def active_engine(self) -> str:
-        if self._gemini_available:
-            return "gemini"
-        return "local"
+        return "hybrid" if self._gemini_available else "local"
 
     # ------------------------------------------------------------------
     # Embedding helper
     # ------------------------------------------------------------------
 
     def _embed_text(self, text: str) -> np.ndarray:
-        """Embed text using Gemini (primary) or local model (fallback)."""
-        if self._gemini_available and self._gemini_client:
-            try:
-                response = self._gemini_client.models.embed_content(
-                    model=self.GEMINI_EMBED_MODEL,
-                    contents=[text],
-                )
-                return np.array([response.embeddings[0].values], dtype=np.float32)
-            except Exception as e:
-                logger.warning(f"Gemini embed failed ({e}). Falling back to local model.")
-
-        # Fallback to local
+        """Embed text using local NLP model."""
         if self._local_model is not None:
             return self._local_model.encode([text], convert_to_numpy=True)
-
-        raise RuntimeError("No embedding engine available.")
+        raise RuntimeError("Local NLP engine not available.")
 
     def _embed_texts(self, texts: list[str]) -> np.ndarray:
-        """Embed multiple texts using Gemini (primary) or local model (fallback)."""
-        if self._gemini_available and self._gemini_client:
-            try:
-                embeddings = []
-                batch_size = 20
-                for i in range(0, len(texts), batch_size):
-                    batch = texts[i : i + batch_size]
-                    response = self._gemini_client.models.embed_content(
-                        model=self.GEMINI_EMBED_MODEL,
-                        contents=batch,
-                    )
-                    for emb in response.embeddings:
-                        embeddings.append(emb.values)
-                return np.array(embeddings, dtype=np.float32)
-            except Exception as e:
-                logger.warning(f"Gemini batch embed failed ({e}). Falling back to local model.")
-
-        # Fallback to local
+        """Embed multiple texts using local NLP model."""
         if self._local_model is not None:
             return self._local_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-
-        raise RuntimeError("No embedding engine available.")
+        raise RuntimeError("Local NLP engine not available.")
 
     def _get_control_embeddings(self) -> np.ndarray:
-        """Get the pre-computed control embeddings for the active engine."""
-        if self._gemini_available and self._gemini_control_embeddings is not None:
-            return self._gemini_control_embeddings
+        """Get the pre-computed local control embeddings."""
         if self._local_control_embeddings is not None:
             return self._local_control_embeddings
         raise RuntimeError("No control embeddings available.")
@@ -485,6 +503,7 @@ Guidelines:
         response = self._gemini_client.models.generate_content(
             model=self.GEMINI_GENERATE_MODEL,
             contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
         
         raw_text = response.text.strip()
@@ -534,7 +553,11 @@ Guidelines:
         )
 
     def _categorize(self, text: str) -> str:
-        """Classify evidence into a category based on keyword matching."""
+        """Classify evidence into a category based on keyword matching.
+
+        Tie-breaking is deterministic: highest keyword count wins; ties broken
+        alphabetically by category name so output is stable across runs.
+        """
         text_lower = text.lower()
         scores: dict[str, int] = {}
 
@@ -544,8 +567,10 @@ Guidelines:
                 scores[category] = score
 
         if scores:
-            return str(max(scores, key=lambda k: scores[k]))
+            # Sort by (-score, name) so highest score wins; ties break on name (deterministic)
+            return min(scores, key=lambda k: (-scores[k], k))
         return "general"
+
 
     # ------------------------------------------------------------------
     # Risk Suggestion
@@ -604,6 +629,7 @@ Guidelines:
         response = self._gemini_client.models.generate_content(
             model=self.GEMINI_GENERATE_MODEL,
             contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
 
         # Parse the JSON from Gemini's response
@@ -676,12 +702,13 @@ Guidelines:
     # Compliance Gap Analysis
     # ------------------------------------------------------------------
 
-    def get_compliance_gaps(
+    async def get_compliance_gaps(
         self, evidence_texts: list[str], threshold: float = 0.40
     ) -> list[dict]:
         """
         Given all evidence texts in the system, identify which controls
-        have NO matching evidence (compliance gaps).
+        have NO matching evidence (compliance gaps). Uses Qdrant's
+        grc_iso_controls collection as the source of truth.
         """
         if not self._is_ready:
             raise RuntimeError("AI Service not initialized. Call initialize() first.")
@@ -692,17 +719,35 @@ Guidelines:
                 for c in self._controls
             ]
 
-        # Encode all evidence
-        evidence_embeddings = self._embed_texts(evidence_texts)
-        control_embeddings = self._get_control_embeddings()
+        from app.services.vector_store import vector_store
+        if not vector_store.is_ready:
+            initialized = await vector_store.initialize_collections()
+            if initialized:
+                control_embeddings = self._embed_texts(self._control_texts)
+                await vector_store.upsert_iso_controls(self._controls, control_embeddings)
+            else:
+                raise RuntimeError("Qdrant vector store is not ready for compliance gap analysis.")
 
-        # For each control, check if ANY evidence matches above threshold
+        control_best_scores: dict[str, float] = {c["id"]: 0.0 for c in self._controls}
+        for evidence_text in evidence_texts:
+            evidence_embedding = self._embed_text(evidence_text)
+            hits = await vector_store.dense_search(
+                query_vector=evidence_embedding,
+                collection_name=settings.QDRANT_COLLECTION_ISO_CONTROLS,
+                top_k=len(self._controls),
+            )
+            for hit in hits:
+                payload = hit.get("payload", {})
+                control_id = payload.get("control_id")
+                if control_id in control_best_scores:
+                    control_best_scores[control_id] = max(
+                        control_best_scores[control_id],
+                        float(hit.get("score", 0.0)),
+                    )
+
         gaps = []
-        for idx, control in enumerate(self._controls):
-            control_emb = control_embeddings[idx].reshape(1, -1)
-            sims = cosine_similarity(control_emb, evidence_embeddings)[0]
-            max_sim = float(np.max(sims))
-
+        for control in self._controls:
+            max_sim = control_best_scores.get(control["id"], 0.0)
             if max_sim < threshold:
                 gaps.append({
                     "control_id": control["id"],
@@ -714,8 +759,101 @@ Guidelines:
         return gaps
 
 
+def _run_document_analysis(text: str) -> dict:
+    """Run AI document analysis and extract security practices & control matches.
+
+    Uses threshold=0.30 (not 0.25) so similarity scores near the boundary don't
+    flip across runs due to BLAS thread-scheduling float noise.
+    Controls are sorted by confidence descending for deterministic output ordering.
+    """
+    if not ai_service.is_ready:
+        ai_service.initialize()
+
+    category = ai_service._categorize(text)
+    evidence_result = ai_service.analyze_evidence(text, top_n=93, threshold=0.30)
+
+    implemented = []
+    weak_matches = []
+
+    for match in evidence_result.matched_controls:
+        item = {
+            "control_annex": match.annex,
+            "title": match.title,
+            "confidence": match.confidence,
+            "clause_id": match.clause_id,
+        }
+        if match.confidence >= 50:
+            implemented.append(item)
+        elif match.confidence >= 30:
+            weak_matches.append(item)
+
+    # Sort for deterministic output — confidence descending, annex ascending on ties
+    implemented.sort(key=lambda x: (-x["confidence"], x["control_annex"]))
+    weak_matches.sort(key=lambda x: (-x["confidence"], x["control_annex"]))
+
+    matched_annexes = {m.annex for m in evidence_result.matched_controls}
+    missing = []
+    for ctrl in ai_service._controls:
+        if ctrl["annex"] not in matched_annexes:
+            missing.append({
+                "control_annex": ctrl["annex"],
+                "title": ctrl["title"],
+                "reason": "No reference found in document",
+            })
+
+    practices = _extract_security_practices(text)
+
+    return {
+        "document_category": category,
+        "summary": evidence_result.summary,
+        "implemented_controls": implemented,
+        "weak_matches": weak_matches,
+        "missing_controls": missing,
+        "security_practices": practices,
+        "total_controls_checked": len(ai_service._controls),
+        "strong_matches": len(implemented),
+        "weak_match_count": len(weak_matches),
+        "missing_count": len(missing),
+    }
+
+
+
+def _extract_security_practices(text: str) -> list[dict]:
+    """Extract security practices by scanning for key phrases."""
+    text_lower = text.lower()
+    
+    practice_patterns = {
+        "Multi-factor authentication": (["mfa", "multi-factor", "two-factor", "2fa"], ["5.17", "8.5"]),
+        "Access control policy": (["access control", "role-based access", "rbac", "least privilege"], ["5.15", "5.18", "8.2"]),
+        "Data encryption": (["encryption", "encrypted", "aes", "tls", "ssl", "cryptograph"], ["8.24"]),
+        "Security awareness training": (["security training", "awareness program", "security awareness"], ["6.3"]),
+        "Incident response": (["incident response", "incident management", "security incident"], ["5.24", "5.25", "5.26"]),
+        "Backup procedures": (["backup", "data backup", "recovery point"], ["8.13"]),
+        "Change management": (["change management", "change control", "change request"], ["8.32"]),
+        "Vulnerability management": (["vulnerability scan", "penetration test", "vulnerability management"], ["8.8"]),
+        "Network security": (["firewall", "network segmentation", "intrusion detection", "ids", "ips"], ["8.20", "8.21", "8.22"]),
+        "Logging and monitoring": (["audit log", "event log", "monitoring", "siem"], ["8.15", "8.16"]),
+        "Password policy": (["password policy", "password complexity", "password rotation"], ["5.17"]),
+        "Data classification": (["data classification", "information classification", "labeling"], ["5.12", "5.13"]),
+        "Business continuity": (["business continuity", "disaster recovery", "bcp", "drp"], ["5.29", "5.30"]),
+        "Secure development": (["secure development", "sdlc", "secure coding", "code review"], ["8.25", "8.28"]),
+        "Supplier management": (["vendor management", "supplier assessment", "third-party"], ["5.19", "5.20", "5.21"]),
+    }
+    
+    found_practices = []
+    for practice_name, (keywords, related_controls) in practice_patterns.items():
+        if any(kw in text_lower for kw in keywords):
+            found_practices.append({
+                "practice": practice_name,
+                "related_controls": related_controls,
+            })
+    
+    return found_practices
+
+
 # ---------------------------------------------------------------------------
 # Singleton instance
 # ---------------------------------------------------------------------------
 
 ai_service = AIService()
+

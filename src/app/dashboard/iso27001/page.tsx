@@ -1,18 +1,22 @@
 
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   FileText, 
   ShieldCheck, 
   Upload, 
-  Download, 
-  ArrowRight 
+  ArrowRight,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
-import { useAuth } from "@/hooks";
+import { useAuth, useApiData } from "@/hooks";
+import { api } from "@/lib/api-client";
+import { fetchOrganization, initializeControlApplicability } from "@/lib/data-service";
 import dynamic from "next/dynamic";
+import { toast } from "sonner";
 
 const ISOComplianceWidget = dynamic(
   () => import("@/features/iso27001/ISOComplianceWidget").then(mod => mod.ISOComplianceWidget),
@@ -27,6 +31,29 @@ const ISOControlsStatusWidget = dynamic(
 export default function ISODashboardPage() {
   const { user } = useAuth();
   const role = user?.role || 'analyst';
+  const [initializing, setInitializing] = useState(false);
+  const { data: complianceStats, loading: statsLoading } = useApiData(() =>
+    api.get<{ totalControls: number }>('/compliance/stats')
+  );
+  const canInitialize = role === 'admin' || role === 'manager';
+  const shouldShowInitializePrompt = !statsLoading && (complianceStats?.totalControls ?? 0) === 0;
+
+  const handleInitializeIso = async () => {
+    setInitializing(true);
+    try {
+      const org = await fetchOrganization();
+      if (!org?.id) {
+        throw new Error('Organization not found');
+      }
+      const result = await initializeControlApplicability(org.id, 'iso27001');
+      toast.success(`ISO 27001 controls initialized: ${result.initialized_count}`);
+      window.location.reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to initialize ISO 27001 controls');
+    } finally {
+      setInitializing(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -36,6 +63,23 @@ export default function ISODashboardPage() {
           Monitor your ISO 27001 compliance status and manage controls.
         </p>
       </div>
+
+      {shouldShowInitializePrompt && (
+        <Card className="border-dashed">
+          <CardContent className="py-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-slate-900">ISO 27001 controls not yet initialized for your organization.</p>
+              <p className="text-sm text-slate-600 mt-1">Initialize the 93 Annex A controls to start tracking applicability.</p>
+            </div>
+            {canInitialize && (
+              <Button onClick={handleInitializeIso} disabled={initializing} className="gap-2 shrink-0">
+                {initializing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                Initialize ISO 27001 Controls
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Compliance Score Widget */}

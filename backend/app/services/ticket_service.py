@@ -7,6 +7,7 @@ from app import models, schemas
 from app.models.ticket import TicketStatus, TicketPriority
 from app.models.ticket_activity import TicketActivityType
 from app.services.notification_service import NotificationService
+from app.utils.notifications import notify
 import uuid
 
 class TicketService:
@@ -31,10 +32,11 @@ class TicketService:
         source_audit_log_id: Optional[uuid.UUID] = None
     ) -> models.Ticket:
         """
-        Processes an AI finding: ISO mapping, weighting, repeat check, and tiered assignment.
+        Processes a security finding using deterministic rule-based heuristics:
+        keyword-to-ISO clause mapping, risk weighting, repeat checks, and tiered assignment.
+        Note: This method uses keyword matching rules, not a live generative LLM call.
         """
-        # 1. ISO Mapping & Weighting (Surgical Extraction Simulation)
-        # Geminis extraction would produce these specific fields
+        # 1. Deterministic Rule-Based Keyword-to-ISO Mapping & Weighting
         iso_clause = "A.18.1.1" # Example default: Compliance with legal/contractual requirements
         risk_score = 50 
         
@@ -55,23 +57,34 @@ class TicketService:
         # 2. Criticality Mapping
         base_priority = TicketService.calculate_priority(risk_score)
 
-        # 3. Repeat Check (Last 90 days) - State Agnostic
+        # First, get the current user's organization_id for org-scoped queries
+        user_result = await db.execute(select(models.User).where(models.User.id == current_user_id))
+        current_user = user_result.scalars().first()
+        user_org_id = current_user.organization_id if current_user else None
+
+        # 3. Repeat Check (Last 90 days) — Org-Scoped
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)
-        repeat_query = await db.execute(
+        repeat_stmt = (
             select(models.Ticket)
             .where(models.Ticket.iso_clause == iso_clause)
             .where(models.Ticket.created_at >= ninety_days_ago)
-            .order_by(models.Ticket.created_at.desc())
-            .limit(1)
+        )
+        if user_org_id:
+            repeat_stmt = repeat_stmt.where(models.Ticket.organization_id == user_org_id)
+
+        repeat_query = await db.execute(
+            repeat_stmt.order_by(models.Ticket.created_at.desc()).limit(1)
         )
         previous_ticket = repeat_query.scalars().first()
         is_repeat = previous_ticket is not None
         previous_ticket_id = previous_ticket.id if previous_ticket else None
 
         # 4. Assignee Determination & SLA
-        # We need to find users with specific roles
         async def get_user_by_role(role: models.UserRole) -> Optional[models.User]:
-            res = await db.execute(select(models.User).where(models.User.role == role).limit(1))
+            query = select(models.User).where(models.User.role == role)
+            if user_org_id:
+                query = query.where(models.User.organization_id == user_org_id)
+            res = await db.execute(query.limit(1))
             return res.scalars().first()
 
         l1_admin = await get_user_by_role(models.UserRole.admin)
@@ -111,27 +124,47 @@ class TicketService:
                 assigned_to = l2_manager
                 sla_hours = 72
 
-        # 5. Create the Ticket
-        ticket_create = schemas.TicketCreate(
-            title=f"AI Finding: {iso_clause} - {'REPEAT' if is_repeat else 'NEW'}",
-            description=finding_text,
-            priority=priority,
-            category=models.ticket.TicketCategory.security_incident,
-            source_audit_log_id=source_audit_log_id or uuid.uuid4(),
-            assigned_to_id=assigned_to.id if assigned_to else current_user_id,
-            assigned_to_role=assigned_to.role.value if assigned_to else "analyst",
-            due_date=datetime.utcnow() + timedelta(hours=sla_hours),
-            status_updated_at=datetime.utcnow(),
-            is_repeat_finding=is_repeat,
-            iso_clause=iso_clause,
-            risk_score=risk_score,
-            previous_ticket_id=previous_ticket_id
-        )
-
-        ticket = await TicketService.create_ticket(db, ticket_create, current_user_id)
+        # 5. Create/Update the Risk (Triggers Evaluation)
+        from app.services.risk_trigger_service import RiskTriggerService
         
-        # 6. Audit Repeat Finding if applicable
-        if is_repeat:
+        # Check if risk already exists for this specific control/asset (safely handle None)
+        target_asset_id = risk_id or control_id
+        risk = None
+        if target_asset_id is not None:
+            rq = select(models.Risk).where(models.Risk.asset_id == target_asset_id)
+            if user_org_id:
+                rq = rq.where(models.Risk.organization_id == user_org_id)
+            risk_res = await db.execute(rq.limit(1))
+            risk = risk_res.scalars().first()
+        
+        if not risk:
+            # Create Risk first
+            risk = models.Risk(
+                title=f"AI Identified Risk: {iso_clause}",
+                description=finding_text,
+                likelihood=max(1, risk_score // 20),
+                impact=max(1, risk_score // 20),
+                risk_score=risk_score,
+                status=models.RiskStatus.identified,
+                organization_id=user_org_id,
+                asset_id=target_asset_id,
+                created_by=current_user_id,
+                owner_id=current_user_id
+            )
+            db.add(risk)
+            await db.flush()
+        else:
+            # Update Risk
+            risk.risk_score = risk_score
+            risk.description = finding_text
+            db.add(risk)
+            await db.flush()
+
+        # 6. Trigger Ticket Evaluation (Centralized Logic)
+        ticket = await RiskTriggerService.evaluate_and_trigger(db, risk.id)
+        
+        # 7. Audit Repeat Finding if applicable
+        if is_repeat and ticket:
             activity = models.TicketActivity(
                 ticket_id=ticket.id,
                 user_id=None, # System
@@ -181,12 +214,15 @@ class TicketService:
         
         # Notify assignee
         if ticket.assigned_to_id:
-            await NotificationService.create_notification(
+            await notify(
                 db=db,
                 user_id=ticket.assigned_to_id,
+                title="New ticket assigned",
                 message=f"New ticket assigned: {ticket.title}",
-                type="ASSIGNMENT",
-                ticket_id=ticket.id
+                entity_type="ticket",
+                entity_id=ticket.id,
+                link_url=f"/dashboard/tickets/{ticket.id}",
+                notification_type="ASSIGNMENT"
             )
             
         return ticket
@@ -301,14 +337,18 @@ class TicketService:
         await db.commit()
         await db.refresh(ticket)
 
-        # Notify assignee of evidence request
-        await NotificationService.create_notification(
-            db=db,
-            user_id=ticket.assigned_to_id,
-            message=f"Action Required: Evidence requested for ticket {ticket.id}",
-            type="EVIDENCE_REQUEST",
-            ticket_id=ticket.id
-        )
+        # Notify assignee of evidence request if assigned
+        if ticket.assigned_to_id:
+            await notify(
+                db=db,
+                user_id=ticket.assigned_to_id,
+                title="Evidence requested",
+                message=f"📎 Evidence requested: {ticket.title} - {comment_text}",
+                entity_type="ticket",
+                entity_id=ticket.id,
+                link_url=f"/dashboard/tickets/{ticket.id}",
+                notification_type="EVIDENCE_REQUEST"
+            )
 
         return ticket
 
@@ -392,11 +432,13 @@ class TicketService:
 
         # Manual Escalation Guards (Spec Section 4) - Bypass for System Auto-Escalation
         if current_user_id is not None:
+             # Rule: Must disable auto-escalation toggle first
              if ticket.is_auto_escalation_enabled:
-                  raise ValueError("Disable auto-escalation toggle first")
+                  raise ValueError("Disable auto-escalation toggle first. (Prevents system from re-evaluating manually escalated tickets)")
              
+             # Rule: Reason is mandatory and >= 10 chars
              if not reason or len(reason) < 10:
-                  raise ValueError("Reason must be at least 10 characters")
+                  raise ValueError("Reason for manual escalation must be at least 10 characters")
              
         # Check if assignee is already L1
         assignee_role = ticket.assigned_to_role
@@ -426,12 +468,15 @@ class TicketService:
         await db.refresh(ticket)
         
         # Notify new assignee
-        await NotificationService.create_notification(
+        await notify(
             db=db,
             user_id=escalated_to_id,
-            message=f"Ticket Escalated: You have been assigned ticket {ticket.id}",
-            type="ESCALATION",
-            ticket_id=ticket.id
+            title="Ticket escalated to you",
+            message=f"Ticket escalated to you: {ticket.title} - requires immediate attention",
+            entity_type="ticket",
+            entity_id=ticket.id,
+            link_url=f"/dashboard/tickets/{ticket.id}",
+            notification_type="ESCALATION"
         )
         
         return ticket
@@ -509,23 +554,37 @@ class TicketService:
     async def check_slas(db: AsyncSession):
         """
         Check for tickets that have passed their due date and auto-escalate if enabled.
-        Strictly follows GRC Supervisor Fallback and L1 Hard Stop rules.
+        Strictly follows GRC Supervisor Fallback and L1 Hard Stop rules across all organizations.
         """
+        from sqlalchemy import text
         now = datetime.utcnow()
-        result = await db.execute(
-            select(models.Ticket)
-            .where(models.Ticket.status.in_([
-                TicketStatus.open, 
-                TicketStatus.in_review, 
-                TicketStatus.escalated, 
-                TicketStatus.pending_evidence,
-                TicketStatus.pending_l2_review,
-                TicketStatus.pending_l1_signoff,
-                TicketStatus.rejected
-            ]))
-            .where(models.Ticket.is_auto_escalation_enabled == True)
-        )
-        all_potential_overdue = result.scalars().all()
+
+        # Query all active organization IDs to set RLS context per organization
+        org_result = await db.execute(select(models.Organization.id))
+        org_ids = org_result.scalars().all()
+
+        for org_id in org_ids:
+            # Set RLS session context for current organization
+            await db.execute(
+                text("SELECT set_config('app.org_id', :org_id, true)"),
+                {"org_id": str(org_id)}
+            )
+
+            result = await db.execute(
+                select(models.Ticket)
+                .where(models.Ticket.organization_id == org_id)
+                .where(models.Ticket.status.in_([
+                    TicketStatus.open, 
+                    TicketStatus.in_review, 
+                    TicketStatus.escalated, 
+                    TicketStatus.pending_evidence,
+                    TicketStatus.pending_l2_review,
+                    TicketStatus.pending_l1_signoff,
+                    TicketStatus.rejected
+                ]))
+                .where(models.Ticket.is_auto_escalation_enabled == True)
+            )
+            all_potential_overdue = result.scalars().all()
         
         for ticket in all_potential_overdue:
             try:
@@ -563,12 +622,15 @@ class TicketService:
                     db.add(sla_activity)
                     
                     # Notify Admin for Hard Stop
-                    await NotificationService.create_notification(
+                    await notify(
                         db=db,
                         user_id=assignee.id,
-                        message=f"Critical: Ticket {ticket.id} is OVERDUE at L1 level.",
-                        type="OVERDUE_CRITICAL",
-                        ticket_id=ticket.id
+                        title="OVERDUE",
+                        message=f"🚨 OVERDUE: {ticket.title} - Requires your immediate action",
+                        entity_type="ticket",
+                        entity_id=ticket.id,
+                        link_url=f"/dashboard/tickets/{ticket.id}",
+                        notification_type="OVERDUE_CRITICAL"
                     )
                     continue
 

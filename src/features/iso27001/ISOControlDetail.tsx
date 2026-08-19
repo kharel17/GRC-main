@@ -1,6 +1,7 @@
 
 "use client";
 
+import { UserProfile } from "@/types";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,9 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { ISOEvidenceManager } from "./ISOEvidenceManager";
 import { RiskMapping } from "./RiskMapping";
-import { mockUsers } from "@/lib/mock-data";
+import { fetchUsers } from "@/lib";
+import { useApiData } from "@/hooks";
+// import { mockUsers } from "@/lib/mock-data";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EvidenceDropzone } from "@/components/evidence/EvidenceDropzone";
 import { EvidenceList } from "@/components/evidence/EvidenceList";
@@ -34,12 +37,26 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
   const [status, setStatus] = useState<ISOControlStatus>("not_started");
   const [notes, setNotes] = useState("");
   const [ownerId, setOwnerId] = useState("");
+  const [users_list, setUsersList] = useState<UserProfile[]>([]);
   const [saving, setSaving] = useState(false);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
 
+  const { data: usersData } = useApiData(fetchUsers);
+  const users = usersData ?? [];
+
   useEffect(() => {
     loadControl();
+    loadUsers();
   }, [controlId]);
+
+  const loadUsers = async () => {
+    try {
+      const data = await fetchUsers();
+      setUsersList(data as UserProfile[]);
+    } catch (err) {
+      console.warn("Failed to load users", err);
+    }
+  };
 
   const loadControl = async () => {
     try {
@@ -71,7 +88,7 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
 
       // Update owner if changed
       if (ownerId !== (control.ownerId || "")) {
-        const owner = mockUsers.find(u => u.id === ownerId);
+        const owner = users.find(u => u.id === ownerId);
         if (owner) {
           await isoService.assignOwner(control.id, ownerId, owner.fullName || owner.full_name || '', {
             id: user.id, name: user.email, role: user.role
@@ -136,8 +153,8 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
           <Tabs defaultValue="details" className="w-full">
             <TabsList className="w-full justify-start grid grid-cols-3 lg:w-auto">
               <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="evidence">Evidence ({control.evidenceIds?.length || 0})</TabsTrigger>
-              <TabsTrigger value="risks">Risks ({control.riskIds?.length || 0})</TabsTrigger>
+              <TabsTrigger value="evidence">Evidence ({control.evidenceIds?.length ?? 0})</TabsTrigger>
+              <TabsTrigger value="risks">Risks ({control.riskIds?.length ?? 0})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="mt-4 space-y-6">
@@ -177,8 +194,8 @@ export function ISOControlDetail({ controlId }: { controlId: string }) {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {mockUsers.map(u => (
-                            <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>
+                          {users.map(u => (
+                            <SelectItem key={u.id} value={u.id}>{u.fullName || u.full_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { fetchAuditLogs } from '@/lib/data-service';
+import { useState, useEffect } from 'react';
+import { fetchAuditLogs, fetchUsers } from '@/lib/data-service';
 import { useApiData } from '@/hooks';
 import { AuditLog } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,15 +39,27 @@ function getActionColor(action: string) {
 }
 
 export default function AuditPage() {
-  const { data: auditLogs, loading, error } = useApiData(fetchAuditLogs);
+  const { data: auditLogs, loading: logsLoading, error: logsError, refetch } = useApiData<AuditLog[]>(fetchAuditLogs);
+  const { data: users, loading: usersLoading } = useApiData<any[]>(fetchUsers);
   const [actionFilter, setActionFilter] = useState<ActionTypeFilter>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refetch();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [refetch]);
+
   const allLogs = auditLogs ?? [];
+  const allUsers = users ?? [];
+  const loading = logsLoading || usersLoading;
+  const error = logsError;
 
   const filteredLogs = allLogs.filter((log) => {
     if (actionFilter !== 'all' && log.action !== actionFilter) return false;
-    if (userFilter !== 'all' && (log.actor_id !== userFilter && log.actor_id !== userFilter)) return false;
+    // Support filtering by actor_id
+    if (userFilter !== 'all' && log.actor_id !== userFilter) return false;
     return true;
   });
 
@@ -111,10 +123,14 @@ export default function AuditPage() {
             <SelectTrigger className="w-[180px] h-9">
               <SelectValue placeholder="Filter by user" />
             </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
-                {/* User filtering simplified for now since we removed mockUsers import */}
-              </SelectContent>
+            <SelectContent>
+              <SelectItem value="all">All Users</SelectItem>
+              {allUsers.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.full_name || u.email}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
       </div>

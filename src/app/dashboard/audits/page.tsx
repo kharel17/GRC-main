@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Clock, FileText, Shield, Activity, Filter, AlertTriangle, Edit, Loader2 } from 'lucide-react';
+import { PageRoleGuard } from '@/components/auth/PageRoleGuard';
 
 type ActionTypeFilter = 'all' | 'created' | 'updated' | 'deleted';
 
@@ -39,6 +40,14 @@ function getActionColor(action: string) {
 }
 
 export default function AuditPage() {
+  return (
+    <PageRoleGuard allowedRoles={['admin', 'compliance_officer', 'auditor']} permissionKey="audit_log">
+      <AuditContent />
+    </PageRoleGuard>
+  );
+}
+
+function AuditContent() {
   const { data: auditLogs, loading: logsLoading, error: logsError, refetch } = useApiData<AuditLog[]>(fetchAuditLogs);
   const { data: users, loading: usersLoading } = useApiData<any[]>(fetchUsers);
   const [actionFilter, setActionFilter] = useState<ActionTypeFilter>('all');

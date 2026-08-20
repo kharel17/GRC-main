@@ -43,7 +43,9 @@ env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
 async def export_custom_report(
     config: CustomReportConfig,
     db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin])),
+    current_user: models.User = Depends(deps.RoleChecker([
+        models.UserRole.admin, models.UserRole.manager, models.UserRole.compliance_officer, models.UserRole.auditor
+    ], permission_key="reports")),
 ) -> Any:
     """Generate a custom combined report based on selected sections."""
     import datetime as dt

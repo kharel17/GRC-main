@@ -237,10 +237,14 @@ async def update_risk(
     db: AsyncSession = Depends(deps.get_db),
     id: str,
     risk_in: schemas.RiskUpdate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.RoleChecker([
+        models.UserRole.admin, models.UserRole.manager, models.UserRole.compliance_officer, models.UserRole.risk_owner, models.UserRole.analyst
+    ], permission_key="risks")),
 ) -> Any:
     """
     Update an existing risk. Scoped to current user's organization.
+    - Admins/Compliance Officers/Managers: Can update any org risk.
+    - Analysts/Risk Owners: Can only update risks owned or created by them.
     """
     org_id = current_user.organization_id
     if not org_id:
@@ -255,6 +259,11 @@ async def update_risk(
     risk = result.scalars().first()
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
+
+    user_role = str(getattr(current_user.role, 'value', current_user.role))
+    if user_role in ("analyst", "risk_owner"):
+        if risk.owner_id != current_user.id and risk.created_by != current_user.id:
+            raise HTTPException(status_code=403, detail="You can only edit risks that you own or created")
 
     # 1. Build risk object
     print("DEBUG: update_risk payload:", risk_in.model_dump(exclude_unset=True))

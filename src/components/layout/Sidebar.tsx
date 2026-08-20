@@ -39,6 +39,7 @@ interface NavItem {
   defaultLabel: string;
   icon: React.ElementType;
   roles: UserRole[];
+  permissionKey?: string; // Key in permission_profile.nav_permissions
   badge?: 'red' | 'yellow' | 'green';
 }
 
@@ -53,38 +54,38 @@ const NAV_GROUPS: NavGroup[] = [
     labelKey: 'manage',
     defaultLabel: 'MANAGE',
     items: [
-      { href: '/dashboard/organization', labelKey: 'organization', defaultLabel: 'Organization', icon: Building2, roles: ['admin', 'manager'] },
-      { href: '/dashboard/assets', labelKey: 'assets', defaultLabel: 'Assets', icon: Boxes, roles: ['admin', 'manager', 'analyst'] },
-      { href: '/dashboard/risks', labelKey: 'riskRegister', defaultLabel: 'Risks', icon: AlertTriangle, roles: ['admin', 'manager', 'analyst'] },
-      { href: '/dashboard/controls', labelKey: 'controls', defaultLabel: 'Controls', icon: Shield, roles: ['admin', 'manager', 'analyst'] },
-      { href: '/dashboard/tickets', labelKey: 'tickets', defaultLabel: 'Tickets', icon: Ticket, roles: ['admin', 'manager', 'analyst'] },
+      { href: '/dashboard/organization', labelKey: 'organization', defaultLabel: 'Organization', icon: Building2, roles: ['admin', 'compliance_officer', 'auditor'], permissionKey: 'organization' },
+      { href: '/dashboard/assets', labelKey: 'assets', defaultLabel: 'Assets', icon: Boxes, roles: ['admin', 'manager', 'analyst', 'compliance_officer', 'control_owner', 'risk_owner', 'auditor', 'department_manager', 'executive'], permissionKey: 'assets' },
+      { href: '/dashboard/risks', labelKey: 'riskRegister', defaultLabel: 'Risks', icon: AlertTriangle, roles: ['admin', 'manager', 'analyst', 'compliance_officer', 'control_owner', 'risk_owner', 'auditor', 'department_manager', 'executive'], permissionKey: 'risks' },
+      { href: '/dashboard/controls', labelKey: 'controls', defaultLabel: 'Controls', icon: Shield, roles: ['admin', 'manager', 'analyst', 'compliance_officer', 'control_owner', 'risk_owner', 'auditor', 'department_manager', 'executive'], permissionKey: 'controls' },
+      { href: '/dashboard/tickets', labelKey: 'tickets', defaultLabel: 'Tickets', icon: Ticket, roles: ['admin', 'manager', 'analyst', 'compliance_officer', 'control_owner', 'risk_owner', 'department_manager', 'executive'], permissionKey: 'tickets' },
     ],
   },
   {
     labelKey: 'comply',
     defaultLabel: 'COMPLY',
     items: [
-      { href: '/dashboard/iso27001', labelKey: 'iso27001', defaultLabel: 'ISO 27001', icon: ShieldCheck, roles: ['admin', 'manager', 'analyst'] },
-      { href: '/dashboard/gap-analysis', labelKey: 'gapAnalysis', defaultLabel: 'Gap Analysis', icon: PieChart, roles: ['admin', 'manager', 'analyst'] },
-      { href: '/dashboard/evidence', labelKey: 'evidence', defaultLabel: 'Evidence', icon: FileText, roles: ['admin', 'manager', 'analyst'] },
+      { href: '/dashboard/iso27001', labelKey: 'iso27001', defaultLabel: 'ISO 27001', icon: ShieldCheck, roles: ['admin', 'manager', 'analyst', 'compliance_officer', 'control_owner', 'risk_owner', 'auditor', 'department_manager', 'executive'], permissionKey: 'iso27001' },
+      { href: '/dashboard/gap-analysis', labelKey: 'gapAnalysis', defaultLabel: 'Gap Analysis', icon: PieChart, roles: ['admin', 'manager', 'compliance_officer', 'auditor', 'department_manager', 'executive'], permissionKey: 'gap_analysis' },
+      { href: '/dashboard/evidence', labelKey: 'evidence', defaultLabel: 'Evidence', icon: FileText, roles: ['admin', 'manager', 'analyst', 'compliance_officer', 'control_owner', 'risk_owner', 'auditor', 'department_manager', 'executive'], permissionKey: 'evidence' },
     ],
   },
   {
     labelKey: 'audit',
     defaultLabel: 'AUDIT',
     items: [
-      { href: '/dashboard/audit-preparation', labelKey: 'auditPrep', defaultLabel: 'Audit Prep', icon: ClipboardCheck, roles: ['admin', 'manager', 'analyst'] },
-      { href: '/dashboard/document-analysis', labelKey: 'docAnalysis', defaultLabel: 'Doc Analysis', icon: Microscope, roles: ['admin', 'manager', 'analyst'] },
-      { href: '/dashboard/audits', labelKey: 'auditLog', defaultLabel: 'Audit Log', icon: Clock, roles: ['admin', 'manager'] },
-      { href: '/dashboard/reports', labelKey: 'reports', defaultLabel: 'Reports', icon: CheckCircle2, roles: ['admin', 'manager', 'analyst'] },
+      { href: '/dashboard/audit-preparation', labelKey: 'auditPrep', defaultLabel: 'Audit Prep', icon: ClipboardCheck, roles: ['admin', 'manager', 'compliance_officer', 'auditor', 'department_manager', 'executive'], permissionKey: 'audit_preparation' },
+      { href: '/dashboard/document-analysis', labelKey: 'docAnalysis', defaultLabel: 'Doc Analysis', icon: Microscope, roles: ['admin', 'manager', 'compliance_officer', 'department_manager', 'executive'], permissionKey: 'document_analysis' },
+      { href: '/dashboard/audits', labelKey: 'auditLog', defaultLabel: 'Audit Log', icon: Clock, roles: ['admin', 'compliance_officer', 'auditor'], permissionKey: 'audit_log' },
+      { href: '/dashboard/reports', labelKey: 'reports', defaultLabel: 'Reports', icon: CheckCircle2, roles: ['admin', 'manager', 'compliance_officer', 'auditor', 'department_manager', 'executive'], permissionKey: 'reports' },
     ],
   },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: '/superadmin', labelKey: 'superadmin', defaultLabel: 'Super Admin', icon: Shield, roles: ['superadmin'] },
-  { href: '/dashboard/users', labelKey: 'users', defaultLabel: 'Users', icon: Users, roles: ['admin', 'superadmin'] },
-  { href: '/dashboard/settings', labelKey: 'settings', defaultLabel: 'Settings', icon: Settings, roles: ['admin', 'superadmin'] },
+  { href: '/dashboard/users', labelKey: 'users', defaultLabel: 'Users', icon: Users, roles: ['superadmin', 'admin', 'manager', 'department_manager'], permissionKey: 'users' },
+  { href: '/dashboard/settings', labelKey: 'settings', defaultLabel: 'Settings', icon: Settings, roles: ['superadmin', 'admin', 'manager', 'analyst', 'compliance_officer', 'control_owner', 'risk_owner', 'auditor', 'department_manager', 'executive'] },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -92,6 +93,10 @@ const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   manager: 'Manager',
   analyst: 'Analyst',
+  compliance_officer: 'Compliance Officer',
+  control_owner: 'Control Owner',
+  risk_owner: 'Risk Owner',
+  auditor: 'Auditor',
 };
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -254,14 +259,45 @@ export function Sidebar() {
         {/* ── Scrollable nav body ───────────────────────── */}
         <nav className={`flex-1 overflow-y-auto py-4 scrollbar-hide ${collapsed ? 'px-1.5 space-y-1' : 'px-2.5 space-y-1'}`}>
 
-          {/* Dashboard */}
-          <NavLink
-            item={{ href: '/dashboard', labelKey: 'dashboard', defaultLabel: 'Dashboard', icon: BarChart3, roles: ['admin', 'manager', 'analyst'] }}
-          />
+          {/* Super Admin Primary Navigation (Elevated to top for superadmin) */}
+          {userRole === 'superadmin' && (
+            <div className="space-y-1 pb-3">
+              <NavLink
+                item={{ href: '/superadmin', labelKey: 'superadmin', defaultLabel: 'Super Admin', icon: Shield, roles: ['superadmin'] }}
+                isAdminItem
+              />
+              <NavLink
+                item={{ href: '/dashboard/users', labelKey: 'users', defaultLabel: 'Users', icon: Users, roles: ['superadmin'] }}
+                isAdminItem
+              />
+              <NavLink
+                item={{ href: '/dashboard/settings', labelKey: 'settings', defaultLabel: 'Settings', icon: Settings, roles: ['superadmin'] }}
+                isAdminItem
+              />
+            </div>
+          )}
+
+          {/* Dashboard (Hidden for Super Admin) */}
+          {userRole !== 'superadmin' && (
+            <NavLink
+              item={{
+                href: '/dashboard',
+                labelKey: 'dashboard',
+                defaultLabel: 'Dashboard',
+                icon: BarChart3,
+                roles: ['admin', 'manager', 'analyst', 'compliance_officer', 'control_owner', 'risk_owner', 'auditor', 'department_manager', 'executive'],
+              }}
+            />
+          )}
 
           {/* Grouped sections */}
           {NAV_GROUPS.map((group) => {
-            const visibleItems = group.items.filter((item) => item.roles.includes(userRole));
+            const userProfilePermissions = (user as any)?.permission_profile?.nav_permissions || {};
+            const visibleItems = group.items.filter((item) => {
+              const hasBaseRole = item.roles.includes(userRole);
+              const hasProfileOverride = item.permissionKey && userProfilePermissions[item.permissionKey] === true;
+              return hasBaseRole || hasProfileOverride;
+            });
             if (visibleItems.length === 0) return null;
             const isGroupCollapsed = !!collapsedGroups[group.labelKey];
             const groupLabelText = t(group.labelKey) !== group.labelKey ? t(group.labelKey) : group.defaultLabel;
@@ -304,9 +340,14 @@ export function Sidebar() {
 
         {/* ── Bottom pinned area ──────────────────────────── */}
         <div className="flex-shrink-0 border-t border-border">
-          {/* Admin items */}
-          {(() => {
-            const adminVisible = ADMIN_NAV_ITEMS.filter((item) => item.roles.includes(userRole));
+          {/* Admin items (Only for tenant users — superadmin has them at top) */}
+          {userRole !== 'superadmin' && (() => {
+            const userProfilePermissions = (user as any)?.permission_profile?.nav_permissions || {};
+            const adminVisible = ADMIN_NAV_ITEMS.filter((item) => {
+              const hasBaseRole = item.roles.includes(userRole);
+              const hasProfileOverride = item.permissionKey && userProfilePermissions[item.permissionKey] === true;
+              return hasBaseRole || hasProfileOverride;
+            });
             if (adminVisible.length === 0) return null;
             return (
               <div className={`pt-2.5 pb-1 space-y-0.5 ${collapsed ? 'px-1.5' : 'px-2.5'}`}>

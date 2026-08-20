@@ -10,13 +10,26 @@ export type UserRole =
   | 'executive' 
   | 'auditor'
 
+export interface PermissionProfile {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  nav_permissions: Record<string, boolean>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface User {
   id: string
   email: string
   full_name: string
   role: UserRole
   organization_id: string
+  organization_name?: string
   manager_id?: string
+  permission_profile_id?: string
+  permission_profile?: PermissionProfile
   invitation_status: string
   is_acting_admin: boolean
   created_at: string
@@ -29,7 +42,10 @@ export interface UserProfile {
   fullName?: string // alias
   role: UserRole
   organization_id: string
+  organization_name?: string
   manager_id?: string
+  permission_profile_id?: string
+  permission_profile?: PermissionProfile
   invitation_status: string
   is_acting_admin: boolean
   department?: string

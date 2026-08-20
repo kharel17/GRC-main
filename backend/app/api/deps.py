@@ -199,13 +199,10 @@ async def get_current_user(
     email = payload.get("email", "")
 
     ROLE_OVERRIDE_MAP = {
-        # Seed accounts (local dev only)
-        "alice@company.com":   models.UserRole.admin,
-        "carol@company.com":   models.UserRole.manager,
-        "bob@company.com":     models.UserRole.analyst,
-        # Platform team (Super Admins across all environments)
+        # Platform team (Super Admins)
         "bcolorc17@gmail.com": models.UserRole.superadmin,
         "grchelios@gmail.com": models.UserRole.superadmin,
+        "grcacc55@gmail.com": models.UserRole.superadmin,
     }
 
     # Step 1: Check platform team / seed override
@@ -321,7 +318,19 @@ async def get_current_user(
             }
         )
 
-    # Step 5: If user pending -> activate them
+    # Step 5: Check if time-boxed audit access window has expired
+    from datetime import datetime
+    if user_orm.access_expires_at and datetime.utcnow() > user_orm.access_expires_at:
+        logger.warning(f"Blocked login attempt for expired auditor account: {email}")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "ACCESS_EXPIRED",
+                "message": "Your audit access window has expired. Please contact your organization administrator to renew access."
+            }
+        )
+
+    # Step 6: If user pending -> activate them
     if user_orm.invitation_status == 'pending':
         user_orm.invitation_status = 'active'
         try:
@@ -330,6 +339,10 @@ async def get_current_user(
         except Exception as e:
             await db.rollback()
             logger.error(f"Error activating user: {e}")
+
+    # Load permission profile if assigned
+    if user_orm.permission_profile_id and not user_orm.permission_profile:
+        user_orm.permission_profile = await db.get(models.PermissionProfile, user_orm.permission_profile_id)
 
     # Set organization context for RLS
     from app.database import org_id_var
@@ -348,21 +361,42 @@ async def get_current_user(
 
 
 class RoleChecker:
-    def __init__(self, allowed_roles: list[models.UserRole]):
+    def __init__(self, allowed_roles: list[models.UserRole], permission_key: Optional[str] = None):
         self.allowed_roles = [str(role.value) if hasattr(role, 'value') else str(role) for role in allowed_roles]
+        self.permission_key = permission_key
 
     def __call__(self, user: models.User = Depends(get_current_user)):
         user_role_str = str(user.role.value) if hasattr(user.role, 'value') else str(user.role)
 
-        logger.debug(f"Checking access: User role '{user_role_str}' vs Allowed roles {self.allowed_roles}")
+        # 1. Check if base role is in allowed roles
+        if user_role_str in self.allowed_roles:
+            return user
 
-        if user_role_str not in self.allowed_roles:
-            logger.warning(f"Access Denied: {user.email} (role: {user_role_str}) requires one of {self.allowed_roles}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{user_role_str}' does not have access to this resource",
-            )
-        return user
+        # 2. If user has a custom permission profile with the specific nav permission granted
+        if self.permission_key and user.permission_profile and user.permission_profile.nav_permissions:
+            if user.permission_profile.nav_permissions.get(self.permission_key) is True:
+                logger.info(f"Access granted via Custom Permission Profile ({self.permission_key}) for {user.email}")
+                return user
+
+        logger.warning(f"Access Denied: {user.email} (role: {user_role_str}) requires one of {self.allowed_roles} or profile permission '{self.permission_key}'")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Role '{user_role_str}' does not have access to this resource",
+        )
+
+
+def enforce_non_auditor_write(current_user: models.User = Depends(get_current_user)):
+    """
+    Guard to enforce that 'auditor' role accounts cannot perform write/mutation operations
+    (creating, editing, deleting risks, assets, controls, evidence).
+    """
+    user_role_str = str(current_user.role.value) if hasattr(current_user.role, 'value') else str(current_user.role)
+    if user_role_str == "auditor":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Auditor accounts have read-only access and cannot modify platform data."
+        )
+    return current_user
 
 
 def get_current_active_user(

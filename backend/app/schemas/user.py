@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     is_active: Optional[bool] = True
     manager_id: Optional[UUID] = None
     is_acting_admin: Optional[int] = 0
+    access_expires_at: Optional[datetime] = None
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):
@@ -24,8 +25,15 @@ class UserCreate(UserBase):
 class UserUpdate(UserBase):
     password: Optional[str] = None
 
+from .permission_profile import PermissionProfileResponse
+
 class UserInDBBase(UserBase):
     id: Optional[UUID] = None
+    organization_id: Optional[UUID] = None
+    organization_name: Optional[str] = None
+    permission_profile_id: Optional[UUID] = None
+    permission_profile: Optional[PermissionProfileResponse] = None
+    access_expires_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

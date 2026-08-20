@@ -61,3 +61,10 @@ class FrameworkResponse(FrameworkBase):
 class FrameworkDetailResponse(FrameworkResponse):
     controls: List[FrameworkControlResponse] = []
 from .document_analysis import DocumentAnalysisResponse, DocumentAnalysisSummary
+from .permission_profile import (
+    PermissionProfileBase,
+    PermissionProfileCreate,
+    PermissionProfileUpdate,
+    PermissionProfileResponse,
+    UserProfileAssignRequest,
+)

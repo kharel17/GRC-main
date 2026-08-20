@@ -41,6 +41,44 @@ class ImpersonationResponse(BaseModel):
     tenant_name: str
 
 
+class UserSearchResult(BaseModel):
+    id: UUID
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    organization_name: Optional[str] = None
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/users/search", response_model=List[UserSearchResult])
+async def search_users(
+    email: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.superadmin])),
+) -> Any:
+    """
+    Search for users across all organizations by email (Super Admin only).
+    """
+    stmt = select(models.User).where(models.User.email.ilike(f"%{email}%")).limit(10)
+    result = await db.execute(stmt)
+    users = result.scalars().all()
+
+    return [
+        UserSearchResult(
+            id=u.id,
+            email=u.email,
+            full_name=u.full_name,
+            role=str(u.role.value) if hasattr(u.role, 'value') else str(u.role),
+            organization_name=u.organization_name,
+            is_active=u.is_active,
+        )
+        for u in users
+    ]
+
+
 @router.get("/organizations", response_model=List[TenantSummary])
 async def list_tenants(
     db: AsyncSession = Depends(deps.get_db),
@@ -122,4 +160,82 @@ async def impersonate_tenant_admin(
         access_token=token,
         tenant_id=org.id,
         tenant_name=org.name,
+    )
+
+
+class PromoteResponse(BaseModel):
+    success: bool
+    message: str
+    user_id: UUID
+    previous_role: str
+    new_role: str = "superadmin"
+
+
+@router.post("/promote/{user_id}", response_model=PromoteResponse)
+async def promote_to_superadmin(
+    user_id: UUID,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.superadmin])),
+) -> Any:
+    """
+    Promote an existing user to Super Admin (Super Admin only).
+    Moves them to Platform Team org, revokes old sessions via token_version bump.
+    """
+    target_user = await db.get(models.User, user_id)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target_user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot promote yourself")
+
+    previous_role = str(target_user.role.value) if hasattr(target_user.role, 'value') else str(target_user.role)
+
+    if previous_role == "superadmin":
+        raise HTTPException(status_code=400, detail="User is already a Super Admin")
+
+    # Get or create Platform Team org
+    platform_org_res = await db.execute(
+        select(models.Organization).where(models.Organization.name == "Platform Team")
+    )
+    platform_org = platform_org_res.scalar_one_or_none()
+    if not platform_org:
+        platform_org = models.Organization(
+            id=uuid.uuid4(),
+            name="Platform Team",
+            onboarding_completed=True,
+            created_by=current_user.id,
+        )
+        db.add(platform_org)
+        await db.flush()
+
+    # Promote user
+    target_user.role = models.UserRole.superadmin
+    target_user.organization_id = platform_org.id
+    target_user.organization_name = platform_org.name
+
+    # Revoke all existing sessions by bumping token_version
+    if hasattr(target_user, 'token_version') and target_user.token_version is not None:
+        target_user.token_version += 1
+
+    db.add(target_user)
+
+    # Audit log
+    audit_log = models.AuditLog(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        action=models.AuditAction.updated,
+        entity_type=models.AuditEntityType.user,
+        entity_id=target_user.id,
+        entity_name=target_user.email,
+        description=f"SUPER ADMIN PROMOTION: {current_user.email} promoted {target_user.email} from '{previous_role}' to 'superadmin'"
+    )
+    db.add(audit_log)
+
+    await db.commit()
+
+    return PromoteResponse(
+        success=True,
+        message=f"{target_user.email} has been promoted to Super Admin",
+        user_id=target_user.id,
+        previous_role=previous_role,
     )

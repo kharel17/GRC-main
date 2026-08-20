@@ -23,6 +23,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Organization } from "@/types";
 
+import { PageRoleGuard } from "@/components/auth/PageRoleGuard";
+
 const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Retail", "Manufacturing", "Education", "Government", "Other"];
 const EMPLOYEE_RANGES = ["1-50", "51-200", "201-1000", "1000+"];
 const INFRASTRUCTURE_OPTIONS = ["AWS", "Azure", "GCP", "On-premise", "Hybrid"];
@@ -30,6 +32,14 @@ const DATA_TYPES = ["PII", "PHI", "PCI", "Financial Data", "IP"];
 const FRAMEWORKS = ["ISO 27001", "SOC2", "HIPAA", "GDPR", "NIST"];
 
 export default function OrganizationPage() {
+  return (
+    <PageRoleGuard allowedRoles={['admin', 'compliance_officer', 'auditor']} permissionKey="organization">
+      <OrganizationContent />
+    </PageRoleGuard>
+  );
+}
+
+function OrganizationContent() {
   const { data: org, loading, refetch } = useApiData(fetchOrganization);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);

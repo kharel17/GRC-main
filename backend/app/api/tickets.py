@@ -139,11 +139,31 @@ async def update_ticket(
     db: AsyncSession = Depends(deps.get_db),
     id: UUID,
     ticket_in: schemas.TicketUpdate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.RoleChecker([
+        models.UserRole.admin, models.UserRole.manager, models.UserRole.compliance_officer, models.UserRole.analyst
+    ], permission_key="tickets")),
 ) -> Any:
     """
     Update a ticket.
+    - Admin/Compliance Officer: Can update any ticket.
+    - Manager: Can update tickets assigned to them or their team.
+    - Analyst: Can only update tickets assigned to them.
     """
+    # Verify ticket exists and belongs to current user's org
+    t_res = await db.execute(
+        select(models.Ticket).where(
+            models.Ticket.id == id,
+            models.Ticket.organization_id == current_user.organization_id,
+        )
+    )
+    existing_ticket = t_res.scalar_one_or_none()
+    if not existing_ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    user_role = str(getattr(current_user.role, 'value', current_user.role))
+    if user_role == "analyst" and existing_ticket.assigned_to_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Analysts can only update tickets assigned to them")
+
     ticket = await TicketService.update_ticket(
         db=db,
         ticket_id=id,

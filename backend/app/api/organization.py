@@ -65,7 +65,7 @@ async def update_organization(
     *,
     db: AsyncSession = Depends(deps.get_db),
     org_in: schemas.OrganizationUpdate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.superadmin])),
 ) -> Any:
     """Update organization details (admin only). Scoped to current user's org."""
     org_id = current_user.organization_id

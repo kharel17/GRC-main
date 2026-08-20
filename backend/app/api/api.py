@@ -3,7 +3,7 @@ from app.api import (
     auth, users, organization, assets, risks, audit_logs, controls, 
     control_applicability, compliance, evidence, document_analysis, 
     gap_analysis, audit_preparation, reports, notifications, ai, 
-    dashboard, tickets, invitations, onboarding, superadmin
+    dashboard, tickets, invitations, onboarding, superadmin, permission_profiles
 )
 
 
@@ -13,6 +13,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(superadmin.router, prefix="/superadmin", tags=["superadmin"])
+api_router.include_router(permission_profiles.router, prefix="/permission-profiles", tags=["permission-profiles"])
 
 # Step 0 — Dashboard & Monitoring
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])

@@ -97,7 +97,17 @@ const reportTypes = [
   },
 ];
 
+import { PageRoleGuard } from "@/components/auth/PageRoleGuard";
+
 export default function ReportsPage() {
+  return (
+    <PageRoleGuard allowedRoles={['admin', 'manager', 'compliance_officer', 'auditor', 'department_manager', 'executive']} permissionKey="reports">
+      <ReportsContent />
+    </PageRoleGuard>
+  );
+}
+
+function ReportsContent() {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [generatingCustom, setGeneratingCustom] = useState(false);

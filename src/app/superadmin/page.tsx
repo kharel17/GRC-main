@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Shield, Users, Loader2, Plus, UserCheck, Search, KeyRound, ArrowUpCircle } from "lucide-react";
+import { Building2, Shield, Users, Loader2, Plus, UserCheck, Search, KeyRound, ArrowUpCircle, ShieldAlert, ArrowLeft } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,8 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/hooks/useAuth";
+import Link from "next/link";
 
 interface TenantSummary {
   id: string;
@@ -32,6 +34,7 @@ interface TenantSummary {
 }
 
 export default function SuperAdminPage() {
+  const { user: currentUser, isLoading: authLoading } = useAuth();
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -59,7 +62,10 @@ export default function SuperAdminPage() {
   const [promoteResult, setPromoteResult] = useState<{ id: string; email: string; full_name: string; role: string } | null>(null);
   const [promoteSearching, setPromoteSearching] = useState(false);
 
+  const isSuperAdmin = currentUser?.role === "superadmin";
+
   const fetchTenants = async () => {
+    if (!isSuperAdmin) return;
     setLoading(true);
     try {
       const data = await api.get<TenantSummary[]>("/superadmin/organizations");
@@ -72,8 +78,52 @@ export default function SuperAdminPage() {
   };
 
   useEffect(() => {
-    fetchTenants();
-  }, []);
+    if (isSuperAdmin) {
+      fetchTenants();
+    }
+  }, [isSuperAdmin]);
+
+  // ── 1. Auth Loading State ──
+  if (authLoading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+          <p className="text-sm text-muted-foreground">Verifying platform administrative credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 2. Strict 403 Forbidden Access Guard (Zero data leak) ──
+  if (!currentUser || !isSuperAdmin) {
+    return (
+      <div className="flex min-h-[75vh] items-center justify-center p-4">
+        <Card className="max-w-md w-full border-red-200 bg-red-50/40 text-center shadow-lg">
+          <CardHeader className="pb-4">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <ShieldAlert className="h-8 w-8" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-red-950">403 — Access Denied</CardTitle>
+            <CardDescription className="text-red-700 text-sm mt-1">
+              You do not have permission to view or manage the Super Admin Control Plane.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground bg-white/70 p-3 rounded border border-red-100">
+              Your active account role is <strong className="capitalize text-foreground">{currentUser?.role || "guest"}</strong>. This zone is exclusively restricted to verified Platform Operations Personnel.
+            </p>
+            <Link href="/dashboard">
+              <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Return to Dashboard
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleInviteAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,6 +221,19 @@ export default function SuperAdminPage() {
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 space-y-8">
+      {/* Top back navigation bar */}
+      <div className="flex items-center justify-between border-b pb-4">
+        <Link href="/dashboard/users" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="h-4 w-4" />
+          Back to User Management
+        </Link>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs">
+            Super Admin Plane
+          </Badge>
+        </div>
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -453,6 +516,7 @@ export default function SuperAdminPage() {
                       )}
                     </div>
                     <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                      <span>Org ID: <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[11px] text-foreground">{tenant.id}</code></span>
                       <span>Industry: <strong className="text-foreground">{tenant.industry || "Not specified"}</strong></span>
                       <span>Users: <strong className="text-foreground">{tenant.user_count}</strong></span>
                       <span>Created: <strong className="text-foreground">{format(new Date(tenant.created_at), "MMM d, yyyy")}</strong></span>

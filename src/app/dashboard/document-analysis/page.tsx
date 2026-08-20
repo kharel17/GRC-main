@@ -12,8 +12,17 @@ import { Progress } from "@/components/ui/progress";
 import { DocumentAnalysisDetailsDialog } from "@/components/document-analysis/DocumentAnalysisDetailsDialog";
 import { format } from 'date-fns';
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { PageRoleGuard } from "@/components/auth/PageRoleGuard";
 
 export default function DocumentAnalysisPage() {
+  return (
+    <PageRoleGuard allowedRoles={['admin', 'manager', 'compliance_officer', 'department_manager', 'executive']} permissionKey="document_analysis">
+      <DocumentAnalysisContent />
+    </PageRoleGuard>
+  );
+}
+
+function DocumentAnalysisContent() {
   const { data: analyses, loading, refetch } = useApiData<DocumentAnalysis[]>(fetchDocumentAnalyses);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedAnalysis, setSelectedAnalysis] = useState<DocumentAnalysis | null>(null);

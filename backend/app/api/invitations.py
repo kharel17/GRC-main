@@ -44,8 +44,9 @@ class InviteSuperAdminRequest(BaseModel):
 class InviteUserRequest(BaseModel):
     email: EmailStr
     full_name: str
-    role: str  # "manager" or "analyst"
+    role: str  # "manager", "analyst", "auditor", etc.
     manager_id: Optional[UUID] = None
+    access_expires_at: Optional[datetime] = None
 
 class InvitationResponse(BaseModel):
     success: bool
@@ -292,24 +293,16 @@ async def invite_user(
     if user_role not in ("admin", "superadmin", "manager"):
         raise HTTPException(status_code=403, detail="Only admins and managers can invite users")
 
-    # Analyst requires manager_id
-    if body.role == "analyst" and not body.manager_id:
-        raise HTTPException(status_code=400, detail="manager_id is required when inviting an analyst")
-
-    # Check if email already exists
+    # Check if email already exists as an active registered user
     existing = await db.execute(
         select(models.User).where(models.User.email == body.email)
     )
-    # Check if duplicate pending invitation exists in the SAME org
-    duplicate = await db.execute(
-        select(models.User).where(
-            models.User.email == body.email,
-            models.User.organization_id == current_user.organization_id,
-            models.User.invitation_status == "pending"
-        )
-    )
-    if duplicate.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="A pending invitation already exists for this email in your organization.")
+    existing_user = existing.scalar_one_or_none()
+    if existing_user:
+        if existing_user.invitation_status == "pending":
+            raise HTTPException(status_code=409, detail="An invitation is already pending for this email.")
+        else:
+            raise HTTPException(status_code=409, detail="A user with this email already exists on the platform.")
 
     # Generate secure token
     raw_token = secrets.token_urlsafe(32)
@@ -321,6 +314,13 @@ async def invite_user(
         role_enum = models.UserRole(body.role)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid role: {body.role}")
+
+    # Fetch organization name for stamping
+    org_res = await db.execute(
+        select(models.Organization).where(models.Organization.id == current_user.organization_id)
+    )
+    current_org = org_res.scalar_one_or_none()
+    org_name = current_org.name if current_org else (current_user.organization_name or "GRC Platform")
 
     # Create user row
     new_user = models.User(
@@ -335,7 +335,9 @@ async def invite_user(
         invited_by=current_user.id,
         invited_at=datetime.utcnow(),
         organization_id=current_user.organization_id,
+        organization_name=org_name,
         manager_id=body.manager_id,
+        access_expires_at=body.access_expires_at,
         is_active=True,
     )
     db.add(new_user)

@@ -28,9 +28,9 @@ function LoginContent() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    // Redirect if already authenticated
     if (isAuthenticated && !authLoading) {
-      const redirect = searchParams.get("redirect") || "/dashboard";
+      const isSuper = (window as any)?.__USER_ROLE__ === 'superadmin';
+      const redirect = searchParams.get("redirect") || (isSuper ? "/superadmin" : "/dashboard");
       router.push(redirect);
     }
   }, [isAuthenticated, authLoading, router, searchParams]);

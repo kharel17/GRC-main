@@ -126,26 +126,20 @@ async def real_user_role_fix_startup():
     logger.info("Real user role fix scheduled in background")
 
 async def fix_real_user_roles():
-    """Ensure active developer/admin accounts always have correct admin roles and are linked to the real organization."""
+    """Ensure superadmin accounts belong to the platform team (no customer org) and developer admin accounts are correctly setup."""
     from sqlalchemy import select
     from app.database import SessionLocal
     from app import models
 
-    REAL_ORG_ID = uuid.UUID("24de3639-ee40-4563-a207-dd66436a0da8")
-    ROLE_OVERRIDE_MAP = {
-        "bcolorc17@gmail.com": models.UserRole.admin,
-        "grchelios@gmail.com": models.UserRole.admin,
+    SUPERADMIN_EMAILS = {
+        "grchelios@gmail.com",
+        "bcolorc17@gmail.com",
+        "grcacc55@gmail.com",
     }
 
     try:
         async with SessionLocal() as db:
-            # Check if real organization exists
-            org_result = await db.execute(
-                select(models.Organization).where(models.Organization.id == REAL_ORG_ID)
-            )
-            real_org = org_result.scalar_one_or_none()
-
-            for email, role in ROLE_OVERRIDE_MAP.items():
+            for email in SUPERADMIN_EMAILS:
                 result = await db.execute(
                     select(models.User).where(models.User.email == email)
                 )
@@ -153,23 +147,22 @@ async def fix_real_user_roles():
                 
                 if user:
                     needs_update = False
-                    if user.role != role:
-                        user.role = role
+                    if user.role != models.UserRole.superadmin:
+                        user.role = models.UserRole.superadmin
                         needs_update = True
-                        logger.info(f"Startup check: Fixed role for {email} → {role.value}")
+                        logger.info(f"Startup check: Fixed role for {email} → superadmin")
                     
                     if user.invitation_status != 'active':
                         user.invitation_status = 'active'
                         needs_update = True
                         logger.info(f"Startup check: Activated user {email}")
                     
-                    # Associate real users with the real organization
-                    if real_org:
-                        if user.organization_id != REAL_ORG_ID:
-                            user.organization_id = REAL_ORG_ID
-                            user.organization_name = real_org.name
-                            needs_update = True
-                            logger.info(f"Startup check: Associated {email} with real organization ({real_org.name})")
+                    # Superadmins belong to Platform Team (organization_id is None)
+                    if user.organization_id is not None:
+                        user.organization_id = None
+                        user.organization_name = "Platform Team"
+                        needs_update = True
+                        logger.info(f"Startup check: Detached superadmin {email} from tenant organization")
 
                     if needs_update:
                         await db.flush()

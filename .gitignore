@@ -18,6 +18,12 @@
 # misc
 .DS_Store
 *.pem
+.qdrant-initialized
+/storage/
+/tmp/*.pdf
+/tmp/*.png
+/qdrant.zip
+/qdrant_bin/
 
 # debug
 npm-debug.log*

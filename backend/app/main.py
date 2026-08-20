@@ -104,17 +104,29 @@ import threading
 @app.on_event("startup")
 async def startup_ai_service():
     """Initialize the AI semantic engine on server startup in background."""
+
+    # ── Data Residency — runs synchronously, before any model loads ────────────
+    # If DATA_RESIDENCY_MODE=strict, this hard-fails the process on any violation.
+    from app.services.data_residency import validate_data_residency
+    validate_data_residency(settings)  # raises DataResidencyError (RuntimeError) on violation
+
     def run_init():
         try:
             ai_service.initialize()
             logger.info("AI Service initialized successfully in background")
+            asyncio.run(ai_service.sync_vector_store())
+
+            # Initialize CrossEncoder reranker after the main model loads
+            from app.services.retrieval_service import retrieval_service
+            retrieval_service.initialize()
         except Exception as e:
             logger.warning(f"AI Service background initialization failed: {e}. AI endpoints will return 503.")
-    
+
     # Run in a separate thread so it doesn't block the FastAPI startup event
     # and prevents ERR_CONNECTION_REFUSED while the model downloads/loads.
     threading.Thread(target=run_init, daemon=True).start()
     logger.info("AI Service initialization triggered in background thread")
+
 
 import asyncio
 
@@ -177,6 +189,31 @@ async def fix_real_user_roles():
             await db.commit()
     except Exception as e:
         logger.warning(f"Real user role fix skipped: {e}")
+
+
+# ── Job Queue Recovery ─────────────────────────────────────
+@app.on_event("startup")
+async def recover_ingestion_jobs_on_startup():
+    """
+    On startup, re-enqueue any document ingestion jobs that were interrupted
+    by the previous server shutdown (i.e. status=processing with a
+    queued_payload in analysis_result).  Runs asynchronously so it does not
+    delay the server being ready to accept requests.
+    """
+    asyncio.create_task(_run_job_recovery())
+    logger.info("Job queue recovery scheduled in background")
+
+
+async def _run_job_recovery():
+    from app.database import SessionLocal
+    from app.ingestion.job_queue import recover_pending_jobs
+    try:
+        async with SessionLocal() as db:
+            count = await recover_pending_jobs(db)
+            if count:
+                logger.info(f"Job queue recovery: {count} job(s) re-enqueued ✓")
+    except Exception as exc:
+        logger.warning(f"Job queue recovery failed: {exc}")
 
 
 # ── Health Check ───────────────────────────────────────────

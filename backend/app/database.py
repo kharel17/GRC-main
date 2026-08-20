@@ -10,6 +10,8 @@ org_id_var = contextvars.ContextVar("org_id", default=None)
 engine = create_async_engine(
     settings.SQLALCHEMY_DATABASE_URI,
     echo=True,
+    pool_pre_ping=True,
+    pool_recycle=300,
     connect_args={"statement_cache_size": 0},  # Required for Supabase pgbouncer
 )
 

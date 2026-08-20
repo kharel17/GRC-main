@@ -32,10 +32,11 @@ class TicketService:
         source_audit_log_id: Optional[uuid.UUID] = None
     ) -> models.Ticket:
         """
-        Processes an AI finding: ISO mapping, weighting, repeat check, and tiered assignment.
+        Processes a security finding using deterministic rule-based heuristics:
+        keyword-to-ISO clause mapping, risk weighting, repeat checks, and tiered assignment.
+        Note: This method uses keyword matching rules, not a live generative LLM call.
         """
-        # 1. ISO Mapping & Weighting (Surgical Extraction Simulation)
-        # Geminis extraction would produce these specific fields
+        # 1. Deterministic Rule-Based Keyword-to-ISO Mapping & Weighting
         iso_clause = "A.18.1.1" # Example default: Compliance with legal/contractual requirements
         risk_score = 50 
         
@@ -56,26 +57,29 @@ class TicketService:
         # 2. Criticality Mapping
         base_priority = TicketService.calculate_priority(risk_score)
 
-        # 3. Repeat Check (Last 90 days) - State Agnostic
+        # First, get the current user's organization_id for org-scoped queries
+        user_result = await db.execute(select(models.User).where(models.User.id == current_user_id))
+        current_user = user_result.scalars().first()
+        user_org_id = current_user.organization_id if current_user else None
+
+        # 3. Repeat Check (Last 90 days) — Org-Scoped
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)
-        repeat_query = await db.execute(
+        repeat_stmt = (
             select(models.Ticket)
             .where(models.Ticket.iso_clause == iso_clause)
             .where(models.Ticket.created_at >= ninety_days_ago)
-            .order_by(models.Ticket.created_at.desc())
-            .limit(1)
+        )
+        if user_org_id:
+            repeat_stmt = repeat_stmt.where(models.Ticket.organization_id == user_org_id)
+
+        repeat_query = await db.execute(
+            repeat_stmt.order_by(models.Ticket.created_at.desc()).limit(1)
         )
         previous_ticket = repeat_query.scalars().first()
         is_repeat = previous_ticket is not None
         previous_ticket_id = previous_ticket.id if previous_ticket else None
 
         # 4. Assignee Determination & SLA
-        # We need to find users with specific roles within the same org
-        # First, get the current user's organization_id
-        user_result = await db.execute(select(models.User).where(models.User.id == current_user_id))
-        current_user = user_result.scalars().first()
-        user_org_id = current_user.organization_id if current_user else None
-
         async def get_user_by_role(role: models.UserRole) -> Optional[models.User]:
             query = select(models.User).where(models.User.role == role)
             if user_org_id:
@@ -123,11 +127,15 @@ class TicketService:
         # 5. Create/Update the Risk (Triggers Evaluation)
         from app.services.risk_trigger_service import RiskTriggerService
         
-        # Check if risk already exists for this control
-        risk_query = await db.execute(
-            select(models.Risk).where(models.Risk.asset_id == (risk_id or control_id)) # Simple mapping for now
-        )
-        risk = risk_query.scalars().first()
+        # Check if risk already exists for this specific control/asset (safely handle None)
+        target_asset_id = risk_id or control_id
+        risk = None
+        if target_asset_id is not None:
+            rq = select(models.Risk).where(models.Risk.asset_id == target_asset_id)
+            if user_org_id:
+                rq = rq.where(models.Risk.organization_id == user_org_id)
+            risk_res = await db.execute(rq.limit(1))
+            risk = risk_res.scalars().first()
         
         if not risk:
             # Create Risk first
@@ -139,7 +147,7 @@ class TicketService:
                 risk_score=risk_score,
                 status=models.RiskStatus.identified,
                 organization_id=user_org_id,
-                asset_id=risk_id or control_id, # Fallback to related entity for now
+                asset_id=target_asset_id,
                 created_by=current_user_id,
                 owner_id=current_user_id
             )
@@ -329,17 +337,18 @@ class TicketService:
         await db.commit()
         await db.refresh(ticket)
 
-        # Notify assignee of evidence request
-        await notify(
-            db=db,
-            user_id=ticket.assigned_to_id,
-            title="Evidence requested",
-            message=f"📎 Evidence requested: {ticket.title} - {comment_text}",
-            entity_type="ticket",
-            entity_id=ticket.id,
-            link_url=f"/dashboard/tickets/{ticket.id}",
-            notification_type="EVIDENCE_REQUEST"
-        )
+        # Notify assignee of evidence request if assigned
+        if ticket.assigned_to_id:
+            await notify(
+                db=db,
+                user_id=ticket.assigned_to_id,
+                title="Evidence requested",
+                message=f"📎 Evidence requested: {ticket.title} - {comment_text}",
+                entity_type="ticket",
+                entity_id=ticket.id,
+                link_url=f"/dashboard/tickets/{ticket.id}",
+                notification_type="EVIDENCE_REQUEST"
+            )
 
         return ticket
 

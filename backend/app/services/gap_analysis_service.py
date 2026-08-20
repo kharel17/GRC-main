@@ -150,7 +150,7 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     ai_gaps = {}
     if ai_service.is_ready and evidence_texts:
         try:
-            raw_gaps = ai_service.get_compliance_gaps(evidence_texts, threshold=0.40)
+            raw_gaps = await ai_service.get_compliance_gaps(evidence_texts, threshold=0.40)
             ai_gaps = {g["annex"]: g.get("best_match_score", 0) for g in raw_gaps}
         except Exception as e:
             logger.warning(f"AI gap analysis failed: {e}")

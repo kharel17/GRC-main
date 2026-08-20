@@ -19,7 +19,7 @@ from app.models.audit_log import AuditAction, AuditEntityType
 from app.models.evidence import EvidenceStatus, EvidenceRelatedTo
 from app.config import settings
 
-from app.services.ai_service import ai_service
+from app.services.ai_service import ai_service, extract_text_from_pdf
 from app.utils.notifications import notify
 import httpx
 import logging
@@ -74,18 +74,17 @@ async def analyze_evidence_background(
             # Run AI analysis using available AIService methods
             analysis = None
             if file_content and file_name.lower().endswith(".pdf"):
-                # Use PDF-specific analysis
-                analysis = ai_service.analyze_evidence_pdf(file_content)
+                analysis = await ai_service.analyze_evidence_qdrant(extract_text_from_pdf(file_content))
             elif file_content:
                 # Try as text
                 try:
                     text = file_content.decode("utf-8", errors="ignore")
-                    analysis = ai_service.analyze_evidence(text)
+                    analysis = await ai_service.analyze_evidence_qdrant(text)
                 except Exception:
-                    analysis = ai_service.analyze_evidence(f"Metadata analysis for {file_name}")
+                    analysis = await ai_service.analyze_evidence_qdrant(f"Metadata analysis for {file_name}")
             else:
                 # Fallback to metadata analysis
-                analysis = ai_service.analyze_evidence(f"Metadata analysis for {file_name}")
+                analysis = await ai_service.analyze_evidence_qdrant(f"Metadata analysis for {file_name}")
             
             # Store results back to evidence record
             evidence.ai_analyzed = True

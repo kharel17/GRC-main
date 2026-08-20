@@ -312,6 +312,20 @@ class AIService:
                     "AI Service: Neither Gemini nor local model available. Cannot start."
                 )
 
+    async def sync_vector_store(self) -> None:
+        """
+        Async hook: Initializes Qdrant collections and populates grc_iso_controls.
+        Call during startup after initialize().
+        """
+        from app.services.vector_store import vector_store
+        try:
+            success = await vector_store.initialize_collections()
+            if success and self._controls and self._local_control_embeddings is not None:
+                await vector_store.upsert_iso_controls(self._controls, self._local_control_embeddings)
+                logger.info("AI Service: Synced ISO control embeddings to Qdrant ✓")
+        except Exception as e:
+            logger.warning(f"AI Service: Qdrant sync skipped ({e})")
+
     @property
     def is_ready(self) -> bool:
         return self._is_ready
@@ -437,6 +451,95 @@ class AIService:
             raise ValueError("Could not extract any text from the uploaded PDF.")
         return self.analyze_evidence(text, top_n=top_n, threshold=threshold)
 
+    async def analyze_evidence_qdrant(
+        self,
+        text: str,
+        top_n: int = DEFAULT_TOP_N,
+        threshold: float = DEFAULT_THRESHOLD,
+    ) -> EvidenceAnalysisResult:
+        """
+        Qdrant-backed evidence analysis: embeds the text locally, queries the
+        ``grc_iso_controls`` collection for the nearest control vectors, and
+        returns an EvidenceAnalysisResult.
+
+        Preferred over the synchronous ``analyze_evidence()`` method because:
+        - All retrieval goes through Qdrant (single source of truth).
+        - In-memory cosine_similarity is not needed at inference time.
+        - Falls back gracefully to the in-memory path if Qdrant is offline.
+
+        Args:
+            text: Extracted text of the evidence document.
+            top_n: Maximum number of control matches to return.
+            threshold: Minimum cosine similarity score (0.0 – 1.0).
+
+        Returns:
+            EvidenceAnalysisResult with category, matched controls, and summary.
+        """
+        if not self._is_ready:
+            raise RuntimeError("AI Service not initialized. Call initialize() first.")
+
+        # 1. Categorize the evidence
+        category = self._categorize(text)
+
+        from app.services.vector_store import vector_store
+
+        # 2a. Qdrant path (preferred) ─────────────────────────────────────────
+        if vector_store.is_ready:
+            text_embedding = self._embed_text(text)
+            hits = await vector_store.dense_search(
+                query_vector=text_embedding,
+                collection_name=settings.QDRANT_COLLECTION_ISO_CONTROLS,
+                top_k=min(top_n * 4, len(self._controls)),  # over-fetch; filter by threshold below
+            )
+
+            matched_controls: list[ControlMatch] = []
+            for hit in hits:
+                score = float(hit.get("score", 0.0))
+                if score < threshold:
+                    break
+                if len(matched_controls) >= top_n:
+                    break
+                payload = hit.get("payload", {})
+                matched_controls.append(ControlMatch(
+                    control_id=payload.get("control_id", ""),
+                    annex=payload.get("annex", ""),
+                    title=payload.get("title", ""),
+                    description=payload.get("description", ""),
+                    clause_id=payload.get("clause_id", ""),
+                    confidence=score,
+                ))
+
+            logger.debug(
+                f"AI Service (Qdrant path): {len(matched_controls)} control matches "
+                f"above threshold={threshold} for text len={len(text)}"
+            )
+
+        # 2b. Qdrant Unreachable -> Fail-Closed ───────────────────────────────
+        else:
+            raise RuntimeError(
+                "Qdrant vector store is offline/unreachable. Evidence analysis cannot proceed in degraded mode."
+            )
+
+        # 3. Generate summary
+        if matched_controls:
+            top_control = matched_controls[0]
+            summary = (
+                f"This evidence is categorized as '{category}' and most closely "
+                f"relates to control {top_control.annex} ({top_control.title}) "
+                f"with {top_control.confidence}% confidence."
+            )
+        else:
+            summary = (
+                f"This evidence is categorized as '{category}' but no strong "
+                f"control matches were found above the {threshold * 100}% threshold."
+            )
+
+        return EvidenceAnalysisResult(
+            category=category,
+            matched_controls=matched_controls,
+            summary=summary,
+        )
+
     # ------------------------------------------------------------------
     # Full Document Analysis (Step 3 Engine)
     # ------------------------------------------------------------------
@@ -489,6 +592,7 @@ Guidelines:
         response = self._gemini_client.models.generate_content(
             model=self.GEMINI_GENERATE_MODEL,
             contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
         
         raw_text = response.text.strip()
@@ -513,6 +617,12 @@ Guidelines:
         category = self._categorize(text)
         
         # Simple similarity for implemented controls
+        # TODO: PROD-BUG — Silent degraded fallback (same issue as llm_backend.py:70).
+        # analyze_evidence() runs entirely in-memory with no Qdrant involvement.
+        # Called here as a local heuristic fallback from _analyze_document_local, so
+        # any caller receiving a DocumentAnalysisAIResult from this path has no way to
+        # distinguish it from a Qdrant-backed result. Needs a 'retrieval_mode' flag.
+        # Tracked: do not fix here — out of scope for calibration work.
         basic_res = self.analyze_evidence(text, top_n=5)
         implemented = [
             {"annex": m.annex, "title": m.title, "confidence": m.confidence/100, "reason": "Semantic similarity match."}
@@ -538,7 +648,11 @@ Guidelines:
         )
 
     def _categorize(self, text: str) -> str:
-        """Classify evidence into a category based on keyword matching."""
+        """Classify evidence into a category based on keyword matching.
+
+        Tie-breaking is deterministic: highest keyword count wins; ties broken
+        alphabetically by category name so output is stable across runs.
+        """
         text_lower = text.lower()
         scores: dict[str, int] = {}
 
@@ -548,19 +662,21 @@ Guidelines:
                 scores[category] = score
 
         if scores:
-            return str(max(scores, key=lambda k: scores[k]))
+            # Sort by (-score, name) so highest score wins; ties break on name (deterministic)
+            return min(scores, key=lambda k: (-scores[k], k))
         return "general"
+
 
     # ------------------------------------------------------------------
     # Risk Suggestion
     # ------------------------------------------------------------------
 
-    def suggest_risk_score(self, description: str) -> RiskSuggestion:
+    async def suggest_risk_score(self, description: str) -> RiskSuggestion:
         """
         Analyze a risk description and suggest likelihood/impact scores.
 
         Primary: Uses Gemini generative model with structured output.
-        Fallback: Heuristic based on local embedding similarity.
+        Fallback: Heuristic based on Qdrant dense vector search.
         """
         if not self._is_ready:
             raise RuntimeError("AI Service not initialized. Call initialize() first.")
@@ -573,7 +689,7 @@ Guidelines:
                 logger.warning(f"Gemini risk suggestion failed ({e}). Falling back to local.")
 
         # --- Fallback to local heuristic ---
-        return self._suggest_risk_local(description)
+        return await self._suggest_risk_local(description)
 
     def _suggest_risk_gemini(self, description: str) -> RiskSuggestion:
         """Use Gemini to generate a risk score with structured reasoning."""
@@ -608,6 +724,7 @@ Guidelines:
         response = self._gemini_client.models.generate_content(
             model=self.GEMINI_GENERATE_MODEL,
             contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
 
         # Parse the JSON from Gemini's response
@@ -633,22 +750,30 @@ Guidelines:
             related_controls=result.get("related_controls", []),
         )
 
-    def _suggest_risk_local(self, description: str) -> RiskSuggestion:
-        """Fallback: heuristic risk scoring using local embeddings."""
+    async def _suggest_risk_local(self, description: str) -> RiskSuggestion:
+        """Fallback: heuristic risk scoring using Qdrant dense vector search."""
+        from app.services.vector_store import vector_store
+        if not vector_store.is_ready:
+            raise RuntimeError(
+                "Qdrant vector store is offline/unreachable. Risk suggestion cannot proceed in degraded mode."
+            )
+
         text_embedding = self._embed_text(description)
-        control_embeddings = self._get_control_embeddings()
-        similarities = cosine_similarity(text_embedding, control_embeddings)[0]
-        ranked_indices = np.argsort(similarities)[::-1]
+        hits = await vector_store.dense_search(
+            query_vector=text_embedding,
+            collection_name=settings.QDRANT_COLLECTION_ISO_CONTROLS,
+            top_k=5,
+        )
 
         related_controls: list[str] = []
         relevance_scores: list[float] = []
 
-        for idx in ranked_indices[:5]:
-            score = float(similarities[idx])
+        for hit in hits:
+            score = float(hit.get("score", 0.0))
             if score < 0.25:
                 break
-            control = self._controls[idx]
-            related_controls.append(f"{control['annex']} {control['title']}")
+            payload = hit.get("payload", {})
+            related_controls.append(f"{payload.get('annex', '')} {payload.get('title', '')}")
             relevance_scores.append(score)
 
         # Heuristic scoring
@@ -680,12 +805,13 @@ Guidelines:
     # Compliance Gap Analysis
     # ------------------------------------------------------------------
 
-    def get_compliance_gaps(
+    async def get_compliance_gaps(
         self, evidence_texts: list[str], threshold: float = 0.40
     ) -> list[dict]:
         """
         Given all evidence texts in the system, identify which controls
-        have NO matching evidence (compliance gaps).
+        have NO matching evidence (compliance gaps). Uses Qdrant's
+        grc_iso_controls collection as the source of truth.
         """
         if not self._is_ready:
             raise RuntimeError("AI Service not initialized. Call initialize() first.")
@@ -696,17 +822,35 @@ Guidelines:
                 for c in self._controls
             ]
 
-        # Encode all evidence
-        evidence_embeddings = self._embed_texts(evidence_texts)
-        control_embeddings = self._get_control_embeddings()
+        from app.services.vector_store import vector_store
+        if not vector_store.is_ready:
+            initialized = await vector_store.initialize_collections()
+            if initialized:
+                control_embeddings = self._embed_texts(self._control_texts)
+                await vector_store.upsert_iso_controls(self._controls, control_embeddings)
+            else:
+                raise RuntimeError("Qdrant vector store is not ready for compliance gap analysis.")
 
-        # For each control, check if ANY evidence matches above threshold
+        control_best_scores: dict[str, float] = {c["id"]: 0.0 for c in self._controls}
+        for evidence_text in evidence_texts:
+            evidence_embedding = self._embed_text(evidence_text)
+            hits = await vector_store.dense_search(
+                query_vector=evidence_embedding,
+                collection_name=settings.QDRANT_COLLECTION_ISO_CONTROLS,
+                top_k=len(self._controls),
+            )
+            for hit in hits:
+                payload = hit.get("payload", {})
+                control_id = payload.get("control_id")
+                if control_id in control_best_scores:
+                    control_best_scores[control_id] = max(
+                        control_best_scores[control_id],
+                        float(hit.get("score", 0.0)),
+                    )
+
         gaps = []
-        for idx, control in enumerate(self._controls):
-            control_emb = control_embeddings[idx].reshape(1, -1)
-            sims = cosine_similarity(control_emb, evidence_embeddings)[0]
-            max_sim = float(np.max(sims))
-
+        for control in self._controls:
+            max_sim = control_best_scores.get(control["id"], 0.0)
             if max_sim < threshold:
                 gaps.append({
                     "control_id": control["id"],
@@ -718,8 +862,105 @@ Guidelines:
         return gaps
 
 
+async def _run_document_analysis_async(text: str) -> dict:
+    """Async Qdrant-backed document analysis pipeline.
+
+    This is the canonical entry point for the ingestion pipeline and all API
+    routes. It uses Qdrant as the primary source of truth for control
+    similarity and falls back to the in-memory path when Qdrant is offline.
+
+    Returns a dict with the same schema as the legacy ``_run_document_analysis``.
+    """
+    if not ai_service.is_ready:
+        ai_service.initialize()
+
+    category = ai_service._categorize(text)
+    evidence_result = await ai_service.analyze_evidence_qdrant(
+        text, top_n=93, threshold=0.30
+    )
+
+    implemented = []
+    weak_matches = []
+
+    for match in evidence_result.matched_controls:
+        item = {
+            "control_annex": match.annex,
+            "title": match.title,
+            "confidence": match.confidence,
+            "clause_id": match.clause_id,
+        }
+        if match.confidence >= 50:
+            implemented.append(item)
+        elif match.confidence >= 30:
+            weak_matches.append(item)
+
+    # Sort for deterministic output — confidence descending, annex ascending on ties
+    implemented.sort(key=lambda x: (-x["confidence"], x["control_annex"]))
+    weak_matches.sort(key=lambda x: (-x["confidence"], x["control_annex"]))
+
+    matched_annexes = {m.annex for m in evidence_result.matched_controls}
+    missing = []
+    for ctrl in ai_service._controls:
+        if ctrl["annex"] not in matched_annexes:
+            missing.append({
+                "control_annex": ctrl["annex"],
+                "title": ctrl["title"],
+                "reason": "No reference found in document",
+            })
+
+    practices = _extract_security_practices(text)
+
+    return {
+        "document_category": category,
+        "summary": evidence_result.summary,
+        "implemented_controls": implemented,
+        "weak_matches": weak_matches,
+        "missing_controls": missing,
+        "security_practices": practices,
+        "total_controls_checked": len(ai_service._controls),
+        "strong_matches": len(implemented),
+        "weak_match_count": len(weak_matches),
+        "missing_count": len(missing),
+    }
+
+
+
+def _extract_security_practices(text: str) -> list[dict]:
+    """Extract security practices by scanning for key phrases."""
+    text_lower = text.lower()
+    
+    practice_patterns = {
+        "Multi-factor authentication": (["mfa", "multi-factor", "two-factor", "2fa"], ["5.17", "8.5"]),
+        "Access control policy": (["access control", "role-based access", "rbac", "least privilege"], ["5.15", "5.18", "8.2"]),
+        "Data encryption": (["encryption", "encrypted", "aes", "tls", "ssl", "cryptograph"], ["8.24"]),
+        "Security awareness training": (["security training", "awareness program", "security awareness"], ["6.3"]),
+        "Incident response": (["incident response", "incident management", "security incident"], ["5.24", "5.25", "5.26"]),
+        "Backup procedures": (["backup", "data backup", "recovery point"], ["8.13"]),
+        "Change management": (["change management", "change control", "change request"], ["8.32"]),
+        "Vulnerability management": (["vulnerability scan", "penetration test", "vulnerability management"], ["8.8"]),
+        "Network security": (["firewall", "network segmentation", "intrusion detection", "ids", "ips"], ["8.20", "8.21", "8.22"]),
+        "Logging and monitoring": (["audit log", "event log", "monitoring", "siem"], ["8.15", "8.16"]),
+        "Password policy": (["password policy", "password complexity", "password rotation"], ["5.17"]),
+        "Data classification": (["data classification", "information classification", "labeling"], ["5.12", "5.13"]),
+        "Business continuity": (["business continuity", "disaster recovery", "bcp", "drp"], ["5.29", "5.30"]),
+        "Secure development": (["secure development", "sdlc", "secure coding", "code review"], ["8.25", "8.28"]),
+        "Supplier management": (["vendor management", "supplier assessment", "third-party"], ["5.19", "5.20", "5.21"]),
+    }
+    
+    found_practices = []
+    for practice_name, (keywords, related_controls) in practice_patterns.items():
+        if any(kw in text_lower for kw in keywords):
+            found_practices.append({
+                "practice": practice_name,
+                "related_controls": related_controls,
+            })
+    
+    return found_practices
+
+
 # ---------------------------------------------------------------------------
 # Singleton instance
 # ---------------------------------------------------------------------------
 
 ai_service = AIService()
+

@@ -129,48 +129,32 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extract text content from a PDF file's bytes with robust fallback handlers."""
-    # 1. Try PyPDF2 / pypdf with strict=False
+    """Extract text content from a PDF/document file's bytes using unified extractor with OCR fallback."""
+    # 1. Try unified extractor (PyMuPDF + Tesseract OCR + DOCX + plain text)
+    try:
+        from app.ingestion.extractor import extract_text_from_bytes
+        text = extract_text_from_bytes(file_bytes, "document.pdf")
+        if text.strip():
+            return text.strip()
+    except Exception as e:
+        logger.warning(f"Unified extractor failed ({e}), trying fallback handlers")
+
+    # 2. Fallback: PyPDF2 / pypdf with strict=False
     try:
         from PyPDF2 import PdfReader
         reader = PdfReader(BytesIO(file_bytes), strict=False)
         pages_text: list[str] = []
         for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                pages_text.append(text.strip())
+            t = page.extract_text()
+            if t:
+                pages_text.append(t.strip())
         extracted = "\n\n".join(pages_text)
         if extracted.strip():
             return extracted
     except Exception as e:
-        logger.warning(f"PyPDF2 extraction failed ({e}), trying fallback extractors")
+        logger.warning(f"PyPDF2 fallback extraction failed: {e}")
 
-    # 2. Try pypdf if installed separately
-    try:
-        import pypdf
-        reader = pypdf.PdfReader(BytesIO(file_bytes), strict=False)
-        pages_text: list[str] = []
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                pages_text.append(text.strip())
-        extracted = "\n\n".join(pages_text)
-        if extracted.strip():
-            return extracted
-    except Exception:
-        pass
-
-    # 3. Fallback: UTF-8 / Latin-1 text decode for plain text / markdown / logs
-    try:
-        decoded = file_bytes.decode('utf-8', errors='ignore')
-        # Check if file has readable text characters
-        printable_ratio = sum(1 for c in decoded if c.isprintable() or c in '\n\r\t') / max(len(decoded), 1)
-        if printable_ratio > 0.85 and len(decoded.strip()) > 10:
-            return decoded.strip()
-    except Exception:
-        pass
-
-    # 4. Fallback: docx format parser
+    # 3. Fallback: docx format parser
     try:
         import docx
         doc = docx.Document(BytesIO(file_bytes))
@@ -180,12 +164,43 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
     except Exception:
         pass
 
+    # 4. Fallback: UTF-8 / Latin-1 text decode for plain text / markdown / logs
+    try:
+        decoded = file_bytes.decode('utf-8', errors='ignore')
+        # Check if file has readable text characters
+        printable_ratio = sum(1 for c in decoded if c.isprintable() or c in '\n\r\t') / max(len(decoded), 1)
+        if printable_ratio > 0.85 and len(decoded.strip()) > 10:
+            return decoded.strip()
+    except Exception:
+        pass
+
     return ""
 
 
-# ---------------------------------------------------------------------------
-# Core AI Service — Hybrid Engine
-# ---------------------------------------------------------------------------
+# Domain synonyms and cross-standard terminology to resolve sub-clause ambiguity
+ISO_DOMAIN_SYNONYMS: dict[str, str] = {
+    "7.1": "Physical security perimeters, biometric access control and CCTV monitoring of server room perimeters, physical perimeter boundaries, surveillance.",
+    "7.2": "Physical entry controls, building doors, entry keycards, visitor badge reception, turnstiles.",
+    "7.13": "Equipment maintenance, server hardware maintenance outsourced to certified vendor, hardware servicing.",
+    "5.15": "Access control policy, role-based access control, RBAC, access restrictions.",
+    "5.17": "Authentication information, user password complexity rules, secret authentication credentials, password requirements.",
+    "5.24": "Incident management planning, security incident response procedure, incident reporting timelines.",
+    "5.29": "Information security during disruption, business continuity, disaster recovery quarterly drills, continuity testing.",
+    "6.1": "Screening, pre-employment background screening, HR security, background check verification.",
+    "6.5": "Responsibilities after termination or change of employment, contractors signing confidentiality agreements upon offboarding, NDAs.",
+    "6.6": "Confidentiality or non-disclosure agreements, NDAs, contractor confidentiality.",
+    "8.5": "Secure authentication, password complexity, multi-factor authentication MFA, login credentials.",
+    "8.8": "Management of technical vulnerabilities, automated vulnerability scanning frequency, patch management windows.",
+    "8.15": "Logging, audit logging, system activity logs, event recording.",
+    "8.16": "Monitoring activities, SIEM system aggregates events from firewalls and triggers alerts on abnormal behavior, network monitoring.",
+    "8.22": "Web filtering, network isolation, AWS security groups isolating test environments, segmenting environments.",
+    "8.24": "Use of cryptography, cryptographic key management rules, encryption algorithms, data encryption at rest and in transit.",
+    "8.25": "Secure development life cycle, developers receive secure coding certification, SDLC guidelines.",
+    "8.28": "Secure coding, developers review pull requests and verify code security before merging, peer code review.",
+    "8.31": "Separation of development, test and production environments, AWS security groups isolation.",
+    "8.32": "Change management, system administrators use Git repositories to track infrastructure-as-code version changes, PR approvals.",
+}
+
 
 class AIService:
     """
@@ -223,14 +238,19 @@ class AIService:
         self._local_model = None
         self._local_control_embeddings: Optional[np.ndarray] = None
 
-        # Resolve controls JSON path
+        # Resolve controls JSON path (prefer enriched dataset if available)
         if controls_path:
             self._controls_path = Path(controls_path)
         else:
-            self._controls_path = (
-                Path(__file__).resolve().parents[2]  # backend/ (or /app/ in Docker)
+            enriched_path = (
+                Path(__file__).resolve().parents[2]
+                / "data" / "iso27001-controls-enriched.json"
+            )
+            standard_path = (
+                Path(__file__).resolve().parents[2]
                 / "data" / "iso27001-controls.json"
             )
+            self._controls_path = enriched_path if enriched_path.exists() else standard_path
 
     # ------------------------------------------------------------------
     # Initialization
@@ -238,7 +258,7 @@ class AIService:
 
     def initialize(self) -> None:
         """Load models and pre-compute control embeddings. Call once at startup."""
-        logger.info("AI Service: Loading ISO 27001 controls...")
+        logger.info(f"AI Service: Loading ISO 27001 controls from {self._controls_path.name}...")
         try:
             self._load_controls()
         except Exception as e:
@@ -257,13 +277,13 @@ class AIService:
             self._is_ready = True
             engines = []
             if self._gemini_available: engines.append("Gemini (Generation)")
-            if self._local_model: engines.append("Local NLP (Embeddings)")
+            if self._local_model: engines.append("Local NLP (Embeddings + BM25)")
             logger.info(f"AI Service: Ready ✓  Engines: {', '.join(engines)}")
         else:
             logger.error("AI Service: Initialization failed. No AI engines available.")
 
     def _load_controls(self) -> None:
-        """Load and parse the ISO 27001 controls JSON."""
+        """Load and parse the ISO 27001 controls JSON with rich domain representations."""
         if not self._controls_path.exists():
             raise FileNotFoundError(f"Controls file not found: {self._controls_path}")
 
@@ -271,9 +291,16 @@ class AIService:
             data = json.load(f)
 
         self._controls = data.get("controls", [])
-        self._control_texts = [
-            f"{c['title']}. {c['description']}" for c in self._controls
-        ]
+        self._control_texts = []
+        for c in self._controls:
+            annex = c.get("annex") or c.get("id", "")
+            title = c.get("title", "")
+            desc = c.get("description", "")
+            extra = c.get("text", "")
+            synonyms = ISO_DOMAIN_SYNONYMS.get(annex, "")
+            # Rich semantic representation with explicit Annex identifier, title, description, and domain keywords
+            rep = f"Control {annex}: {title}. {desc} {extra} {synonyms}".strip()
+            self._control_texts.append(rep)
 
     def _init_gemini(self) -> None:
         """Try to initialize the Gemini client for text generation."""
@@ -303,6 +330,17 @@ class AIService:
             self._local_control_embeddings = self._local_model.encode(
                 self._control_texts, convert_to_numpy=True, show_progress_bar=False
             )
+
+            # Initialize BM25 sparse index over rich control definitions
+            try:
+                from rank_bm25 import BM25Okapi
+                tokenized_corpus = [t.lower().split() for t in self._control_texts]
+                self._bm25_model = BM25Okapi(tokenized_corpus)
+                logger.info("AI Service: Initialized BM25 sparse control index ✓")
+            except Exception as bm25_err:
+                logger.warning(f"AI Service: BM25 init failed ({bm25_err}); continuing with dense-only")
+                self._bm25_model = None
+
             logger.info("AI Service: Local NLP model loaded ✓")
 
         except Exception as e:
@@ -367,7 +405,7 @@ class AIService:
         threshold: float = DEFAULT_THRESHOLD,
     ) -> EvidenceAnalysisResult:
         """
-        Analyze evidence text and return matched ISO 27001 controls.
+        Analyze evidence text and return matched ISO 27001 controls using hybrid BM25 + dense matching.
 
         Args:
             text: The extracted text content of the evidence document.
@@ -383,17 +421,28 @@ class AIService:
         # 1. Categorize the evidence
         category = self._categorize(text)
 
-        # 2. Compute similarity against all controls
+        # 2. Compute similarity against all controls (Hybrid Dense + BM25)
         text_embedding = self._embed_text(text)
         control_embeddings = self._get_control_embeddings()
-        similarities = cosine_similarity(text_embedding, control_embeddings)[0]
+        dense_scores = cosine_similarity(text_embedding, control_embeddings)[0]
+
+        if getattr(self, "_bm25_model", None) is not None:
+            tokens = text.lower().split()
+            bm25_scores = np.array(self._bm25_model.get_scores(tokens))
+            bm25_max = bm25_scores.max()
+            bm25_norm = (bm25_scores / bm25_max) if bm25_max > 0 else np.zeros_like(bm25_scores)
+            dense_norm = np.clip((dense_scores + 1) / 2.0, 0, 1)
+            # Weighted hybrid score: 0.65 dense semantic + 0.35 sparse keyword
+            hybrid_scores = (0.65 * dense_norm) + (0.35 * bm25_norm)
+            ranked_indices = np.argsort(hybrid_scores)[::-1]
+        else:
+            ranked_indices = np.argsort(dense_scores)[::-1]
 
         # 3. Rank and filter
-        ranked_indices = np.argsort(similarities)[::-1]
         matched_controls: list[ControlMatch] = []
 
         for idx in ranked_indices:
-            score = float(similarities[idx])
+            score = float(dense_scores[idx])
             if score < threshold:
                 break
             if len(matched_controls) >= top_n:
@@ -402,10 +451,10 @@ class AIService:
             control = self._controls[idx]
             matched_controls.append(ControlMatch(
                 control_id=control["id"],
-                annex=control["annex"],
+                annex=control.get("annex", control["id"]),
                 title=control["title"],
                 description=control["description"],
-                clause_id=control["clauseId"],
+                clause_id=control.get("clauseId", control["id"]),
                 confidence=score,
             ))
 

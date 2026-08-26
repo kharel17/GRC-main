@@ -22,6 +22,8 @@
 /storage/
 /tmp/*.pdf
 /tmp/*.png
+/qdrant.zip
+/qdrant_bin/
 
 # debug
 npm-debug.log*

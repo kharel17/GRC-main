@@ -227,6 +227,7 @@ def node_retrieval_gate(state: GRCState) -> Dict[str, Any]:
         reranked_results=reranked,
         dense_results=dense_chunks,
         sparse_results=sparse_chunks,
+        query=state.get("query"),
     )
 
     from dataclasses import asdict

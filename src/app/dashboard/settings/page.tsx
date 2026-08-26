@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   fetchCurrentUserProfile,
+  updateCurrentUserProfile,
   fetchOrganization,
   updateOrganization,
   initializeControlApplicabilityFramework,
@@ -62,11 +63,12 @@ import {
   TrendingDown,
   FileText,
   Activity,
+  KeyRound,
 } from 'lucide-react';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
 import { toast } from 'sonner';
-
 import { useLanguage, Language } from '@/context/LanguageContext';
+import { AccessManagementSection } from '@/components/settings/AccessManagementSection';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -75,12 +77,37 @@ export default function SettingsPage() {
   const [addingFramework, setAddingFramework] = useState(false);
   const { user: authUser, isLoading: authLoading } = useAuth();
   const { language, setLanguage, t } = useLanguage();
-  const { data: profile, loading: profileLoading } = useApiData<UserProfile>(fetchCurrentUserProfile);
+  const { data: profile, loading: profileLoading, refetch: refetchProfile } = useApiData<UserProfile>(fetchCurrentUserProfile);
   const {
     data: organization,
     loading: organizationLoading,
     refetch: refetchOrganization,
   } = useApiData<Organization | undefined>(fetchOrganization);
+
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileFullName, setProfileFullName] = useState<string | null>(null);
+  const [profileDepartment, setProfileDepartment] = useState<string | null>(null);
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      const finalName = profileFullName !== null ? profileFullName : (profile?.full_name || profile?.fullName || '');
+      const finalDept = profileDepartment !== null ? profileDepartment : (profile?.department || 'General');
+
+      await updateCurrentUserProfile({
+        full_name: finalName,
+        department: finalDept,
+      });
+      toast.success('Profile details updated successfully!');
+      if (refetchProfile) {
+        await refetchProfile();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const [sessionsDialogOpen, setSessionsDialogOpen] = useState(false);
   const [sessions, setSessions] = useState([
@@ -285,18 +312,20 @@ export default function SettingsPage() {
     );
   }
 
+  const isOrgAdmin = authUser?.role === 'admin' || authUser?.role === 'superadmin';
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground mb-1">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your account settings and preferences
+          Manage your account settings, security preferences, and organization controls
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto p-1 gap-1">
+        <TabsList className={`grid w-full ${isOrgAdmin ? 'grid-cols-2 sm:grid-cols-6' : 'grid-cols-2 sm:grid-cols-4'} h-auto p-1 gap-1`}>
           <TabsTrigger value="profile" className="gap-2 py-2">
             <UserIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
@@ -309,10 +338,18 @@ export default function SettingsPage() {
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
-          <TabsTrigger value="frameworks" className="gap-2 py-2">
-            <Globe className="h-4 w-4" />
-            <span className="hidden sm:inline">Frameworks</span>
-          </TabsTrigger>
+          {isOrgAdmin && (
+            <>
+              <TabsTrigger value="frameworks" className="gap-2 py-2">
+                <Globe className="h-4 w-4" />
+                <span className="hidden sm:inline">Frameworks</span>
+              </TabsTrigger>
+              <TabsTrigger value="access" className="gap-2 py-2">
+                <KeyRound className="h-4 w-4 text-indigo-600" />
+                <span className="hidden sm:inline font-medium">Access Control</span>
+              </TabsTrigger>
+            </>
+          )}
           <TabsTrigger value="notifications" className="gap-2 py-2">
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
@@ -335,17 +372,27 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" defaultValue={profile.full_name || profile.fullName || profile.email.split('@')[0]} />
+                  <Input
+                    id="fullName"
+                    value={profileFullName !== null ? profileFullName : (profile.full_name || profile.fullName || '')}
+                    onChange={(e) => setProfileFullName(e.target.value)}
+                    placeholder="Your Full Name"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue={profile.email} disabled />
+                  <Input id="email" type="email" defaultValue={profile.email} disabled className="bg-muted cursor-not-allowed opacity-80" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="department">Department</Label>
-                  <Input id="department" defaultValue={profile.department || "General"} />
+                  <Input
+                    id="department"
+                    value={profileDepartment !== null ? profileDepartment : (profile.department || 'General')}
+                    onChange={(e) => setProfileDepartment(e.target.value)}
+                    placeholder="e.g. Compliance, Security, IT"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
@@ -355,7 +402,19 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="pt-4 flex justify-end">
-                <Button>Save Changes</Button>
+                <Button onClick={handleSaveProfile} disabled={profileSaving} className="gap-2">
+                  {profileSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -802,6 +861,13 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Access Control & Permission Profiles Tab (Admin only) */}
+        {isOrgAdmin && (
+          <TabsContent value="access" className="space-y-4">
+            <AccessManagementSection />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

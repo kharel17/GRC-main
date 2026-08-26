@@ -85,11 +85,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     ...(extraHeaders as Record<string, string> || {}),
   };
 
-  // Inject Supabase JWT
+  // Inject Support Access Token (Impersonation) or Supabase JWT
   if (!skipAuth) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
+    const supportToken = typeof window !== 'undefined' ? sessionStorage.getItem('support_access_token') : null;
+    if (supportToken) {
+      headers['Authorization'] = `Bearer ${supportToken}`;
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
     }
   }
 

@@ -15,8 +15,17 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 
 import { storageService } from "@/lib/storage-service";
 import { useMemo } from "react";
+import { PageRoleGuard } from "@/components/auth/PageRoleGuard";
 
 export default function AuditPreparationPage() {
+  return (
+    <PageRoleGuard allowedRoles={['admin', 'manager', 'compliance_officer', 'auditor', 'department_manager', 'executive']} permissionKey="audit_preparation">
+      <AuditPreparationContent />
+    </PageRoleGuard>
+  );
+}
+
+function AuditPreparationContent() {
   const { data: rawCompliance, loading: compLoading } = useApiData(fetchComplianceItems);
   const { data: isoControls, loading: isoLoading } = useApiData(() => storageService.getControls());
   const { data: evidence, loading: evLoading } = useApiData(fetchEvidence);

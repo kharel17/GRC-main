@@ -53,7 +53,8 @@ class LocalOnlyBackend:
         prompt: str,
         context_chunks: List[Dict[str, Any]],
     ) -> LLMResult:
-        from app.services.ai_service import ai_service, _run_document_analysis
+        from app.services.ai_service import ai_service
+        from app.services.ai_service import _extract_security_practices
 
         full_text = "\n\n".join(c.get("text", "") for c in context_chunks)
         if not full_text.strip():
@@ -63,10 +64,32 @@ class LocalOnlyBackend:
                 backend_used=self.name,
             )
 
+        # LocalOnlyBackend is the sync/no-external-calls path — use in-memory analysis.
+        # All other callers use _run_document_analysis_async (Qdrant path).
         try:
-            analysis = _run_document_analysis(full_text)
+            category = ai_service._categorize(full_text)
+            # TODO: PROD-BUG — Silent degraded fallback.
+            # analyze_evidence() uses in-memory cosine similarity against self._controls
+            # (static cache loaded at startup), bypassing Qdrant entirely. If Qdrant is
+            # offline this path succeeds silently; the response is indistinguishable from
+            # a fully Qdrant-backed result. Fix: raise RuntimeError when vector_store is
+            # not ready (fail-closed, same as analyze_evidence_qdrant), OR add a
+            # 'retrieval_mode: degraded' flag to LLMResult so callers can detect it.
+            # Tracked: do not fix here — out of scope for calibration work.
+            evidence_result = ai_service.analyze_evidence(full_text, top_n=93, threshold=0.30)
+            practices = _extract_security_practices(full_text)
+            implemented = [
+                {"control_annex": m.annex, "title": m.title, "confidence": m.confidence}
+                for m in evidence_result.matched_controls if m.confidence >= 50
+            ]
+            analysis = {
+                "document_category": category,
+                "implemented_controls": implemented,
+                "missing_controls": [],
+                "security_practices": practices,
+            }
         except Exception as e:
-            logger.warning(f"LocalOnlyBackend: _run_document_analysis failed ({e})")
+            logger.warning(f"LocalOnlyBackend: local analysis failed ({e})")
             analysis = {}
 
         # Extractive summary: first 3 sentences of the combined context

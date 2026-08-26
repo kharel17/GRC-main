@@ -45,7 +45,14 @@ class Settings(BaseSettings):
     RETRIEVAL_TOP_K_SPARSE: int = 30
     RERANK_TOP_N: int = 8
     CONFIDENCE_GATE_TOP1_THRESHOLD: float = 0.65
-    CONFIDENCE_GATE_MARGIN_THRESHOLD: float = 0.25
+    # Dense cosine similarity threshold for ISO 27001 control matching.
+    # Set above highest hard-negative score (0.4111) from 54-case calibration set.
+    # CrossEncoder bypassed for ISO queries due to MS-MARCO domain mismatch - see project docs.
+    CONFIDENCE_GATE_ISO_TOP1_THRESHOLD: float = 0.42
+    # Dense cosine margin threshold for ISO queries.
+    # Set in gap between highest ambiguous near-tie (0.00858) and lowest clean positive (0.01617) from 54-case calibration.
+    CONFIDENCE_GATE_ISO_MARGIN_THRESHOLD: float = 0.012
+    CONFIDENCE_GATE_MARGIN_THRESHOLD: float = 1.0
 
 
     # SMTP Config

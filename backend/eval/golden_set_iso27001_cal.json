@@ -1,0 +1,752 @@
+{
+  "test_cases": [
+    {
+      "id": "iso_pos_001",
+      "query": "Laptops are remotely wiped using Microsoft Intune automatically when an employee resigns",
+      "domain": "8.10 Information deletion",
+      "expected_annexes": [
+        "8.10"
+      ],
+      "expected_keywords": [
+        "deletion",
+        "wipe"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_002",
+      "query": "HR performs criminal background checks and educational history verification for all engineers before they sign their contracts",
+      "domain": "6.1 Screening",
+      "expected_annexes": [
+        "6.1"
+      ],
+      "expected_keywords": [
+        "screening",
+        "background check"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_003",
+      "query": "All firewall administrative accounts require both Active Directory passwords and a hardware YubiKey push to authenticate",
+      "domain": "8.5 Secure authentication",
+      "expected_annexes": [
+        "8.5"
+      ],
+      "expected_keywords": [
+        "authentication",
+        "yubikey",
+        "password"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_004",
+      "query": "Databases replicate their transaction logs every fifteen minutes to an AWS server located in another geographic region",
+      "domain": "8.13 Information backup",
+      "expected_annexes": [
+        "8.13"
+      ],
+      "expected_keywords": [
+        "backup",
+        "replicate"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_005",
+      "query": "We check all physical visitor logbooks against our corporate badge system entries at the front desk every evening",
+      "domain": "7.2 Physical entry controls",
+      "expected_annexes": [
+        "7.2"
+      ],
+      "expected_keywords": [
+        "visitor",
+        "badge",
+        "physical"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_006",
+      "query": "Developers must review pull requests and verify secure coding practices before merging any backend changes into main",
+      "domain": "8.28 Secure coding",
+      "expected_annexes": [
+        "8.28"
+      ],
+      "expected_keywords": [
+        "secure coding",
+        "merge",
+        "pull request"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_007",
+      "query": "All client database backup media are encrypted using AES-256 before being loaded onto transport vehicles",
+      "domain": "8.24 Use of cryptography",
+      "expected_annexes": [
+        "8.24"
+      ],
+      "expected_keywords": [
+        "encryption",
+        "aes-256",
+        "cryptography"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_008",
+      "query": "Security team scans our outward facing subnets for open ports and vulnerable services every Sunday morning",
+      "domain": "8.8 Management of technical vulnerabilities",
+      "expected_annexes": [
+        "8.8"
+      ],
+      "expected_keywords": [
+        "vulnerability",
+        "scanning",
+        "subnet"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_009",
+      "query": "Staff attend an annual training seminar on identifying phishing links and social engineering tricks",
+      "domain": "6.3 Information security awareness",
+      "expected_annexes": [
+        "6.3"
+      ],
+      "expected_keywords": [
+        "awareness",
+        "training",
+        "phishing"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_010",
+      "query": "We run a SIEM system that aggregates events from domain controllers and alerts on unauthorized logon attempts",
+      "domain": "8.16 Monitoring activities",
+      "expected_annexes": [
+        "8.16"
+      ],
+      "expected_keywords": [
+        "siem",
+        "monitoring",
+        "alert"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_011",
+      "query": "The IT manager performs a monthly sweep of active users in the CRM system to disable accounts of former employees",
+      "domain": "5.18 Access rights",
+      "expected_annexes": [
+        "5.18"
+      ],
+      "expected_keywords": [
+        "access rights",
+        "disable",
+        "former employees"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_012",
+      "query": "We label database tables containing customer billing info as confidential and restrict export functions on them",
+      "domain": "5.12 Classification of information",
+      "expected_annexes": [
+        "5.12"
+      ],
+      "expected_keywords": [
+        "classification",
+        "label",
+        "confidential"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_013",
+      "query": "Contractors sign confidentiality agreements that remain binding even after their project finishes",
+      "domain": "6.5 Employment termination",
+      "expected_annexes": [
+        "6.5"
+      ],
+      "expected_keywords": [
+        "confidentiality agreement",
+        "termination"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_014",
+      "query": "All physical paper files containing customer details are run through a cross-cut shredder in the back office",
+      "domain": "7.14 Disposal of media",
+      "expected_annexes": [
+        "7.14"
+      ],
+      "expected_keywords": [
+        "shredder",
+        "disposal",
+        "media"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_015",
+      "query": "Server hardware maintenance is outsourced to certified Dell technicians who must be escorted by IT staff inside the facility",
+      "domain": "7.13 Equipment maintenance",
+      "expected_annexes": [
+        "7.13"
+      ],
+      "expected_keywords": [
+        "maintenance",
+        "escort",
+        "technicians"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_017",
+      "query": "System administrators use Git repositories to track configuration templates for servers, ensuring all changes require manager approval",
+      "domain": "8.32 Change management",
+      "expected_annexes": [
+        "8.32"
+      ],
+      "expected_keywords": [
+        "configuration",
+        "change management",
+        "git"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_018",
+      "query": "Our incident team logs security events in Jira, records response times, and files breach reports to regulators",
+      "domain": "5.24 Information security incident management planning",
+      "expected_annexes": [
+        "5.24"
+      ],
+      "expected_keywords": [
+        "incident",
+        "jira",
+        "breach"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_019",
+      "query": "We perform daily validation of database integrity checks to verify no records were corrupted during processing",
+      "domain": "5.36 Compliance with policies, rules and standards for information security",
+      "expected_annexes": [
+        "5.36"
+      ],
+      "expected_keywords": [
+        "integrity",
+        "database",
+        "validation"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_020",
+      "query": "All developers receive secure coding certificates before they are given access to write production APIs",
+      "domain": "8.25 Secure development life cycle",
+      "expected_annexes": [
+        "8.25"
+      ],
+      "expected_keywords": [
+        "secure coding",
+        "development",
+        "certification"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_021",
+      "query": "We use AWS security groups to isolate our testing servers from the production network zone",
+      "domain": "8.22 Web filtering",
+      "expected_annexes": [
+        "8.22"
+      ],
+      "expected_keywords": [
+        "isolate",
+        "network",
+        "aws"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_022",
+      "query": "All incoming email attachments are scanned in a cloud sandbox to check for malicious payloads before delivery",
+      "domain": "8.7 Protection against malware",
+      "expected_annexes": [
+        "8.7"
+      ],
+      "expected_keywords": [
+        "malware",
+        "scan",
+        "email"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_023",
+      "query": "Our office entry points are locked and monitored by motion-activated CCTV cameras that feed video to a local server room",
+      "domain": "7.2 Physical entry controls",
+      "expected_annexes": [
+        "7.2"
+      ],
+      "expected_keywords": [
+        "cctv",
+        "entry points",
+        "locked"
+      ],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_amb_024",
+      "query": "The security team reviews firewall access logs to verify that multi-factor authentication rules are being applied correctly",
+      "domain": "Ambiguous Logs/MFA/Firewall",
+      "expected_annexes": [
+        "8.16",
+        "5.15",
+        "8.5"
+      ],
+      "expected_keywords": [
+        "logs",
+        "mfa",
+        "firewall"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_025",
+      "query": "We backup user account databases and verify that the data is encrypted during offsite tape transportation",
+      "domain": "Ambiguous Backup/Crypto",
+      "expected_annexes": [
+        "8.13",
+        "8.24"
+      ],
+      "expected_keywords": [
+        "backup",
+        "encrypted"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_026",
+      "query": "When our secondary backup site failed during the mock drill, the incident team logged it in Jira and escalated it immediately",
+      "domain": "Ambiguous Incident/DR",
+      "expected_annexes": [
+        "5.24",
+        "5.29",
+        "8.13"
+      ],
+      "expected_keywords": [
+        "backup",
+        "incident",
+        "drill"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_027",
+      "query": "The IT manager performs background checks for prospective database developers before granting them administrative credentials",
+      "domain": "Ambiguous Screening/Access",
+      "expected_annexes": [
+        "6.1",
+        "5.15",
+        "8.5"
+      ],
+      "expected_keywords": [
+        "background checks",
+        "access",
+        "credentials"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_028",
+      "query": "The network admin changes server configurations and documents the updates during weekly vulnerability patch applications",
+      "domain": "Ambiguous CM/Vuln",
+      "expected_annexes": [
+        "8.32",
+        "8.8"
+      ],
+      "expected_keywords": [
+        "configurations",
+        "patch",
+        "vulnerability"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_029",
+      "query": "All visitor physical badges are destroyed in a shredder to prevent unauthorized building re-entry and leakage of media labels",
+      "domain": "Ambiguous Media/Physical",
+      "expected_annexes": [
+        "7.14",
+        "7.2"
+      ],
+      "expected_keywords": [
+        "badges",
+        "shredder",
+        "disposal"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_030",
+      "query": "Our risk management team audits the SDLC system baseline configuration to verify secure coding guidelines are defined",
+      "domain": "Ambiguous Risk/SDLC",
+      "expected_annexes": [
+        "5.7",
+        "8.25",
+        "8.28"
+      ],
+      "expected_keywords": [
+        "audit",
+        "sdlc",
+        "secure coding"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_031",
+      "query": "We run weekly automated network vulnerability scans to check if our boundary firewalls block unauthorized external traffic",
+      "domain": "Ambiguous Vuln/Network",
+      "expected_annexes": [
+        "8.8",
+        "8.22"
+      ],
+      "expected_keywords": [
+        "vulnerability",
+        "firewalls",
+        "block"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_032",
+      "query": "The HR manager trains staff on physical security perimeter access and reporting tailgating incidents to safety logs",
+      "domain": "Ambiguous Awareness/Incident",
+      "expected_annexes": [
+        "6.3",
+        "7.1",
+        "5.24"
+      ],
+      "expected_keywords": [
+        "trains",
+        "perimeter",
+        "incidents"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_033",
+      "query": "All data backups of customer billing details are marked as confidential and encrypted on external hard disks",
+      "domain": "Ambiguous Backup/Classify",
+      "expected_annexes": [
+        "8.13",
+        "5.12",
+        "8.24"
+      ],
+      "expected_keywords": [
+        "backups",
+        "confidential",
+        "encrypted"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_034",
+      "query": "Contractors are required to sign NDA terms and complete secure development training prior to system code reviews",
+      "domain": "Ambiguous SDLC/HR",
+      "expected_annexes": [
+        "6.1",
+        "8.25",
+        "8.28"
+      ],
+      "expected_keywords": [
+        "nda",
+        "development",
+        "training"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_035",
+      "query": "We check that Dell maintenance engineers have active background checks logged before they repair server hardware",
+      "domain": "Ambiguous Screening/Maintenance",
+      "expected_annexes": [
+        "6.1",
+        "7.13"
+      ],
+      "expected_keywords": [
+        "background checks",
+        "maintenance",
+        "repair"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_036",
+      "query": "Our SIEM server monitors database log events and alerts on suspected deletion of backup audit records",
+      "domain": "Ambiguous Monitoring/Backup",
+      "expected_annexes": [
+        "8.16",
+        "8.13",
+        "8.10"
+      ],
+      "expected_keywords": [
+        "siem",
+        "database",
+        "deletion"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_037",
+      "query": "We encrypt user profile tables containing privacy metadata and classify the encryption keys as restricted",
+      "domain": "Ambiguous Crypto/Classify",
+      "expected_annexes": [
+        "8.24",
+        "5.12"
+      ],
+      "expected_keywords": [
+        "encrypt",
+        "privacy",
+        "classify"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_038",
+      "query": "IT restricts mobile testing configurations using access rights guidelines to check device compliance benchmarks",
+      "domain": "Ambiguous Device/Access",
+      "expected_annexes": [
+        "5.15",
+        "8.5"
+      ],
+      "expected_keywords": [
+        "configurations",
+        "access rights",
+        "device"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_039",
+      "query": "The vendor management policy requires suppliers to follow system change baseline approvals for server patching",
+      "domain": "Ambiguous Supplier/CM",
+      "expected_annexes": [
+        "5.19",
+        "8.32",
+        "8.8"
+      ],
+      "expected_keywords": [
+        "vendor",
+        "change",
+        "baseline"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_040",
+      "query": "We run cloud sandboxes to scan email attachments and log alerts on malware detections to our central incident board",
+      "domain": "Ambiguous Malware/Incident",
+      "expected_annexes": [
+        "8.7",
+        "8.16",
+        "5.24"
+      ],
+      "expected_keywords": [
+        "sandbox",
+        "malware",
+        "incident"
+      ],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_neg_041",
+      "query": "The product design team updates our CSS style guide to unify layout margins and font colors across the web app",
+      "domain": "Adjacent Technical Process",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "css",
+        "design",
+        "layout"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_042",
+      "query": "Developers use Prettier and ESLint in VS Code to format source code files and prevent syntax warnings during compile",
+      "domain": "Adjacent Technical Process",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "prettier",
+        "eslint",
+        "compile"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_043",
+      "query": "Finance prints monthly spreadsheets to reconcile marketing campaign expenses against credit card statements",
+      "domain": "Adjacent Finance Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "marketing",
+        "spreadsheets",
+        "reconcile"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_044",
+      "query": "The recruiter updates candidate tracking entries in Greenhouse to schedule job interviews and send calendar invites",
+      "domain": "Adjacent HR Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "recruiter",
+        "greenhouse",
+        "interviews"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_045",
+      "query": "Sales leads are parsed from Salesforce and added to the marketing outreach campaign lists every Monday morning",
+      "domain": "Adjacent Sales Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "salesforce",
+        "marketing",
+        "outreach"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_046",
+      "query": "The facilities coordinator registers office desk bookings in Robin and assigns permanent seating tags to engineering leads",
+      "domain": "Adjacent Office Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "facilities",
+        "bookings",
+        "desk"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_047",
+      "query": "Customer support uses Zendesk to answer client questions about subscription invoicing and tier upgrades",
+      "domain": "Adjacent Sales Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "zendesk",
+        "invoicing",
+        "subscription"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_048",
+      "query": "Corporate legal lawyers review patent applications and compile paperwork for trademark registrations",
+      "domain": "Adjacent Legal Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "patent",
+        "trademark",
+        "legal"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_049",
+      "query": "Product managers organize backlog tickets in linear using sprints and user story estimation metrics",
+      "domain": "Adjacent Management Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "backlog",
+        "linear",
+        "sprints"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_050",
+      "query": "We order replacement office printer cartridges from Amazon and track shipping delivery updates in Slack channels",
+      "domain": "Adjacent Office Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "printer",
+        "shipping",
+        "amazon"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_051",
+      "query": "The marketing manager edits social media copy on Twitter and checks engagement statistics using metrics tools",
+      "domain": "Adjacent Marketing Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "marketing",
+        "twitter",
+        "engagement"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_052",
+      "query": "IT helpdesk registers customer software licenses and prints asset labels to paste on backup monitor screens",
+      "domain": "Adjacent IT Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "licenses",
+        "labels",
+        "asset"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_053",
+      "query": "We configure automatic server reboots at 3 AM to clear memory caches and optimize database CPU utilization metrics",
+      "domain": "Adjacent System Performance",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "reboots",
+        "memory",
+        "cpu"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_054",
+      "query": "Product design draws mockups in Figma and posts screenshots to engineering channels to gather developer feedback",
+      "domain": "Adjacent Technical Process",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "mockups",
+        "figma",
+        "feedback"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_055",
+      "query": "The accounting clerk deposits checks at the bank branch and downloads PDF bank statements for corporate records",
+      "domain": "Adjacent Finance Operations",
+      "expected_annexes": [],
+      "expected_keywords": [
+        "deposits",
+        "checks",
+        "statements"
+      ],
+      "expected_verdict": "insufficient_evidence"
+    }
+  ]
+}

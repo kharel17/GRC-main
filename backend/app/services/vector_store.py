@@ -153,12 +153,17 @@ class VectorStoreService:
             emb_vector = embeddings[idx].tolist() if isinstance(embeddings[idx], np.ndarray) else list(embeddings[idx])
             point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"iso-control-{ctrl['id']}"))
 
+            # Note: The chunk text here is derived from the NIST SP 800-53 Rev 5 to ISO 27001:2022 public-domain
+            # cross-reference mapping. The fields below map to the standard schema, but the text is enriched
+            # with operational controls mapping rather than verbatim copyrighted ISO text.
             payload = {
                 "control_id": ctrl["id"],
                 "annex": ctrl["annex"],
                 "title": ctrl["title"],
                 "description": ctrl["description"],
                 "clause_id": ctrl.get("clauseId", ""),
+                "section_heading": ctrl.get("section_heading", ""),
+                "text": ctrl.get("text", ""),
             }
 
             points.append(qmodels.PointStruct(

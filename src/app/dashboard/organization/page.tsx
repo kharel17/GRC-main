@@ -23,6 +23,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Organization } from "@/types";
 
+import { PageRoleGuard } from "@/components/auth/PageRoleGuard";
+
 const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Retail", "Manufacturing", "Education", "Government", "Other"];
 const EMPLOYEE_RANGES = ["1-50", "51-200", "201-1000", "1000+"];
 const INFRASTRUCTURE_OPTIONS = ["AWS", "Azure", "GCP", "On-premise", "Hybrid"];
@@ -30,12 +32,23 @@ const DATA_TYPES = ["PII", "PHI", "PCI", "Financial Data", "IP"];
 const FRAMEWORKS = ["ISO 27001", "SOC2", "HIPAA", "GDPR", "NIST"];
 
 export default function OrganizationPage() {
+  return (
+    <PageRoleGuard allowedRoles={['admin', 'compliance_officer', 'auditor']} permissionKey="organization">
+      <OrganizationContent />
+    </PageRoleGuard>
+  );
+}
+
+function OrganizationContent() {
   const { data: org, loading, refetch } = useApiData(fetchOrganization);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<any>(null);
 
   const startEditing = () => {
+    const infraArr = org?.infrastructure ? org.infrastructure.split(',').map((s: string) => s.trim()) : [];
+    const dataArr = org?.data_types ? org.data_types.split(',').map((s: string) => s.trim()) : [];
+    
     setFormData({
       name: org?.name || "",
       description: org?.description || "",
@@ -43,7 +56,10 @@ export default function OrganizationPage() {
       size: org?.size || "",
       website: org?.website || "",
       country: org?.country || "",
-      employee_count: org?.employee_count || 0,
+      employee_count: org?.employee_count || "",
+      isms_scope: org?.isms_scope || "",
+      infrastructure: infraArr,
+      data_types: dataArr,
       compliance_target_date: org?.compliance_target_date || "",
     });
     setIsEditing(true);
@@ -55,7 +71,10 @@ export default function OrganizationPage() {
     try {
       const payload = {
         ...formData,
+        infrastructure: Array.isArray(formData.infrastructure) ? formData.infrastructure.join(',') : formData.infrastructure,
+        data_types: Array.isArray(formData.data_types) ? formData.data_types.join(',') : formData.data_types,
         compliance_frameworks: formData.complianceFrameworks || formData.compliance_frameworks,
+        compliance_target_date: formData.compliance_target_date || null,
       };
       await updateOrganization(payload);
       toast.success("Organization updated successfully");
@@ -80,6 +99,7 @@ export default function OrganizationPage() {
         infrastructure: Array.isArray(formData.infrastructure) ? formData.infrastructure.join(',') : formData.infrastructure,
         data_types: Array.isArray(formData.data_types) ? formData.data_types.join(',') : formData.data_types,
         compliance_frameworks: formData.complianceFrameworks || formData.compliance_frameworks || [],
+        compliance_target_date: formData.compliance_target_date || null,
         onboarding_completed: true,
       };
       await createOrganization(payload);
@@ -345,13 +365,20 @@ export default function OrganizationPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="org-employees">Employee Count</Label>
-                  <Input 
-                    id="org-employees" 
-                    type="number"
+                  <Label htmlFor="org-employees">Employee Count Range</Label>
+                  <Select 
                     value={formData.employee_count} 
-                    onChange={(e) => setFormData({...formData, employee_count: parseInt(e.target.value) || 0})}
-                  />
+                    onValueChange={(val) => setFormData({...formData, employee_count: val})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employee range..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMPLOYEE_RANGES.map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="org-target-date">Compliance Target Date</Label>
@@ -371,10 +398,20 @@ export default function OrganizationPage() {
                   />
                 </div>
                 <div className="col-span-2 space-y-2">
+                  <Label htmlFor="org-isms">ISO 27001 ISMS Scope Boundary (Clause 4.3)</Label>
+                  <Textarea 
+                    id="org-isms" 
+                    rows={3}
+                    placeholder="Define internal/external boundaries, systems, and legal obligations included in ISMS scope..."
+                    value={formData.isms_scope} 
+                    onChange={(e) => setFormData({...formData, isms_scope: e.target.value})}
+                  />
+                </div>
+                <div className="col-span-2 space-y-2">
                   <Label htmlFor="org-desc">Description</Label>
                   <Textarea 
                     id="org-desc" 
-                    rows={3}
+                    rows={2}
                     value={formData.description} 
                     onChange={(e) => setFormData({...formData, description: e.target.value})}
                   />
@@ -413,6 +450,13 @@ export default function OrganizationPage() {
                 </div>
                 
                 <Separator />
+
+                {org.isms_scope && (
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase">ISMS Scope Boundary (Clause 4.3)</span>
+                    <p className="text-sm bg-slate-50 dark:bg-slate-900 p-3 rounded-md border text-slate-800 dark:text-slate-200">{org.isms_scope}</p>
+                  </div>
+                )}
                 
                 <div className="space-y-1">
                   <span className="text-xs font-semibold text-muted-foreground uppercase">Description</span>

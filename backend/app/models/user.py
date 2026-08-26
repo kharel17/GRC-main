@@ -35,6 +35,8 @@ class User(Base):
     is_acting_admin = Column(Integer, server_default='0', default=0)
     manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    permission_profile_id = Column(UUID(as_uuid=True), ForeignKey("permission_profiles.id"), nullable=True)
+    access_expires_at = Column(DateTime, nullable=True) # Used for time-boxed auditor guest windows
 
     # Invitation System
     invitation_status = Column(String, default="pending", nullable=False) # pending, active, deactivated
@@ -56,6 +58,7 @@ class User(Base):
     tickets_assigned = relationship("Ticket", foreign_keys="Ticket.assigned_to_id", back_populates="assignee")
     audit_logs = relationship("AuditLog", back_populates="user")
     organization = relationship("Organization", foreign_keys=[organization_id])
+    permission_profile = relationship("PermissionProfile", back_populates="users", foreign_keys=[permission_profile_id])
     
     manager = relationship("User", remote_side=[id], foreign_keys=[manager_id], back_populates="subordinates")
     subordinates = relationship("User", back_populates="manager", foreign_keys=[manager_id])

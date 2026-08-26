@@ -8,7 +8,7 @@ from app.database import SessionLocal
 from app.ingestion.extractor import extract_pages_from_bytes
 from app.ingestion.chunker import chunk_document
 from app.ingestion.job_queue import update_job_progress, IngestionStep
-from app.services.ai_service import ai_service, _run_document_analysis
+from app.services.ai_service import ai_service, _run_document_analysis_async
 
 logger = logging.getLogger("grc.ingestion.pipeline")
 
@@ -72,8 +72,8 @@ async def process_document_job(
                 logger.info("Vector Store: Not ready — skipping vector indexing (Qdrant not configured)")
 
 
-            # 4. Final analysis & completion phase
-            analysis_data = await asyncio.to_thread(_run_document_analysis, full_text)
+            # 4. Final analysis & completion phase — async Qdrant path
+            analysis_data = await _run_document_analysis_async(full_text)
             
             # Enrich analysis_data with chunk metadata
             analysis_data["chunk_summary"] = {

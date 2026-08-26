@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app import schemas, models
 from app.api import deps
-from app.services.ai_service import ai_service, _run_document_analysis
+from app.services.ai_service import ai_service, _run_document_analysis_async, _extract_security_practices
 from app.services.file_service import file_storage
 import logging
 import json
@@ -173,7 +173,7 @@ async def reanalyze_document(
     await db.flush()
     
     try:
-        analysis_result = _run_document_analysis(doc_analysis.extracted_text)
+        analysis_result = await _run_document_analysis_async(doc_analysis.extracted_text)
         
         doc_analysis.status = models.DocumentAnalysisStatus.completed
         doc_analysis.document_category = analysis_result.get("document_category", "general")
@@ -191,67 +191,6 @@ async def reanalyze_document(
     await db.commit()
     await db.refresh(doc_analysis)
     return doc_analysis
-
-
-def _run_document_analysis(text: str) -> dict:
-    """
-    Run AI analysis on extracted document text.
-    
-    Two-stage pipeline:
-    1. Gemini structured extraction (primary) — extracts security practices as named items
-    2. Embedding similarity (validation + fallback) — maps practices to ISO controls
-    """
-    if not ai_service.is_ready:
-        raise RuntimeError("AI Service is not ready")
-    
-    # Stage 1: Categorize the document
-    category = ai_service._categorize(text)
-    
-    # Stage 2: Use evidence analysis for control mapping
-    evidence_result = ai_service.analyze_evidence(text, top_n=93, threshold=0.25)
-    
-    # Classify controls as implemented (strong match) vs weak
-    implemented = []
-    weak_matches = []
-    
-    for match in evidence_result.matched_controls:
-        item = {
-            "control_annex": match.annex,
-            "title": match.title,
-            "confidence": match.confidence,
-            "clause_id": match.clause_id,
-        }
-        if match.confidence >= 50:  # ≥50% = strong match → likely implemented
-            implemented.append(item)
-        elif match.confidence >= 30:  # 30-49% = weak match
-            weak_matches.append(item)
-    
-    # Identify missing controls (no match at all)
-    matched_annexes = {m.annex for m in evidence_result.matched_controls}
-    missing = []
-    for ctrl in ai_service._controls:
-        if ctrl["annex"] not in matched_annexes:
-            missing.append({
-                "control_annex": ctrl["annex"],
-                "title": ctrl["title"],
-                "reason": "No reference found in document",
-            })
-    
-    # Extract security practices (keyword-based)
-    practices = _extract_security_practices(text)
-    
-    return {
-        "document_category": category,
-        "summary": evidence_result.summary,
-        "implemented_controls": implemented,
-        "weak_matches": weak_matches,
-        "missing_controls": missing,
-        "security_practices": practices,
-        "total_controls_checked": len(ai_service._controls),
-        "strong_matches": len(implemented),
-        "weak_match_count": len(weak_matches),
-        "missing_count": len(missing),
-    }
 
 
 def _extract_security_practices(text: str) -> list[dict]:

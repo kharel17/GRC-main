@@ -16,7 +16,6 @@ from app.utils.notifications import notify
 router = APIRouter()
 
 
-# â”€â”€ Load ISO 27001 controls from JSON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _CONTROLS_PATH = Path(__file__).resolve().parents[2] / "data" / "iso27001-controls.json"
 _ISO_CONTROLS: list[dict] = []
 _ISO_CLAUSES: list[dict] = []
@@ -32,7 +31,6 @@ def _load_controls():
 _load_controls()
 
 
-# â”€â”€ Response Models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class SoAEntry(BaseModel):
     control_annex: str
     control_title: str
@@ -74,7 +72,6 @@ class InitializeFrameworkRequest(BaseModel):
     framework_id: str
 
 
-# â”€â”€ GET /control-applicability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.get("/", response_model=List[schemas.ControlApplicabilityResponse])
 async def list_control_applicability(
     db: AsyncSession = Depends(deps.get_db),
@@ -97,7 +94,6 @@ async def list_control_applicability(
     return result.scalars().all()
 
 
-# â”€â”€ POST /control-applicability/initialize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.post("/initialize", response_model=dict)
 async def initialize_control_applicability(
     *,
@@ -168,7 +164,6 @@ async def initialize_framework_for_current_org(
     }
 
 
-# â”€â”€ GET /control-applicability/annex/{annex} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.get("/annex/{annex}", response_model=schemas.ControlApplicabilityResponse)
 async def get_control_applicability_by_annex(
     annex: str,
@@ -198,7 +193,6 @@ async def get_control_applicability_by_annex(
     return ca
 
 
-# â”€â”€ GET /control-applicability/{ca_id} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.get("/soa", response_model=SoAResponse)
 async def get_statement_of_applicability(
     db: AsyncSession = Depends(deps.get_db),
@@ -250,7 +244,6 @@ async def get_statement_of_applicability(
     )
 
 
-# â”€â”€ GET /control-applicability/compliance-score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @router.get("/compliance-score", response_model=ComplianceScoreResponse)
 async def get_compliance_score(
     db: AsyncSession = Depends(deps.get_db),

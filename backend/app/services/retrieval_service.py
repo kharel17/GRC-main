@@ -245,6 +245,19 @@ class RetrievalService:
         if not dense_results:
             return []
 
+        # ── Reranker Bypass for ISO 27001 Controls ──
+        # Skip BM25, RRF, and CrossEncoder because the MS-MARCO reranker suffers
+        # from severe domain/vocabulary mismatch on short ISO control descriptions.
+        # Set rerank_score to the raw dense cosine similarity score directly.
+        if collection == settings.QDRANT_COLLECTION_ISO_CONTROLS:
+            for chunk in dense_results:
+                chunk.rerank_score = chunk.dense_score
+            logger.info(
+                f"Retrieval: bypassed reranker for {collection} query='{query[:60]}...' "
+                f"returning {len(dense_results[:rerank_top_n])} dense hits"
+            )
+            return dense_results[:rerank_top_n]
+
         # 3. Sparse BM25 over the dense candidate set
         sparse_results = await self.sparse_retrieve(
             query=query,

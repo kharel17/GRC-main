@@ -1,0 +1,84 @@
+{
+  "test_cases": [
+    {
+      "id": "iso_pos_001",
+      "query": "cryptographic key management rules and key lifecycle controls",
+      "domain": "8.24 Use of cryptography",
+      "expected_annexes": ["8.24"],
+      "expected_keywords": ["cryptograph", "key"],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_002",
+      "query": "biometric access control and CCTV monitoring of server room perimeters",
+      "domain": "7.1 Physical security",
+      "expected_annexes": ["7.1"],
+      "expected_keywords": ["perimeter", "access"],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_003",
+      "query": "role-based access control policies restricting system authorization",
+      "domain": "5.15 Access control",
+      "expected_annexes": ["5.15"],
+      "expected_keywords": ["access", "control"],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_004",
+      "query": "pre-employment background screening and signing non-disclosure agreements",
+      "domain": "6.1 HR Security",
+      "expected_annexes": ["6.1"],
+      "expected_keywords": ["screening", "pre-employment"],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_pos_005",
+      "query": "disaster recovery quarterly drills and backup replication objectives",
+      "domain": "5.29 Business Continuity",
+      "expected_annexes": ["5.29"],
+      "expected_keywords": ["disaster", "backup"],
+      "expected_verdict": "accept"
+    },
+    {
+      "id": "iso_amb_006",
+      "query": "user password complexity rules and multi-factor authentication enrollment",
+      "domain": "5.17 Authentication Credentials",
+      "expected_annexes": ["5.17", "5.15"],
+      "expected_keywords": ["authentication", "mfa"],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_007",
+      "query": "vulnerability scanning frequency and system patch management criteria",
+      "domain": "8.8 Vulnerability Management",
+      "expected_annexes": ["8.8", "8.32"],
+      "expected_keywords": ["vulnerability", "patch"],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_amb_008",
+      "query": "incident response reporting timelines and post-incident forensic logging",
+      "domain": "5.24 Incident Management",
+      "expected_annexes": ["5.24", "8.15"],
+      "expected_keywords": ["incident", "log"],
+      "expected_verdict": "needs_review"
+    },
+    {
+      "id": "iso_neg_009",
+      "query": "office cafeteria food quality reviews and vendor lunch menu options",
+      "domain": "Out-of-Domain",
+      "expected_annexes": [],
+      "expected_keywords": [],
+      "expected_verdict": "insufficient_evidence"
+    },
+    {
+      "id": "iso_neg_010",
+      "query": "employee marketing templates and product brand guidelines",
+      "domain": "Out-of-Domain",
+      "expected_annexes": [],
+      "expected_keywords": [],
+      "expected_verdict": "insufficient_evidence"
+    }
+  ]
+}

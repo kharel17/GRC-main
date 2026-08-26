@@ -385,12 +385,20 @@ export async function deleteUser(userId: string): Promise<void> {
     await api.delete(`/users/${userId}`);
 }
 
+export async function updateCurrentUserProfile(data: {
+    full_name?: string;
+    department?: string;
+}): Promise<any> {
+    return api.put('/users/me', data);
+}
+
 // -- Invitations --────────
 export async function inviteUser(data: {
     email: string;
     full_name: string;
     role: string;
     manager_id?: string;
+    access_expires_at?: string;
 }): Promise<any> {
     return api.post<any>('/invitations/invite-user', data);
 }
@@ -537,3 +545,45 @@ export async function fetchDashboardSummary(): Promise<DashboardSummary> {
 
   return fetchOrFallback<DashboardSummary>('/dashboard/summary/', empty);
 }
+
+// -- Permission Profiles --────────
+export interface PermissionProfile {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  nav_permissions: Record<string, boolean>;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchPermissionProfiles(): Promise<PermissionProfile[]> {
+  return fetchOrFallback<PermissionProfile[]>('/permission-profiles/', []);
+}
+
+export async function createPermissionProfile(data: {
+  name: string;
+  description?: string;
+  nav_permissions: Record<string, boolean>;
+}): Promise<PermissionProfile> {
+  return api.post<PermissionProfile>('/permission-profiles/', data);
+}
+
+export async function updatePermissionProfile(
+  id: string,
+  data: { name?: string; description?: string; nav_permissions?: Record<string, boolean> }
+): Promise<PermissionProfile> {
+  return api.put<PermissionProfile>(`/permission-profiles/${id}`, data);
+}
+
+export async function deletePermissionProfile(id: string): Promise<any> {
+  return api.delete(`/permission-profiles/${id}`);
+}
+
+export async function assignPermissionProfile(data: {
+  user_id: string;
+  permission_profile_id?: string | null;
+}): Promise<any> {
+  return api.post('/permission-profiles/assign', data);
+}
+

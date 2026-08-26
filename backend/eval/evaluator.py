@@ -116,10 +116,24 @@ class Evaluator:
             })
 
         # Evaluate confidence gate decision
+        # Auto-detect target collection from the retrieved chunks metadata to support collection-specific thresholds
+        retrieved_collection = "grc_doc_chunks"
+        if retrieved_chunks:
+            # Let's inspect the chunk_id pattern or fallback. ISO controls have UUIDs built via DNS Namespace.
+            # But run_eval.py has a clean variable for it. Since Evaluator doesn't know the file name directly,
+            # we can infer it if the top retrieved chunk is from grc_iso_controls (uuid DNS namespace form or chunk_id shape).
+            # The cleanest check is to inspect if the heading looks like an ISO Annex A clause prefix (numeric: "8.10", "5.15", etc.)
+            top_heading = retrieved_chunks[0].section_heading or ""
+            import re
+            if re.match(r'^\d+\.\d+', top_heading.strip()):
+                retrieved_collection = "grc_iso_controls"
+
         gate_decision = evaluate_confidence(
             reranked_results=retrieved_chunks,
             dense_results=retrieved_chunks,
             sparse_results=retrieved_chunks,
+            query=query_text,
+            collection=retrieved_collection,
         )
 
         actual_verdict = gate_decision.verdict

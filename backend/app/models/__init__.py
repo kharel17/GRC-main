@@ -16,3 +16,4 @@ from .framework import Framework
 from .framework_control import FrameworkControl
 from .control_applicability import ControlApplicability, ControlImplementationStatus
 from .document_analysis import DocumentAnalysis, DocumentAnalysisStatus
+from .permission_profile import PermissionProfile

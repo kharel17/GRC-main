@@ -43,8 +43,17 @@ import {
 } from "@/components/ui/select";
 import { ComplianceItem } from "@/types";
 import Link from "next/link";
+import { PageRoleGuard } from "@/components/auth/PageRoleGuard";
 
 export default function GapAnalysisPage() {
+  return (
+    <PageRoleGuard allowedRoles={['admin', 'manager', 'compliance_officer', 'auditor', 'department_manager', 'executive']} permissionKey="gap_analysis">
+      <GapAnalysisContent />
+    </PageRoleGuard>
+  );
+}
+
+function GapAnalysisContent() {
   // Bug 7: keep a refetch handle so "Regenerate" doesn't hard-reload the page
   const { data: report, loading, refetch } = useApiData(fetchGapReport);
   const [statusFilter, setStatusFilter] = useState<string>('all');

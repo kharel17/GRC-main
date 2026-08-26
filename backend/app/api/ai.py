@@ -262,7 +262,7 @@ async def suggest_risk(
         )
 
     try:
-        result = ai_service.suggest_risk_score(request.description)
+        result = await ai_service.suggest_risk_score(request.description)
         return RiskSuggestionResponse(**result.to_dict())
     except Exception as e:
         logger.error(f"Risk suggestion failed: {e}")

@@ -5,8 +5,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Allow cross-origin HMR from local network (e.g. when accessing via LAN IP)
-  allowedDevOrigins: ['192.168.150.1'],
 };
 
 module.exports = nextConfig;

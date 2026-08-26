@@ -17,6 +17,8 @@ class OrganizationCreate(BaseModel):
     framework_id: Optional[UUID] = None
     isms_scope: Optional[str] = None
     employee_count: Optional[str] = None  # Range string e.g. "1-50", "51-200"
+    infrastructure: Optional[str] = None  # e.g. "AWS, Azure"
+    data_types: Optional[str] = None      # e.g. "PII, Financial"
     risk_appetite: Optional[dict] = None
     compliance_target_date: Optional[datetime] = None
 
@@ -35,6 +37,8 @@ class OrganizationUpdate(BaseModel):
     framework_id: Optional[UUID] = None
     isms_scope: Optional[str] = None
     employee_count: Optional[str] = None  # Range string e.g. "1-50", "51-200"
+    infrastructure: Optional[str] = None
+    data_types: Optional[str] = None
     risk_appetite: Optional[dict] = None
     compliance_target_date: Optional[datetime] = None
 
@@ -54,6 +58,8 @@ class OrganizationResponse(BaseModel):
     framework_id: Optional[UUID] = None
     isms_scope: Optional[str] = None
     employee_count: Optional[str] = None  # Range string e.g. "1-50", "51-200"
+    infrastructure: Optional[str] = None
+    data_types: Optional[str] = None
     risk_appetite: Optional[dict] = None
     compliance_target_date: Optional[datetime] = None
     created_at: datetime

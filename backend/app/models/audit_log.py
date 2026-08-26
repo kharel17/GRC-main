@@ -26,6 +26,7 @@ class AuditEntityType(str, enum.Enum):
     user = "user"
     ticket = "ticket"
     asset = "asset"
+    organization = "organization"
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

@@ -12,7 +12,9 @@ async def read_audit_logs(
     db: AsyncSession = Depends(deps.get_db),
     skip: int = 0,
     limit: int = 100,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.RoleChecker([
+        models.UserRole.admin, models.UserRole.compliance_officer, models.UserRole.auditor
+    ], permission_key="audit_log")),
 ) -> Any:
     """
     Retrieve audit logs. Scoped to the current user's organization

@@ -19,12 +19,20 @@ export default function DashboardLayout({
   const { collapsed } = useSidebarCollapse();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated, or redirect superadmin to /superadmin
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
+      return;
     }
-  }, [isLoading, isAuthenticated, router]);
+    // Super Admins operate globally and should not stay on empty customer dashboard
+    if (!isLoading && isAuthenticated && user?.role === "superadmin") {
+      const pathname = window.location.pathname;
+      if (pathname === "/dashboard" || pathname === "/dashboard/") {
+        router.push("/superadmin");
+      }
+    }
+  }, [isLoading, isAuthenticated, user, router]);
 
   // Check onboarding status for admin users
   useEffect(() => {

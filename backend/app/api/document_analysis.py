@@ -69,6 +69,7 @@ from app.ingestion.job_queue import init_job_record, enqueue_ingestion_job
 async def upload_and_analyze_document(
     file: UploadFile = File(...),
     organization_id: str = Form(None),
+    source_type: str = Form("evidence"),
     link_as_evidence: bool = Form(False),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -79,13 +80,16 @@ async def upload_and_analyze_document(
     The pipeline runs asynchronously via durable Postgres job queue:
     - Extract text page-by-page (PyMuPDF + Tesseract OCR fallback)
     - Structural + recursive token chunking (~400 tokens)
-    - Vector embedding & control mapping
+    - Vector embedding & control mapping (tagged with source_type: 'internal_policy' or 'evidence')
     
     Returns 202 Accepted status with initial analysis record. Progress can be polled via /api/v1/ingestion/jobs/{analysis_id}.
     """
     target_org_id = organization_id or str(current_user.organization_id)
     if not target_org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
+
+    # Validate source_type
+    clean_source_type = "internal_policy" if source_type in ("internal_policy", "policy") else "evidence"
 
     # Validate file type
     allowed_types = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
@@ -111,6 +115,7 @@ async def upload_and_analyze_document(
             file_name=file.filename,
             file_type=file.filename.rsplit(".", 1)[-1] if "." in file.filename else "unknown",
             file_size=len(file_bytes),
+            source_type=clean_source_type,
             related_to=models.EvidenceRelatedTo.compliance_item,
             related_id=models.uuid.uuid4(),
             uploaded_by=current_user.id,
@@ -128,6 +133,7 @@ async def upload_and_analyze_document(
         file_size=len(file_bytes),
         file_type=file.filename.rsplit(".", 1)[-1] if "." in file.filename else "unknown",
         uploaded_by=current_user.id,
+        source_type=clean_source_type,
         status=models.DocumentAnalysisStatus.processing,
         evidence_id=evidence_id,
     )
@@ -146,10 +152,49 @@ async def upload_and_analyze_document(
         filename=file.filename,
         organization_id=doc_analysis.organization_id,
         db=db,
+        source_type=clean_source_type,
     )
 
     return doc_analysis
 
+
+
+@router.put("/{analysis_id}/policy-mappings", response_model=schemas.DocumentAnalysisResponse)
+async def update_policy_mappings(
+    analysis_id: str,
+    update_data: schemas.PolicyMappingUpdateRequest,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+) -> Any:
+    """
+    Self-serve human review & confirmation endpoint for policy-to-control crosswalks.
+    Allows Org Admins and Compliance Managers to confirm, edit, or reject suggested policy mappings.
+    """
+    result = await db.execute(
+        select(models.DocumentAnalysis).where(
+            models.DocumentAnalysis.id == analysis_id,
+            models.DocumentAnalysis.organization_id == current_user.organization_id,
+        )
+    )
+    doc_analysis = result.scalars().first()
+    if not doc_analysis:
+        raise HTTPException(status_code=404, detail="Document analysis not found or not in your organization")
+
+    # Serialize incoming mappings, stamping confirmed_by and confirmed_at where status is confirmed/manually_edited
+    now = datetime.utcnow()
+    stored_mappings = []
+    for m in update_data.mappings:
+        m_dict = m.model_dump()
+        status = m_dict.get("mapping_status", "suggested")
+        if status in ("confirmed", "manually_edited"):
+            m_dict["confirmed_by"] = str(current_user.id)
+            m_dict["confirmed_at"] = now.isoformat()
+        stored_mappings.append(m_dict)
+
+    doc_analysis.policy_control_mappings = stored_mappings
+    await db.commit()
+    await db.refresh(doc_analysis)
+    return doc_analysis
 
 
 @router.post("/{analysis_id}/reanalyze", response_model=schemas.DocumentAnalysisResponse)

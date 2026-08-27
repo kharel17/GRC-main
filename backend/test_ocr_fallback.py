@@ -103,6 +103,7 @@ class TestOCRFallback(unittest.TestCase):
     def test_gemini_vision_ocr_fallback(self, mock_client_cls, mock_settings):
         mock_settings.GEMINI_API_KEY = "test-api-key"
         mock_settings.DATA_RESIDENCY_MODE = "off"
+        mock_settings.LLM_MODE = "cloud"
         mock_settings.LLM_CLOUD_MODEL = "gemini-1.5-flash"
 
         mock_instance = MagicMock()
@@ -113,6 +114,39 @@ class TestOCRFallback(unittest.TestCase):
 
         text = _gemini_vision_ocr(b"dummy png bytes", "image/png")
         self.assertEqual(text, "Transcribed text from Gemini Vision OCR")
+
+    @patch('app.ingestion.extractor.settings')
+    @patch('google.genai.Client')
+    def test_gemini_vision_ocr_blocked_in_strict_mode(self, mock_client_cls, mock_settings):
+        mock_settings.GEMINI_API_KEY = "test-api-key"
+        mock_settings.DATA_RESIDENCY_MODE = "strict"
+        mock_settings.LLM_MODE = "cloud"
+
+        text = _gemini_vision_ocr(b"dummy png bytes", "image/png")
+        self.assertIsNone(text)
+        mock_client_cls.assert_not_called()
+
+    @patch('app.ingestion.extractor.settings')
+    @patch('google.genai.Client')
+    def test_gemini_vision_ocr_blocked_in_local_only_mode(self, mock_client_cls, mock_settings):
+        mock_settings.GEMINI_API_KEY = "test-api-key"
+        mock_settings.DATA_RESIDENCY_MODE = "off"
+        mock_settings.LLM_MODE = "local-only"
+
+        text = _gemini_vision_ocr(b"dummy png bytes", "image/png")
+        self.assertIsNone(text)
+        mock_client_cls.assert_not_called()
+
+    @patch('app.ingestion.extractor.settings')
+    @patch('google.genai.Client')
+    def test_gemini_vision_ocr_blocked_in_self_hosted_mode(self, mock_client_cls, mock_settings):
+        mock_settings.GEMINI_API_KEY = "test-api-key"
+        mock_settings.DATA_RESIDENCY_MODE = "off"
+        mock_settings.LLM_MODE = "self-hosted"
+
+        text = _gemini_vision_ocr(b"dummy png bytes", "image/png")
+        self.assertIsNone(text)
+        mock_client_cls.assert_not_called()
 
     def test_extract_text_from_bytes_plaintext(self):
         text = extract_text_from_bytes(b"Sample plain text file", "notes.txt")

@@ -79,6 +79,12 @@ class VectorStoreService:
                     field_name="document_id",
                     field_schema=qmodels.PayloadSchemaType.KEYWORD,
                 )
+                # Payload index for source_type filtering (policy vs evidence)
+                await self._client.create_payload_index(
+                    collection_name=doc_coll,
+                    field_name="source_type",
+                    field_schema=qmodels.PayloadSchemaType.KEYWORD,
+                )
 
             # 2. Check & Create grc_iso_controls collection
             ctrl_coll = settings.QDRANT_COLLECTION_ISO_CONTROLS
@@ -127,6 +133,7 @@ class VectorStoreService:
                 "chunk_index": chunk.chunk_index,
                 "text": chunk.text,
                 "token_count": chunk.token_count,
+                "source_type": getattr(chunk, "source_type", "evidence"),
             }
 
             points.append(qmodels.PointStruct(
@@ -183,10 +190,11 @@ class VectorStoreService:
         top_k: int = 30,
         org_id: Optional[str] = None,
         document_id: Optional[str] = None,
+        source_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Perform dense vector search against specified collection.
-        Optionally filters by org_id and/or document_id.
+        Optionally filters by org_id, document_id, and/or source_type ("internal_policy" / "evidence").
         """
         if not self.is_ready or not self._client:
             return []
@@ -204,6 +212,11 @@ class VectorStoreService:
             must_filters.append(qmodels.FieldCondition(
                 key="document_id",
                 match=qmodels.MatchValue(value=document_id)
+            ))
+        if source_type:
+            must_filters.append(qmodels.FieldCondition(
+                key="source_type",
+                match=qmodels.MatchValue(value=source_type)
             ))
 
         query_filter = qmodels.Filter(must=must_filters) if must_filters else None

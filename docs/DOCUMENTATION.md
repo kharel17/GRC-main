@@ -951,6 +951,14 @@ The codebase is clean, well-organized, and ready for team handoff or backend int
 
 ---
 
+## Known Limitations
+
+### 1. OCR Multilingual Support
+- **English Language Default**: The local Tesseract OCR pipeline defaults to English language data (`eng.traineddata`).
+- **Impact on Non-English Evidence**: Scanned evidence or policies containing non-English text or extended diacritics (e.g. Scandinavian `ä`, `ö`, Cyrillic, or Asian scripts) will experience degraded extraction and character substitutions unless corresponding Tesseract language packs (e.g. `tesseract-ocr-fin` or `*.traineddata`) are installed into the `tessdata` directory.
+
+---
+
 ## Support & Questions
 
 For questions about:

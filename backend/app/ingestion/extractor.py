@@ -80,6 +80,9 @@ def _init_tesseract() -> bool:
         for p in standard_paths:
             if os.path.isfile(p):
                 pytesseract.pytesseract.tesseract_cmd = p
+                tessdata = os.path.join(os.path.dirname(p), "tessdata")
+                if os.path.isdir(tessdata) and not os.environ.get("TESSDATA_PREFIX"):
+                    os.environ["TESSDATA_PREFIX"] = tessdata
                 _TESSERACT_AVAILABLE = True
                 logger.info(f"Tesseract auto-discovered at: {p}")
                 return True
@@ -185,10 +188,29 @@ def _run_tesseract_ocr(img: Image.Image) -> Optional[str]:
 def _gemini_vision_ocr(image_bytes: bytes, mime_type: str = "image/png") -> Optional[str]:
     """
     Multimodal Vision OCR fallback via Gemini 1.5 Flash.
-    Provides near-100% semantic transcription on difficult scans, tables, or when Tesseract is missing.
+
+    Data Residency & Sovereignty Gate:
+      - STRICTLY disabled if DATA_RESIDENCY_MODE == 'strict'
+      - STRICTLY disabled if LLM_MODE != 'cloud' (e.g. in 'local-only' or 'self-hosted' mode)
+      - Requires valid GEMINI_API_KEY
     """
+    # 1. Hard Gate: Data residency enforcement (no outbound data in strict mode)
+    if getattr(settings, "DATA_RESIDENCY_MODE", "off") == "strict":
+        logger.debug("Gemini Vision OCR blocked: DATA_RESIDENCY_MODE is 'strict'")
+        return None
+
+    # 2. Hard Gate: LLM mode enforcement (cloud calls only allowed if LLM_MODE='cloud')
+    if getattr(settings, "LLM_MODE", "local-only") != "cloud":
+        logger.debug(
+            "Gemini Vision OCR blocked: LLM_MODE is '%s' (cloud OCR prohibited in local/self-hosted modes)",
+            getattr(settings, "LLM_MODE", "local-only")
+        )
+        return None
+
+    # 3. API key check
     api_key = (settings.GEMINI_API_KEY or "").strip()
-    if not api_key or settings.DATA_RESIDENCY_MODE == "strict":
+    if not api_key:
+        logger.debug("Gemini Vision OCR skipped: GEMINI_API_KEY is not configured")
         return None
 
     try:

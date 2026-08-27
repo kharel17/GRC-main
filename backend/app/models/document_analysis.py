@@ -48,6 +48,12 @@ class DocumentAnalysis(Base):
     # AI-classified document category (policy, procedure, architecture, log, certificate, etc.)
     document_category = Column(String, nullable=True)
 
+    # Document type tag: "internal_policy" or "evidence"
+    source_type = Column(String, nullable=False, default="evidence")
+
+    # Policy to ISO 27001 control mappings (populated when source_type == "internal_policy")
+    policy_control_mappings = Column(JSONB, nullable=True)
+
     # Full extracted text (stored for re-analysis)
     extracted_text = Column(Text, nullable=True)
 

@@ -158,6 +158,7 @@ async def enqueue_ingestion_job(
     filename: str,
     organization_id: UUID,
     db: Optional[AsyncSession] = None,
+    source_type: str = "evidence",
 ) -> None:
     """
     Enqueue a document ingestion job durably.
@@ -176,12 +177,14 @@ async def enqueue_ingestion_job(
                           is persisted immediately. If None, the job is queued
                           in memory only (use only when DB is unavailable, e.g.
                           in tests).
+        source_type:      "internal_policy" or "evidence".
     """
     payload: Dict[str, Any] = {
         "analysis_id": str(analysis_id),
         "file_bytes_b64": base64.b64encode(file_bytes).decode("utf-8"),
         "filename": filename,
         "organization_id": str(organization_id),
+        "source_type": source_type,
         "queued_at": datetime.utcnow().isoformat(),
     }
 
@@ -290,6 +293,7 @@ async def _worker_loop() -> None:
                     file_bytes=fbytes,
                     filename=fname,
                     organization_id=oid,
+                    source_type=job.get("source_type", "evidence"),
                 )
             except Exception as e:
                 logger.error(

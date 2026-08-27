@@ -45,6 +45,7 @@ class Evidence(Base):
 
     # AI Analysis fields
     ai_category = Column(String, nullable=True)  # e.g., "policy", "procedure", "log", "certificate"
+    source_type = Column(String, nullable=False, default="evidence")
     ai_analyzed = Column(Boolean, default=False)
     ai_analyzed_at = Column(DateTime, nullable=True)
     ai_summary = Column(Text, nullable=True)

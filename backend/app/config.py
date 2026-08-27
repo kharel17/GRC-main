@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     LLM_MODE: str = "local-only"       # "cloud" | "self-hosted" | "local-only"
     LLM_SELF_HOSTED_BASE_URL: Optional[str] = None
     LLM_SELF_HOSTED_MODEL: str = "llama3.2"
-    LLM_CLOUD_MODEL: str = "gemini-1.5-flash"
+    LLM_CLOUD_MODEL: str = "gemini-2.5-flash"
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L6-v2"
 
@@ -51,8 +51,13 @@ class Settings(BaseSettings):
     CONFIDENCE_GATE_ISO_TOP1_THRESHOLD: float = 0.42
     # Dense cosine margin threshold for ISO queries.
     # Set in gap between highest ambiguous near-tie (0.00858) and lowest clean positive (0.01617) from 54-case calibration.
-    CONFIDENCE_GATE_ISO_MARGIN_THRESHOLD: float = 0.012
     CONFIDENCE_GATE_MARGIN_THRESHOLD: float = 1.0
+
+    # Policy Matching Threshold (Suggestion Phase)
+    # Set to 0.40 to favor recall over precision during ingestion so broad governance
+    # statements are not prematurely filtered before customer compliance staff confirmation.
+    # Note: Placeholder awaiting dedicated golden-set calibration with enterprise policy suites.
+    POLICY_MATCH_THRESHOLD: float = 0.40
 
 
     # SMTP Config

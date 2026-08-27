@@ -37,16 +37,37 @@ _CONTROLS_BY_ID = {c["id"]: c for c in _ISO_CONTROLS}
 
 
 class GapItem:
-    """Represents a single compliance gap."""
-    def __init__(self, control_annex: str, control_title: str, clause_id: str,
-                 severity: str, reason: str, framework_control_id: Optional[UUID] = None,
-                 best_evidence_score: float = 0.0,
-                 current_status: str = "not_started"):
+    """Represents a single compliance gap under the 3-tier compliance model."""
+    def __init__(
+        self,
+        control_annex: str,
+        control_title: str,
+        clause_id: str,
+        severity: str,
+        reason: str,
+        compliance_state: str = "no_policy",  # satisfied, policy_evidence_mismatch, policy_too_vague, no_policy, no_evidence
+        policy_title: Optional[str] = None,
+        policy_excerpt: Optional[str] = None,
+        policy_confidence: float = 0.0,
+        mapping_status: str = "suggested",    # confirmed, manually_edited, suggested
+        is_policy_confirmed: bool = True,
+        mismatch_details: Optional[dict] = None,
+        framework_control_id: Optional[UUID] = None,
+        best_evidence_score: float = 0.0,
+        current_status: str = "not_started",
+    ):
         self.control_annex = control_annex
         self.control_title = control_title
         self.clause_id = clause_id
         self.severity = severity  # critical, high, medium, low
         self.reason = reason
+        self.compliance_state = compliance_state
+        self.policy_title = policy_title
+        self.policy_excerpt = policy_excerpt
+        self.policy_confidence = policy_confidence
+        self.mapping_status = mapping_status
+        self.is_policy_confirmed = is_policy_confirmed
+        self.mismatch_details = mismatch_details
         self.framework_control_id = framework_control_id
         self.best_evidence_score = best_evidence_score
         self.current_status = current_status
@@ -58,6 +79,13 @@ class GapItem:
             "clause_id": self.clause_id,
             "severity": self.severity,
             "reason": self.reason,
+            "compliance_state": self.compliance_state,
+            "policy_title": self.policy_title,
+            "policy_excerpt": self.policy_excerpt,
+            "policy_confidence": self.policy_confidence,
+            "mapping_status": self.mapping_status,
+            "is_policy_confirmed": self.is_policy_confirmed,
+            "mismatch_details": self.mismatch_details,
             "framework_control_id": str(self.framework_control_id) if self.framework_control_id else None,
             "best_evidence_score": self.best_evidence_score,
             "current_status": self.current_status,
@@ -65,7 +93,7 @@ class GapItem:
 
 
 class GapReport:
-    """Full gap analysis report."""
+    """Full gap analysis report with 3-tier governance metrics."""
     def __init__(self, total_controls: int, applicable_controls: int,
                  implemented: int, partially_implemented: int, missing: int,
                  gaps: list[GapItem], compliance_percentage: float):
@@ -92,6 +120,12 @@ class GapReport:
                 "high": sum(1 for g in self.gaps if g.severity == "high"),
                 "medium": sum(1 for g in self.gaps if g.severity == "medium"),
                 "low": sum(1 for g in self.gaps if g.severity == "low"),
+                "no_policy": sum(1 for g in self.gaps if g.compliance_state == "no_policy"),
+                "policy_evidence_mismatch": sum(1 for g in self.gaps if g.compliance_state == "policy_evidence_mismatch"),
+                "policy_too_vague": sum(1 for g in self.gaps if g.compliance_state == "policy_too_vague"),
+                "no_evidence": sum(1 for g in self.gaps if g.compliance_state == "no_evidence"),
+                "satisfied": sum(1 for g in self.gaps if g.compliance_state == "satisfied"),
+                "unconfirmed_policy_mappings": sum(1 for g in self.gaps if not g.is_policy_confirmed and g.policy_title is not None),
             },
         }
 
@@ -155,7 +189,7 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
         except Exception as e:
             logger.warning(f"AI gap analysis failed: {e}")
 
-    # 4. Get document analysis results
+    # 4. Get document analysis results (differentiating internal_policy vs evidence)
     doc_result = await db.execute(
         select(models.DocumentAnalysis)
         .where(
@@ -165,14 +199,61 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     )
     doc_analyses = doc_result.scalars().all()
     
-    # Build set of controls found in document analyses
-    implemented_by_docs = set()
-    for doc in doc_analyses:
-        if doc.implemented_controls:
-            for ctrl in doc.implemented_controls:
-                annex = ctrl.get("control_annex", "")
-                if annex:
-                    implemented_by_docs.add(annex)
+    # Separate policies vs evidence documents
+    policy_docs = [d for d in doc_analyses if getattr(d, "source_type", "evidence") in ("internal_policy", "policy")]
+    evidence_docs = [d for d in doc_analyses if getattr(d, "source_type", "evidence") == "evidence"]
+    org_has_policies = len(policy_docs) > 0
+
+    # Build control-to-policy mapping aggregating all contributing chunks across policy docs
+    policy_map: dict[str, dict] = {}
+    for doc in policy_docs:
+        mappings = doc.policy_control_mappings or []
+        for m in mappings:
+            annex = m.get("control_annex") or m.get("annex", "")
+            status = m.get("mapping_status", "suggested")
+            if not annex or status == "rejected":
+                continue
+            chunks = m.get("policy_chunks", [])
+            conf = float(m.get("composite_confidence") or m.get("confidence", 0.0))
+            is_confirmed = status in ("confirmed", "manually_edited")
+
+            if annex not in policy_map:
+                policy_map[annex] = {
+                    "doc_id": doc.id,
+                    "title": doc.file_name,
+                    "mapping_status": status,
+                    "is_confirmed": is_confirmed,
+                    "confidence": conf,
+                    "policy_chunks": list(chunks),
+                    "text_snippets": [c.get("excerpt", "") for c in chunks] if chunks else ([doc.extracted_text[:400]] if doc.extracted_text else []),
+                }
+            else:
+                # If existing mapping is unconfirmed and this one is confirmed, upgrade authority
+                if is_confirmed and not policy_map[annex]["is_confirmed"]:
+                    policy_map[annex]["mapping_status"] = status
+                    policy_map[annex]["is_confirmed"] = True
+                    policy_map[annex]["title"] = doc.file_name
+                # Accumulate contributing chunks across policy docs
+                if chunks:
+                    policy_map[annex]["policy_chunks"].extend(chunks)
+                    policy_map[annex]["text_snippets"].extend([c.get("excerpt", "") for c in chunks])
+                policy_map[annex]["confidence"] = max(policy_map[annex]["confidence"], conf)
+
+    # Build control-to-evidence mapping
+    evidence_doc_map: dict[str, dict] = {}
+    for doc in evidence_docs:
+        controls = doc.implemented_controls or []
+        for m in controls:
+            annex = m.get("control_annex") or m.get("annex", "")
+            conf = float(m.get("confidence", 0.0))
+            if annex and (annex not in evidence_doc_map or conf > evidence_doc_map[annex]["confidence"]):
+                evidence_doc_map[annex] = {
+                    "doc_id": doc.id,
+                    "title": doc.file_name,
+                    "confidence": conf,
+                    "excerpt": m.get("excerpt") or (doc.extracted_text[:400] if doc.extracted_text else ""),
+                    "text": doc.extracted_text or "",
+                }
 
     # 5. Get Assets and their risk mappings for criticality weighting
     assets_result = await db.execute(
@@ -189,11 +270,8 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
         models.AssetCriticality.critical: 2.0
     }
 
-    # Map controls to their highest asset criticality
-    # For now, we look at risks associated with the control, then assets associated with the risk
     control_criticality = {} # annex -> multiplier
     
-    # Get all risk-control mappings to link annex codes (from FrameworkControl) to assets
     rc_result = await db.execute(
         select(models.RiskControlMapping, models.FrameworkControl.code)
         .join(models.FrameworkControl, models.RiskControlMapping.framework_control_id == models.FrameworkControl.id)
@@ -204,9 +282,7 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
     
     for asset in assets_list:
         multiplier = CRITICALITY_MAP.get(asset.criticality, 1.2)
-        # Find risks associated with this asset via related_risks relationship (loaded via selectin)
         for risk in asset.related_risks:
-            # Find controls associated with this risk
             for rc, annex in risk_controls:
                 if rc.risk_id == risk.id and annex:
                     control_criticality[annex] = max(control_criticality.get(annex, 1.0), multiplier)
@@ -232,38 +308,90 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
         if ca and not ca.is_applicable:
             continue
         
-        applicable_count = applicable_count + 1
+        applicable_count += 1
         status = ca.status.value if ca else "not_started"
         
-        if status == "implemented":
-            implemented_count = implemented_count + 1
-            continue
-        elif status == "in_progress":
-            partial_count = partial_count + 1
-        else: # not_started or not_applicable (but we skipped NA)
-            missing_count = missing_count + 1
+        # Determine policy & evidence presence
+        policy_info = policy_map.get(annex)
+        evidence_info = evidence_doc_map.get(annex)
+        has_generic_evidence = (annex not in ai_gaps) or (evidence_info is not None)
+        best_score = ai_gaps.get(annex, 100.0 if has_generic_evidence else 0.0)
 
-        # This control is a gap
-        has_evidence = annex not in ai_gaps
-        in_doc_analysis = annex in implemented_by_docs
-        best_score = ai_gaps.get(annex, 100.0 if has_evidence else 0.0)
-        
+        # 4-State Classification
+        compliance_state = "no_policy"
+        mismatch_details = None
+        reason = ""
+        is_policy_confirmed = policy_info.get("is_confirmed", False) if policy_info else False
+        mapping_status = policy_info.get("mapping_status", "suggested") if policy_info else "suggested"
+
+        if not org_has_policies:
+            # Legacy / Graceful Fallback mode when org has not uploaded policies yet
+            if has_generic_evidence:
+                compliance_state = "satisfied"
+                reason = "Evidence satisfies framework control requirement (legacy framework-only mode; no internal policies uploaded)."
+            else:
+                compliance_state = "no_evidence"
+                reason = "Control has not been implemented and no supporting evidence was found."
+        else:
+            if not policy_info:
+                # State 1: No internal policy addresses this control
+                compliance_state = "no_policy"
+                if has_generic_evidence:
+                    reason = "Evidence exists, but no internal company policy governs or mandates this control."
+                else:
+                    reason = "No internal company policy document covers this control requirement."
+            elif not has_generic_evidence:
+                # State: Policy exists, but zero evidence
+                compliance_state = "no_evidence"
+                unconf_flag = " [Unconfirmed Mapping]" if not is_policy_confirmed else ""
+                reason = f"Internal policy '{policy_info['title']}'{unconf_flag} exists, but no operational evidence was found to prove execution."
+            else:
+                # Multi-chunk Policy vs Evidence alignment evaluation
+                policy_text_input = policy_info.get("text_snippets", [])
+                evidence_text = evidence_info.get("text", "") if evidence_info else "\n\n".join(evidence_texts)
+                
+                alignment = ai_service.evaluate_policy_evidence_alignment(
+                    policy_text=policy_text_input,
+                    evidence_text=evidence_text,
+                    control_title=ctrl["title"],
+                    control_annex=annex,
+                )
+                
+                compliance_state = alignment.get("compliance_state", "satisfied" if alignment.get("is_aligned") else "policy_evidence_mismatch")
+                unconf_notice = " (Note: Based on unconfirmed AI policy mapping)" if not is_policy_confirmed else ""
+                
+                if compliance_state == "satisfied":
+                    reason = f"Evidence satisfies internal policy '{policy_info['title']}' requirements for {ctrl['title']}.{unconf_notice}"
+                elif compliance_state == "policy_too_vague":
+                    mismatch_details = alignment
+                    reason = f"Policy Too Vague: {alignment.get('mismatch_reason')}{unconf_notice}"
+                else:
+                    compliance_state = "policy_evidence_mismatch"
+                    mismatch_details = alignment
+                    reason = f"Policy-Evidence Mismatch: {alignment.get('mismatch_reason', 'Evidence does not satisfy internal policy rules.')}{unconf_notice}"
+
+        # Classify implementation numbers
+        if compliance_state == "satisfied" or status == "implemented":
+            implemented_count += 1
+            if status != "implemented" and compliance_state != "satisfied":
+                pass
+            else:
+                continue
+        elif status == "in_progress":
+            partial_count += 1
+        else:
+            missing_count += 1
+
+        # Determine severity
         severity = _classify_severity(
             status, 
-            has_evidence or in_doc_analysis,
+            has_generic_evidence,
             control_criticality.get(annex, 1.0)
         )
-        
-        if status == "not_started":
-            reason = "Control has not been started"
-            if not has_evidence and not in_doc_analysis:
-                reason += " and no supporting evidence or documentation found"
-        elif status == "in_progress":
-            reason = "Control is in progress but not yet fully implemented"
-            if not has_evidence:
-                reason += " — no supporting evidence found"
-        else:
-            reason = f"Control status: {status}"
+        if compliance_state in ("policy_evidence_mismatch", "policy_too_vague"):
+            severity = "high" if severity in ("low", "medium") else severity
+
+        first_chunk_excerpt = policy_info["policy_chunks"][0].get("excerpt") if policy_info and policy_info.get("policy_chunks") else (policy_info.get("text_snippets", [""])[0] if policy_info else None)
 
         gaps.append(GapItem(
             control_annex=annex,
@@ -271,6 +399,13 @@ async def generate_gap_report(db: AsyncSession, organization_id: UUID) -> GapRep
             clause_id=ctrl["clauseId"],
             severity=severity,
             reason=reason,
+            compliance_state=compliance_state,
+            policy_title=policy_info["title"] if policy_info else None,
+            policy_excerpt=first_chunk_excerpt,
+            policy_confidence=policy_info["confidence"] if policy_info else 0.0,
+            mapping_status=mapping_status,
+            is_policy_confirmed=is_policy_confirmed,
+            mismatch_details=mismatch_details,
             framework_control_id=fw_id_map.get(annex),
             best_evidence_score=best_score,
             current_status=status,

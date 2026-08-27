@@ -17,6 +17,7 @@ class Chunk:
     chunk_index: int
     text: str
     token_count: int
+    source_type: str = "evidence"
 
 # Control & section heading detection patterns
 HEADING_REGEX = re.compile(
@@ -45,6 +46,7 @@ def chunk_document(
     org_id: str,
     target_token_size: int = 400,
     overlap_ratio: float = 0.15,
+    source_type: str = "evidence",
 ) -> List[Chunk]:
     """
     Chunk a list of pages into structured, token-bounded chunks.
@@ -78,6 +80,7 @@ def chunk_document(
                     chunk_index=chunk_counter,
                     text=section_text,
                     token_count=section_tokens,
+                    source_type=source_type,
                 ))
             else:
                 # Oversized section — split recursively into sub-chunks with overlap
@@ -97,6 +100,7 @@ def chunk_document(
                         chunk_index=chunk_counter,
                         text=sub_text,
                         token_count=estimate_tokens(sub_text),
+                        source_type=source_type,
                     ))
 
     return chunks

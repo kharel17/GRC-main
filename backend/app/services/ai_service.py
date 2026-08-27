@@ -11,9 +11,10 @@ for deeper document analysis and risk scoring whenever a key is present.
 import json
 import logging
 import os
+import re
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, List, Dict, Any
 
 from app.config import settings
 
@@ -909,6 +910,223 @@ Guidelines:
                 })
 
         return gaps
+
+    def map_policy_chunks_to_controls(
+        self,
+        chunks: list,
+        embeddings: Optional[np.ndarray] = None,
+        threshold: Optional[float] = None,
+    ) -> list[dict]:
+        """
+        Map policy document chunks to ISO 27001 controls using multi-chunk aggregation.
+        Each control mapping contains all contributing chunks exceeding threshold.
+        Default threshold: settings.POLICY_MATCH_THRESHOLD (0.40).
+        """
+        if not self._is_ready:
+            self.initialize()
+
+        thresh = threshold if threshold is not None else settings.POLICY_MATCH_THRESHOLD
+        if not chunks:
+            return []
+
+        if embeddings is None or len(embeddings) != len(chunks):
+            chunk_texts = [c.text for c in chunks]
+            embeddings = self._embed_texts(chunk_texts)
+
+        # Control embeddings
+        ctrl_embeddings = self._get_control_embeddings()
+
+        # Compute cosine similarity matrix: (num_chunks, num_controls)
+        sim_matrix = cosine_similarity(embeddings, ctrl_embeddings)
+
+        # Group by control annex
+        control_groups: dict[str, dict] = {}
+        for c_idx, chunk in enumerate(chunks):
+            for ctrl_idx, ctrl in enumerate(self._controls):
+                score = float(sim_matrix[c_idx, ctrl_idx])
+                if score >= thresh:
+                    annex = ctrl["annex"]
+                    if annex not in control_groups:
+                        control_groups[annex] = {
+                            "control_annex": annex,
+                            "title": ctrl["title"],
+                            "clause_id": ctrl.get("clauseId", annex),
+                            "mapping_status": "suggested",
+                            "confirmed_by": None,
+                            "confirmed_at": None,
+                            "policy_chunks": [],
+                        }
+                    control_groups[annex]["policy_chunks"].append({
+                        "chunk_id": getattr(chunk, "chunk_id", str(c_idx)),
+                        "section_heading": getattr(chunk, "section_heading", "General"),
+                        "page_number": getattr(chunk, "page_number", 1),
+                        "excerpt": chunk.text[:300],
+                        "confidence": round(score * 100, 1),
+                    })
+
+        mappings = []
+        for annex, data in control_groups.items():
+            # Sort contributing chunks by confidence descending
+            data["policy_chunks"].sort(key=lambda x: -x["confidence"])
+            data["composite_confidence"] = data["policy_chunks"][0]["confidence"] if data["policy_chunks"] else 0.0
+            mappings.append(data)
+
+        # Sort mapped controls by composite confidence descending
+        mappings.sort(key=lambda x: -x["composite_confidence"])
+        return mappings
+
+    def evaluate_policy_evidence_alignment(
+        self,
+        policy_text: Union[str, list[str]],
+        evidence_text: str,
+        control_title: str = "",
+        control_annex: str = "",
+    ) -> dict:
+        """
+        Evaluate whether the provided evidence aligns with the company's specific internal policy.
+        Incorporates citation-verified vagueness detection ("policy_too_vague").
+        
+        Returns:
+            dict containing:
+            - is_aligned: bool
+            - compliance_state: str ("satisfied" | "policy_evidence_mismatch" | "policy_too_vague")
+            - confidence: float (0.0 to 100.0)
+            - mismatch_reason: Optional[str]
+            - cited_excerpt: Optional[str]
+            - similarity: float
+        """
+        if not self._is_ready:
+            self.initialize()
+
+        if isinstance(policy_text, list):
+            combined_policy_text = "\n\n".join(policy_text).strip()
+        else:
+            combined_policy_text = policy_text.strip()
+
+        if not combined_policy_text or not evidence_text.strip():
+            return {
+                "is_aligned": False,
+                "compliance_state": "policy_evidence_mismatch",
+                "confidence": 0.0,
+                "mismatch_reason": "Missing policy or evidence text for comparison",
+                "cited_excerpt": None,
+                "similarity": 0.0,
+            }
+
+        p_lower = combined_policy_text.lower()
+        e_lower = evidence_text.lower()
+
+        # ------------------------------------------------------------------
+        # 1. Citation-Verified Vagueness Detection ("policy_too_vague")
+        # ------------------------------------------------------------------
+        vague_phrases = [
+            "appropriate measures",
+            "reasonable measures",
+            "reasonable steps",
+            "reasonable efforts",
+            "as deemed necessary",
+            "when feasible",
+            "industry standard tools",
+            "ensure good security",
+            "take proper precautions",
+            "maintain adequate safeguards",
+            "standard security practices",
+        ]
+
+        has_concrete_criteria = any([
+            bool(re.search(r'\d+', p_lower)),  # Numeric bounds (e.g. 14, 90, 256, 30)
+            "mfa" in p_lower or "2fa" in p_lower or "multi-factor" in p_lower,
+            "aes" in p_lower or "rsa" in p_lower or "tls" in p_lower or "sha" in p_lower,
+            "daily" in p_lower or "weekly" in p_lower or "monthly" in p_lower or "quarterly" in p_lower or "annual" in p_lower,
+            "role-based" in p_lower or "rbac" in p_lower or "least privilege" in p_lower,
+        ])
+
+        found_vague_phrases = [phrase for phrase in vague_phrases if phrase in p_lower]
+        if found_vague_phrases and not has_concrete_criteria:
+            # Policy relies solely on vague, non-auditable statements
+            vague_citation = next((p for p in combined_policy_text.splitlines() if any(v in p.lower() for v in found_vague_phrases)), combined_policy_text[:200])
+            return {
+                "is_aligned": False,
+                "compliance_state": "policy_too_vague",
+                "confidence": 85.0,
+                "mismatch_reason": f"Internal policy uses subjective, non-auditable language ({', '.join(found_vague_phrases)}) without defining verifiable operational thresholds.",
+                "cited_excerpt": vague_citation.strip(),
+                "similarity": 0.0,
+            }
+
+        # ------------------------------------------------------------------
+        # 2. Dense Semantic Similarity
+        # ------------------------------------------------------------------
+        p_emb = self._embed_text(combined_policy_text)
+        e_emb = self._embed_text(evidence_text)
+        sim = float(cosine_similarity(p_emb.reshape(1, -1), e_emb.reshape(1, -1))[0][0])
+        sim_pct = round(max(0.0, min(1.0, sim)) * 100, 1)
+
+        # ------------------------------------------------------------------
+        # 3. Rule & Constraint Contradiction Checks ("policy_evidence_mismatch")
+        # ------------------------------------------------------------------
+        mismatch_reasons = []
+
+        # Example: Password length mismatch check
+        p_lengths = re.findall(r'(?:min(?:imum)?\s+(?:password\s+)?length(?:\s+of)?|at\s+least|minimum\s+of)\s*[:=]?\s*(\d+)', p_lower)
+        e_lengths = re.findall(r'(?:min(?:imum)?\s+(?:password\s+)?length(?:\s+of)?|min_len(?:gth)?|password_length)\s*[:=]?\s*(\d+)', e_lower)
+        if p_lengths and e_lengths:
+            req_len = int(p_lengths[0])
+            actual_len = int(e_lengths[0])
+            if actual_len < req_len:
+                mismatch_reasons.append(
+                    f"Policy mandates minimum password length of {req_len} characters, but evidence config shows {actual_len} characters."
+                )
+
+        # Example: MFA required vs disabled
+        if ("mfa required" in p_lower or "multi-factor authentication mandatory" in p_lower or "mfa: enabled" in p_lower or "mfa mandatory" in p_lower) and \
+           ("mfa: disabled" in e_lower or "mfa_enabled = false" in e_lower or "mfa: false" in e_lower or "2fa disabled" in e_lower or "mfa disabled" in e_lower):
+            mismatch_reasons.append(
+                "Policy mandates multi-factor authentication, but evidence config indicates MFA is disabled/false."
+            )
+
+        # Example: Rotation interval mismatch
+        p_rot = re.findall(r'(\d+)[-\s]day\s+rotation', p_lower)
+        e_rot = re.findall(r'(\d+)[-\s]day\s+rotation', e_lower)
+        if p_rot and e_rot:
+            req_rot = int(p_rot[0])
+            actual_rot = int(e_rot[0])
+            if actual_rot > req_rot:
+                mismatch_reasons.append(
+                    f"Policy mandates rotation every {req_rot} days, but evidence shows {actual_rot} days."
+                )
+
+        if mismatch_reasons:
+            return {
+                "is_aligned": False,
+                "compliance_state": "policy_evidence_mismatch",
+                "confidence": sim_pct,
+                "mismatch_reason": "; ".join(mismatch_reasons),
+                "cited_excerpt": None,
+                "similarity": sim,
+            }
+
+        # ------------------------------------------------------------------
+        # 4. Satisfaction Evaluation
+        # ------------------------------------------------------------------
+        if sim >= 0.35:
+            return {
+                "is_aligned": True,
+                "compliance_state": "satisfied",
+                "confidence": sim_pct,
+                "mismatch_reason": None,
+                "cited_excerpt": None,
+                "similarity": sim,
+            }
+        else:
+            return {
+                "is_aligned": False,
+                "compliance_state": "policy_evidence_mismatch",
+                "confidence": sim_pct,
+                "mismatch_reason": f"Evidence content has low semantic overlap ({sim_pct}%) with specific internal policy requirements.",
+                "cited_excerpt": None,
+                "similarity": sim,
+            }
 
 
 async def _run_document_analysis_async(text: str) -> dict:

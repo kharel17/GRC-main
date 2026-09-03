@@ -5,16 +5,16 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-grc_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-grc_secret}
       POSTGRES_DB: ${POSTGRES_DB:-grc_db}
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-grc_user}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-grc_user}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -30,13 +30,15 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-grc_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-grc_secret}
       POSTGRES_DB: ${POSTGRES_DB:-grc_db}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
       ENVIRONMENT: production
-    ports:
-      - "8000:8000"
     volumes:
       - uploads:/app/uploads
     depends_on:
       db:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
 
   # ── Next.js Frontend ─────────────────────────────────────
@@ -44,7 +46,7 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_API_URL: /api/v1
         NEXT_PUBLIC_USE_MOCK: "false"
     restart: unless-stopped
     ports:
@@ -66,6 +68,25 @@ services:
       - frontend
       - backend
 
+  # ── Qdrant Vector Store ─────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:6333/healthz || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pgdata:
   uploads:
+  qdrant_data:

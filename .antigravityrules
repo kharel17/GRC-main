@@ -1,0 +1,16 @@
+# Antigravity Rules: Google Gemini Skills Integration
+
+1. Model Selection:
+   - Always use `gemini-3.8-flash` for text, document analysis, risk scoring, and general agentic tasks.
+   - For fast, high-throughput lightweight tasks, use `gemini-3.5-flash-lite`.
+   - Never use deprecated models (`gemini-1.5-*`, `gemini-2.0-*`).
+
+2. Gemini Skills & Adapters:
+   - When developing or modifying AI service features, leverage `GeminiSkillsAdapter` (`backend.app.services.gemini_skills_adapter`) which bridges `tools/gemini_skills` with GRC logic.
+   - For code security checks, execute `backend/scripts/audit/code_auditor.py` with the persona of Senior AppSec & Lead Developer.
+   - Never interpolate raw SQL queries with f-strings (`text(f"...")`); always use bound parameters.
+   - Ensure all async endpoints have resilient error handling.
+
+3. Execution Environment:
+   - Always invoke Python scripts using the workspace virtual environment:
+     `backend\venv\Scripts\python.exe`

@@ -1,5 +1,12 @@
 import { UserRole } from '@/types';
-import { setTokens as storageSetTokens, getTokens as storageGetTokens, clearTokens as storageClearTokens } from './token-storage';
+import { 
+  setTokens as storageSetTokens, 
+  getTokens as storageGetTokens, 
+  clearTokens as storageClearTokens,
+  getAccessToken as storageGetAccessToken,
+  getUser as storageGetUser,
+  setUser as storageSetUser
+} from './token-storage';
 import { api } from './api-client';
 
 
@@ -11,6 +18,9 @@ export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  full_name?: string;
+  organization_id?: string;
+  organization_name?: string;
 }
 
 export interface JWTPayload {
@@ -48,8 +58,20 @@ export function getTokens(): any | null {
   return storageGetTokens();
 }
 
+export function getAccessToken(): string | null {
+  return storageGetAccessToken();
+}
+
 export function clearTokens(): void {
   storageClearTokens();
+}
+
+export function getUser(): any | null {
+  return storageGetUser();
+}
+
+export function setUser(user: any): void {
+  storageSetUser(user);
 }
 
 

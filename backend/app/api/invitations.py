@@ -22,12 +22,14 @@ import secrets
 import hashlib
 from app.utils.emails import send_invitation_email
 
+from app.config import settings
+
 logger = logging.getLogger("grc.invitations")
 
 router = APIRouter()
 
 # ── Platform team emails (can invite admins) ──────────────────
-PLATFORM_TEAM_EMAILS = ["bcolorc17@gmail.com", "grchelios@gmail.com"]
+PLATFORM_TEAM_EMAILS = settings.PLATFORM_TEAM_EMAILS
 
 # ── Schemas ───────────────────────────────────────────────────
 
@@ -64,16 +66,6 @@ class PendingInvitation(BaseModel):
         from_attributes = True
 
 # ── Helpers ───────────────────────────────────────────────────
-
-def _get_supabase_admin():
-    """Get a Supabase client with the service role key for admin operations."""
-    if not settings.SUPABASE_SERVICE_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="SUPABASE_SERVICE_KEY is not configured. Cannot send invitations."
-        )
-    from supabase import create_client
-    return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
 
 
 async def _log_audit(
@@ -170,7 +162,9 @@ async def invite_admin(
         email_to=body.email,
         token=raw_token,
         full_name=body.full_name,
-        org_name=org_name
+        org_name=org_name,
+        role=body.role,
+        db=db,
     )
 
     # Audit log
@@ -256,7 +250,9 @@ async def invite_super_admin(
         email_to=body.email,
         token=raw_token,
         full_name=body.full_name,
-        org_name="Platform Team (Super Admin)"
+        org_name="Platform Team (Super Admin)",
+        role="superadmin",
+        db=db,
     )
 
     await _log_audit(
@@ -349,7 +345,9 @@ async def invite_user(
         email_to=body.email,
         token=raw_token,
         full_name=body.full_name,
-        org_name=org_name
+        org_name=org_name,
+        role=body.role,
+        db=db,
     )
 
     # Audit log

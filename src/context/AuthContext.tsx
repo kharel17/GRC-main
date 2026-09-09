@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { UserRole } from '@/types';
-import { AuthUser } from '@/lib/auth';
+import { AuthUser, setTokens, clearTokens, getAccessToken, getUser, setUser as saveUser, getUserFromToken, refreshAccessToken } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { fetchCurrentUserProfile } from '@/lib/data-service';
@@ -18,8 +18,14 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isDevMode: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ 
+    success: boolean; 
+    error?: string; 
+    mfa_required?: boolean; 
+    mfa_setup_required?: boolean; 
+    two_fa_token?: string 
+  }>;
+  loginWithGoogle: (credential: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   hasRole: (roles: UserRole | UserRole[]) => boolean;
 }
@@ -45,193 +51,273 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Helper to map Supabase user to our AuthUser type
   const mapSupabaseUser = (supabaseUser: any): AuthUser => {
-    // Default to 'admin' if no role is explicitly set in metadata
     const role = (supabaseUser.user_metadata?.role as UserRole) || 'admin';
     return {
       id: supabaseUser.id,
       email: supabaseUser.email || '',
       role: role,
+      full_name: supabaseUser.user_metadata?.full_name,
     };
   };
 
   useEffect(() => {
     let mounted = true;
 
-    async function getInitialSession() {
+    async function initAuth() {
       try {
-        console.log('[Auth] Fetching initial session...');
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        // 1. Primary check: Local JWT token and cached user
+        const localToken = getAccessToken();
+        const cachedUser = getUser();
 
-        if (error) {
-          console.error('[Auth] Error getting session:', error.message);
-          if (mounted) setIsLoading(false);
-        } else if (initialSession && mounted) {
-          console.log('[Auth] Initial session found. Unblocking render using standard metadata...');
-          setSession(initialSession);
-          // Set user from supabase metadata immediately so dashboard can render
-          setUser(mapSupabaseUser(initialSession.user));
-          // Stop loading now so the dashboard shell appears
-          setIsLoading(false);
-          
-          // Optimistically set the user to unblock the Next.js UI render immediately
-          setUser(mapSupabaseUser(initialSession.user));
-          
-          // Release the loading lock so the screen stops spinning
-          setIsLoading(false);
-
-          // Fetch real profile from backend in the background to get the true role and handle access checks
-          fetchCurrentUserProfile().then((profile) => {
-            if (!mounted) return;
-            console.log('[Auth] Background backend profile received:', profile);
-            setUser({
-              id: profile.id,
-              email: profile.email,
-              role: profile.role,
-            });
-          }).catch((profileErr: any) => {
-            if (!mounted) return;
-            // Check for invitation system errors
-            if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
-              const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
-              if (detail?.code === 'NOT_INVITED') {
-                window.location.href = '/not-invited';
-                return;
-              }
-              if (detail?.code === 'ACCOUNT_DEACTIVATED') {
-                window.location.href = '/deactivated';
-                return;
-              }
-            }
-            console.warn('[Auth] Background backend profile fetch failed, continuing with metadata:', profileErr);
-          });
-        } else {
-          console.log('[Auth] No initial session found');
-          if (mounted) setIsLoading(false);
-        }
-      } catch (e) {
-        console.error('[Auth] Failed to initialize session', e);
-      } finally {
-        if (mounted && isLoading) {
+        if (localToken && cachedUser) {
+          if (mounted) {
+            setUser(cachedUser);
             setIsLoading(false);
-        }
-      }
-    }
+          }
 
-    getInitialSession();
-
-    // Listen for auth changes (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        if (!mounted) return;
-
-        console.log(`[Auth] State changed: ${event}`, {
-          has_session: !!currentSession,
-          user_id: currentSession?.user.id,
-        });
-
-        setSession(currentSession);
-        
-        if (currentSession?.user) {
-          console.log('[Auth] Setting optimistic user from Auth State Event');
-          
-          // Optimistically set the user to unblock the Next.js UI render instantly on login
-          setUser(mapSupabaseUser(currentSession.user));
-          setIsLoading(false); // Immediate visual unblock
-
-          // Fetch backend profile silently in the background
-          fetchCurrentUserProfile().then((profile) => {
-            if (!mounted) return;
-            setUser({
-              id: profile.id,
-              email: profile.email,
-              role: profile.role,
+          // Enrich / verify profile with backend
+          fetchCurrentUserProfile()
+            .then((profile) => {
+              if (!mounted) return;
+              const enriched: AuthUser = {
+                id: profile.id,
+                email: profile.email,
+                role: profile.role,
+                full_name: profile.full_name,
+                organization_id: profile.organization_id,
+                organization_name: profile.organization_name,
+              };
+              setUser(enriched);
+              saveUser(enriched);
+            })
+            .catch(async (profileErr: any) => {
+              if (!mounted) return;
+              if (profileErr?.status === 401 || profileErr?.response?.status === 401) {
+                const refreshed = await refreshAccessToken();
+                if (refreshed?.accessToken) {
+                  try {
+                    const refreshedProfile = await fetchCurrentUserProfile();
+                    if (mounted) {
+                      const enriched: AuthUser = {
+                        id: refreshedProfile.id,
+                        email: refreshedProfile.email,
+                        role: refreshedProfile.role,
+                        full_name: refreshedProfile.full_name,
+                        organization_id: refreshedProfile.organization_id,
+                        organization_name: refreshedProfile.organization_name,
+                      };
+                      setUser(enriched);
+                      saveUser(enriched);
+                    }
+                    return;
+                  } catch {
+                    // ignore
+                  }
+                }
+                clearTokens();
+                if (mounted) setUser(null);
+              } else if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
+                const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
+                if (detail?.code === 'NOT_INVITED') {
+                  window.location.href = '/not-invited';
+                  return;
+                }
+                if (detail?.code === 'ACCOUNT_DEACTIVATED') {
+                  window.location.href = '/deactivated';
+                  return;
+                }
+              }
             });
-          }).catch((profileErr: any) => {
-            if (!mounted) return;
-            // Ignore Supabase lock race conditions in React Strict Mode
-            if (profileErr instanceof Error && profileErr.name === 'AbortError') {
-              console.log('[Auth] Lock race condition ignored during Auth Event');
-              return;
-            }
+          return;
+        }
 
-            // Check for invitation system errors
-            if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
-              const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
-              if (detail?.code === 'NOT_INVITED') {
-                window.location.href = '/not-invited';
-                return;
-              }
-              if (detail?.code === 'ACCOUNT_DEACTIVATED') {
-                window.location.href = '/deactivated';
-                return;
-              }
-            }
-            console.warn('[Auth] Auth change profile fetch failed in background:', profileErr);
-          });
-        } else {
+        if (localToken && !cachedUser) {
+          const tokenUser = getUserFromToken(localToken);
+          if (tokenUser && mounted) {
+            setUser(tokenUser);
+            saveUser(tokenUser);
+            setIsLoading(false);
+          }
+
+          fetchCurrentUserProfile()
+            .then((profile) => {
+              if (!mounted) return;
+              const enriched: AuthUser = {
+                id: profile.id,
+                email: profile.email,
+                role: profile.role,
+                full_name: profile.full_name,
+                organization_id: profile.organization_id,
+                organization_name: profile.organization_name,
+              };
+              setUser(enriched);
+              saveUser(enriched);
+              setIsLoading(false);
+            })
+            .catch(() => {
+              if (mounted) setIsLoading(false);
+            });
+          return;
+        }
+
+        // 2. Secondary fallback: Check legacy Supabase session
+        try {
+          const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+          if (!error && initialSession && mounted) {
+            setSession(initialSession);
+            const mapped = mapSupabaseUser(initialSession.user);
+            setUser(mapped);
+            setIsLoading(false);
+
+            fetchCurrentUserProfile()
+              .then((profile) => {
+                if (!mounted) return;
+                setUser({
+                  id: profile.id,
+                  email: profile.email,
+                  role: profile.role,
+                  full_name: profile.full_name,
+                  organization_id: profile.organization_id,
+                  organization_name: profile.organization_name,
+                });
+              })
+              .catch(() => {});
+            return;
+          }
+        } catch {
+          // ignore Supabase error
+        }
+
+        if (mounted) {
+          setUser(null);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('[Auth] Init auth error:', err);
+        if (mounted) {
           setUser(null);
           setIsLoading(false);
         }
       }
-    );
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Separate effect for "enriching" user profile from backend
-  useEffect(() => {
-    let mounted = true;
-    
-    if (session?.user && (!user || user.id !== session.user.id || !user.role)) {
-      const enrichProfile = async () => {
-        try {
-          console.log('[Auth] Enriching user profile from backend...');
-          const profile = await fetchCurrentUserProfile();
-          if (mounted) {
-            setUser({
-              id: profile.id,
-              email: profile.email,
-              role: profile.role,
-            });
-          }
-        } catch (profileErr: any) {
-          if (!mounted) return;
-          
-          // Check for critical auth status errors
-          if (profileErr?.response?.status === 403 || profileErr?.status === 403) {
-            const detail = profileErr?.response?.data?.detail || profileErr?.data?.detail || profileErr?.detail;
-            if (detail?.code === 'NOT_INVITED') {
-              window.location.href = '/not-invited';
-              return;
-            }
-            if (detail?.code === 'ACCOUNT_DEACTIVATED') {
-              window.location.href = '/deactivated';
-              return;
-            }
-          }
-          console.warn('[Auth] Async profile enrichment failed:', profileErr);
-        }
-      };
-      
-      enrichProfile();
     }
-    
-    return () => { mounted = false; };
-  }, [session, user?.id]);
+
+    initAuth();
+
+    // Listen for auth changes from Supabase (OAuth or legacy callbacks)
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, currentSession) => {
+          if (!mounted) return;
+          if (currentSession?.user) {
+            setSession(currentSession);
+            const mapped = mapSupabaseUser(currentSession.user);
+            setUser(mapped);
+            setIsLoading(false);
+
+            fetchCurrentUserProfile()
+              .then((profile) => {
+                if (!mounted) return;
+                setUser({
+                  id: profile.id,
+                  email: profile.email,
+                  role: profile.role,
+                  full_name: profile.full_name,
+                  organization_id: profile.organization_id,
+                  organization_name: profile.organization_name,
+                });
+              })
+              .catch(() => {});
+          }
+        }
+      );
+
+      return () => {
+        mounted = false;
+        subscription.unsubscribe();
+      };
+    } catch {
+      return () => {
+        mounted = false;
+      };
+    }
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
 
-      if (error) {
-        return { success: false, error: error.message };
+      const res = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'include',
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        if (data.mfa_required) {
+          return {
+            success: true,
+            mfa_required: true,
+            mfa_setup_required: data.mfa_setup_required,
+            two_fa_token: data.two_fa_token,
+          };
+        }
+
+        if (data.access_token) {
+          setTokens({ accessToken: data.access_token, refreshToken: data.access_token });
+          const tokenUser = getUserFromToken(data.access_token);
+          const authUser: AuthUser = {
+            id: data.user?.id || tokenUser?.id || '',
+            email: data.user?.email || tokenUser?.email || email,
+            role: data.user?.role || tokenUser?.role || 'admin',
+            full_name: data.user?.full_name || '',
+            organization_id: data.user?.organization_id,
+            organization_name: data.user?.organization_name,
+          };
+          setUser(authUser);
+          saveUser(authUser);
+
+          // Background sync
+          fetchCurrentUserProfile().then((p) => {
+            if (p) {
+              const enriched: AuthUser = {
+                id: p.id,
+                email: p.email,
+                role: p.role,
+                full_name: p.full_name,
+                organization_id: p.organization_id,
+                organization_name: p.organization_name,
+              };
+              setUser(enriched);
+              saveUser(enriched);
+            }
+          }).catch(() => {});
+
+          return { success: true };
+        }
       }
 
-      return { success: true };
+      // Fallback to Supabase auth if local login fails
+      try {
+        const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (supaErr) {
+          return { success: false, error: data.detail || supaErr.message };
+        }
+        if (supaData?.session) {
+          setSession(supaData.session);
+          setUser(mapSupabaseUser(supaData.session.user));
+          return { success: true };
+        }
+      } catch {
+        return { success: false, error: data.detail || 'Incorrect email or password' };
+      }
+
+      return { success: false, error: data.detail || 'Incorrect email or password' };
     } catch (error: any) {
       console.error('[Auth] Login failed:', error);
       return { success: false, error: 'An unexpected error occurred.' };
@@ -240,41 +326,77 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  const loginWithGoogle = useCallback(async () => {
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    setIsLoading(true);
     try {
-      console.log('[Auth] Starting Google OAuth flow...');
-      // Supabase will redirect to /login after OAuth with Google
-      // The onAuthStateChange listener will pick up the authenticated session
-      // Login page will then redirect to /dashboard
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/login`,
-        }
+      const res = await fetch('/api/v1/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ credential }),
       });
 
-      if (error) {
-        console.error('[Auth] OAuth initialization error:', error);
-        throw error;
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.access_token) {
+        setTokens({ accessToken: data.access_token, refreshToken: data.access_token });
+        const tokenUser = getUserFromToken(data.access_token);
+        const authUser: AuthUser = {
+          id: data.user?.id || tokenUser?.id || '',
+          email: data.user?.email || tokenUser?.email || '',
+          role: data.user?.role || tokenUser?.role || 'analyst',
+          full_name: data.user?.full_name || '',
+          organization_id: data.user?.organization_id,
+          organization_name: data.user?.organization_name,
+        };
+        setUser(authUser);
+        saveUser(authUser);
+
+        fetchCurrentUserProfile().then((p) => {
+          if (p) {
+            const enriched: AuthUser = {
+              id: p.id,
+              email: p.email,
+              role: p.role,
+              full_name: p.full_name,
+              organization_id: p.organization_id,
+              organization_name: p.organization_name,
+            };
+            setUser(enriched);
+            saveUser(enriched);
+          }
+        }).catch(() => {});
+
+        return { success: true };
       }
 
-      console.log('[Auth] OAuth flow initiated, user redirected to Google');
-      return { success: true };
+      return {
+        success: false,
+        error: data.detail || 'Google sign-in failed. Please try again.',
+      };
     } catch (error: any) {
-      console.error('[Auth] Google login failed:', {
-        message: error.message,
-        error: error,
-      });
-      return { success: false, error: error.message || 'Google login failed' };
+      console.error('[Auth] Google login failed:', error);
+      return { success: false, error: 'Network error during Google sign-in.' };
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await fetch('/api/v1/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      }).catch(() => {});
 
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // ignore
+      }
+
+      clearTokens();
       setUser(null);
       setSession(null);
       window.location.href = '/login';
@@ -294,7 +416,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const value: AuthContextType = {
     user,
     isLoading,
-    isAuthenticated: !!user && !!session,
+    isAuthenticated: !!user,
     isDevMode: IS_DEV_MODE,
     login,
     loginWithGoogle,

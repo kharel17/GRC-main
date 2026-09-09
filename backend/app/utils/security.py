@@ -1,3 +1,4 @@
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional, Union, Any
 from jose import jwt
@@ -52,14 +53,43 @@ def create_refresh_token(
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+def create_2fa_challenge_token(
+    subject: Union[str, Any],
+    email: str,
+    role: str,
+    expires_minutes: int = 5,
+) -> str:
+    """Create short-lived (5 min) intermediate token for 2FA challenge step."""
+    expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "email": email,
+        "role": role,
+        "type": "2fa_challenge",
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+
 def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    if not hashed_password or not plain_password:
+        return False
+    try:
+        pw_bytes = plain_password.encode('utf-8')[:72]
+        hash_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(pw_bytes, hash_bytes)
+    except Exception:
+        try:
+            return pwd_context.verify(plain_password, hashed_password)
+        except Exception:
+            return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    pw_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pw_bytes, salt).decode('utf-8')
 
 def validate_password_strength(password: str) -> bool:
     """

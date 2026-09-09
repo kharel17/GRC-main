@@ -21,24 +21,27 @@ class ControlStatus(str, enum.Enum):
     implemented = "implemented"
     under_review = "under_review"
 
+from typing import Optional
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+
 class Control(Base):
     __tablename__ = "controls"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title = Column(String, nullable=False)
-    description = Column(Text, nullable=False)
-    control_type = Column(SAEnum(ControlType), nullable=False)
-    effectiveness = Column(SAEnum(ControlEffectiveness), nullable=False)
-    status = Column(SAEnum(ControlStatus), default=ControlStatus.planned)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    control_type: Mapped[ControlType] = mapped_column(SAEnum(ControlType), nullable=False)
+    effectiveness: Mapped[ControlEffectiveness] = mapped_column(SAEnum(ControlEffectiveness), nullable=False)
+    status: Mapped[ControlStatus] = mapped_column(SAEnum(ControlStatus), default=ControlStatus.planned)
     
-    linked_risk_id = Column(UUID(as_uuid=True), ForeignKey("risks.id"), nullable=True)
+    linked_risk_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("risks.id"), nullable=True)
     
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    organization_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     owner = relationship("User", foreign_keys=[owner_id])

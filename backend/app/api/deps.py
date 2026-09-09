@@ -3,15 +3,13 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, APIKeyCookie
 from jose import jwt, JWTError
 from pydantic import ValidationError
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app import models, schemas
 from app.config import settings
 from app.database import get_db
 import logging
 import uuid
-import httpx
-import json
-from jose import jwk
 from collections import defaultdict
 import time
 
@@ -50,93 +48,31 @@ def rate_limit(limit: int, window: int):
 reusable_oauth2_cookie = APIKeyCookie(name="access_token", auto_error=False)
 reusable_oauth2_header = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 
-JWKS_URL = f"https://{settings.SUPABASE_PROJECT_ID if hasattr(settings, 'SUPABASE_PROJECT_ID') else 'htgojajcceunavgchrgc'}.supabase.co/auth/v1/.well-known/jwks.json"
-
-# Cache the JWKS at module level (fetched once on startup)
-_jwks_cache = None
-
-async def get_jwks():
-    global _jwks_cache
-    if _jwks_cache is None:
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(JWKS_URL)
-                _jwks_cache = response.json()
-        except Exception as e:
-            logger.error(f"Failed to fetch JWKS from {JWKS_URL}: {e}")
-            return None
-    return _jwks_cache
-
-async def verify_supabase_token(token: str) -> dict:
-    # Get the kid from token header
+def decode_access_token(token: str) -> dict:
+    """
+    Decodes the JWT access token using internal SECRET_KEY first.
+    Falls back to legacy SUPABASE_JWT_SECRET for backward compatibility.
+    """
+    algorithm = getattr(settings, "ALGORITHM", "HS256")
     try:
-        header = jwt.get_unverified_header(token)
-        kid = header.get("kid")
-        alg = header.get("alg", "HS256")
-    except Exception as e:
-        logger.error(f"Could not read JWT header: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token format",
-        )
-    
-    # If no kid, try legacy HS256 with secret
-    if not kid:
-        logger.debug("No kid in header, trying legacy HS256 decode")
         return jwt.decode(
             token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
+            settings.SECRET_KEY,
+            algorithms=[algorithm, "HS256", "HS384", "HS512"],
             options={"verify_aud": False}
         )
-    
-    # Get JWKS and find matching key
-    jwks = await get_jwks()
-    if not jwks:
-        # Fallback to legacy secret if JWKS fetch failed
-        logger.warning("JWKS not available, falling back to legacy HS256")
-        return jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
-    
-    # Find the key matching the kid
-    matching_key = None
-    for key in jwks.get("keys", []):
-        if key.get("kid") == kid:
-            matching_key = key
-            break
-    
-    # If no kid match found, try legacy HS256 with secret
-    if matching_key is None:
-        logger.warning(f"No matching key for kid: {kid}, falling back to legacy HS256")
-        return jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
-    
-    # Verify with the matched JWK
-    try:
-        public_key = jwk.construct(matching_key)
-        return jwt.decode(
-            token,
-            public_key,
-            algorithms=[alg],
-            options={"verify_aud": False}
-        )
-    except Exception as e:
-        logger.error(f"JWKS decode attempt failed: {e}")
-        # Final fallback attempt with HS256
-        return jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
-        )
+    except JWTError as e:
+        if getattr(settings, "SUPABASE_JWT_SECRET", None):
+            try:
+                return jwt.decode(
+                    token,
+                    settings.SUPABASE_JWT_SECRET,
+                    algorithms=["HS256"],
+                    options={"verify_aud": False}
+                )
+            except Exception:
+                pass
+        raise e
 
 async def get_current_user(
     request: Request,
@@ -145,8 +81,7 @@ async def get_current_user(
     header_token: str = Depends(reusable_oauth2_header),
 ) -> models.User:
     """
-    Validates the JWT token from header or cookie and returns the user.
-    Auto-provisions users from Supabase if they don't exist locally.
+    Validates the local JWT token from header or cookie and returns the user from PostgreSQL.
     """
     token = header_token or cookie_token
     if not token:
@@ -158,33 +93,13 @@ async def get_current_user(
     if token.startswith("Bearer "):
         token = token[7:].strip()
 
-    payload = None
-    last_error = None
-
     try:
-        payload = await verify_supabase_token(token)
-        logger.debug("JWT verified via verify_supabase_token")
+        payload = decode_access_token(token)
     except Exception as e:
-        last_error = e
-        # --- Fallback: Internal SECRET_KEY ---
-        logger.warning(f"Supabase verification failed: {e}. Trying internal SECRET_KEY...")
-        try:
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256"],
-                options={"verify_aud": False}
-            )
-            logger.debug("JWT decoded via internal SECRET_KEY")
-        except JWTError as inner_e:
-            last_error = inner_e
-            logger.error(f"All JWT decode attempts failed. Last error: {inner_e}")
-
-    if payload is None:
-        # Return 401 (not 403) — the token is unreadable, not a permissions issue
+        logger.error(f"JWT validation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Could not validate credentials. Token decode failed: {last_error}",
+            detail="Could not validate credentials",
         )
 
     user_id = payload.get("sub")
@@ -194,16 +109,26 @@ async def get_current_user(
             detail="Token is missing required 'sub' claim",
         )
 
-    # --- Load user from DB ---
-    user_orm = await db.get(models.User, user_id)
-    email = payload.get("email", "")
+    # --- Load user from PostgreSQL DB ---
+    user_orm = None
+    try:
+        user_uuid = uuid.UUID(str(user_id))
+        user_orm = await db.get(models.User, user_uuid)
+    except (ValueError, TypeError):
+        pass
 
-    ROLE_OVERRIDE_MAP = {
-        # Platform team (Super Admins)
-        "bcolorc17@gmail.com": models.UserRole.superadmin,
-        "grchelios@gmail.com": models.UserRole.superadmin,
-        "grcacc55@gmail.com": models.UserRole.superadmin,
-    }
+    email = payload.get("email", "")
+    if not user_orm and email:
+        user_result = await db.execute(select(models.User).where(models.User.email == email))
+        user_orm = user_result.scalar_one_or_none()
+
+    # ── TRACKED DEPRECATION & REMOVAL PLAN ──────────────────────────────────────
+    # REMOVAL CONDITION: Safe to remove once frontend auth cutover is 100% complete
+    # (i.e. src/lib/supabase.ts auth calls are fully replaced with local JWT auth
+    # and all legacy Supabase JWT sessions have expired).
+    # TRACKED FOLLOW-UP ISSUE: #AUTH-CUTOVER-CLEANUP
+    # ─────────────────────────────────────────────────────────────────────────────
+    ROLE_OVERRIDE_MAP = {email: models.UserRole.superadmin for email in settings.PLATFORM_TEAM_EMAILS}
 
     # Step 1: Check platform team / seed override
     if email in ROLE_OVERRIDE_MAP:

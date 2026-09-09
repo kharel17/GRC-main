@@ -13,193 +13,35 @@ import logging
 import os
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, Dict, List
 
 from app.config import settings
+from app.services.gemini_skills_adapter import GeminiSkillsAdapter
 
 from google import genai
 from google.genai import types
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
+# ---------------------------------------------------------------------------
+# Re-exports for backward compatibility
+# All consumers that do `from app.services.ai_service import X` will still work.
+# ---------------------------------------------------------------------------
+from app.services.ai_models import (
+    ControlMatch,
+    EvidenceAnalysisResult,
+    DocumentAnalysisAIResult,
+    RiskSuggestion,
+    CATEGORY_KEYWORDS,
+    ISO_DOMAIN_SYNONYMS,
+)
+from app.services.pdf_extractor import extract_text_from_pdf
+from app.services.document_analyzer import (
+    _run_document_analysis_async,
+    _extract_security_practices,
+)
+
 logger = logging.getLogger("grc.ai")
-
-# ---------------------------------------------------------------------------
-# Data classes for AI results
-# ---------------------------------------------------------------------------
-
-class ControlMatch:
-    """Represents a single AI-matched ISO 27001 control."""
-    def __init__(self, control_id: str, annex: str, title: str, description: str,
-                 clause_id: str, confidence: float):
-        self.control_id = control_id
-        self.annex = annex
-        self.title = title
-        self.description = description
-        self.clause_id = clause_id
-        self.confidence = round(confidence * 100, 1)  # 0-100 percentage
-
-    def to_dict(self) -> dict:
-        return {
-            "control_id": self.control_id,
-            "annex": self.annex,
-            "title": self.title,
-            "description": self.description,
-            "clause_id": self.clause_id,
-            "confidence": self.confidence,
-        }
-
-
-class EvidenceAnalysisResult:
-    """Full result of analyzing an evidence document."""
-    def __init__(self, category: str, matched_controls: list[ControlMatch],
-                 summary: str):
-        self.category = category
-        self.matched_controls = matched_controls
-        self.summary = summary
-
-    def to_dict(self) -> dict:
-        return {
-            "category": self.category,
-            "matched_controls": [m.to_dict() for m in self.matched_controls],
-            "summary": self.summary,
-        }
-
-
-class DocumentAnalysisAIResult:
-    """Full AI analysis of a security document for Step 3."""
-    def __init__(self, summary: str, category: str, 
-                 implemented_controls: list[dict], 
-                 missing_controls: list[dict], 
-                 security_practices: list[dict]):
-        self.summary = summary
-        self.category = category
-        self.implemented_controls = implemented_controls
-        self.missing_controls = missing_controls
-        self.security_practices = security_practices
-
-    def to_dict(self) -> dict:
-        return {
-            "summary": self.summary,
-            "category": self.category,
-            "implemented_controls": self.implemented_controls,
-            "missing_controls": self.missing_controls,
-            "security_practices": self.security_practices
-        }
-
-
-class RiskSuggestion:
-    """AI-suggested risk scoring."""
-    def __init__(self, likelihood: int, impact: int, risk_score: int,
-                 reasoning: str, related_controls: list[str]):
-        self.likelihood = likelihood
-        self.impact = impact
-        self.risk_score = risk_score
-        self.reasoning = reasoning
-        self.related_controls = related_controls
-
-    def to_dict(self) -> dict:
-        return {
-            "likelihood": self.likelihood,
-            "impact": self.impact,
-            "risk_score": self.risk_score,
-            "reasoning": self.reasoning,
-            "related_controls": self.related_controls,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Evidence category keywords (used by both engines)
-# ---------------------------------------------------------------------------
-
-CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    "policy": ["policy", "policies", "guideline", "framework", "standard", "directive"],
-    "procedure": ["procedure", "process", "workflow", "step-by-step", "instruction", "sop"],
-    "log": ["log", "audit trail", "event", "syslog", "access log", "monitoring"],
-    "certificate": ["certificate", "certification", "accreditation", "iso", "soc", "attestation"],
-    "report": ["report", "assessment", "review", "analysis", "finding", "summary"],
-    "training": ["training", "awareness", "education", "course", "workshop", "session"],
-    "contract": ["contract", "agreement", "nda", "sla", "terms", "vendor", "supplier"],
-    "configuration": ["configuration", "config", "settings", "baseline", "hardening", "firewall"],
-}
-
-
-# ---------------------------------------------------------------------------
-# PDF Text Extraction
-# ---------------------------------------------------------------------------
-
-def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extract text content from a PDF/document file's bytes using unified extractor with OCR fallback."""
-    # 1. Try unified extractor (PyMuPDF + Tesseract OCR + DOCX + plain text)
-    try:
-        from app.ingestion.extractor import extract_text_from_bytes
-        text = extract_text_from_bytes(file_bytes, "document.pdf")
-        if text.strip():
-            return text.strip()
-    except Exception as e:
-        logger.warning(f"Unified extractor failed ({e}), trying fallback handlers")
-
-    # 2. Fallback: PyPDF2 / pypdf with strict=False
-    try:
-        from PyPDF2 import PdfReader
-        reader = PdfReader(BytesIO(file_bytes), strict=False)
-        pages_text: list[str] = []
-        for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                pages_text.append(t.strip())
-        extracted = "\n\n".join(pages_text)
-        if extracted.strip():
-            return extracted
-    except Exception as e:
-        logger.warning(f"PyPDF2 fallback extraction failed: {e}")
-
-    # 3. Fallback: docx format parser
-    try:
-        import docx
-        doc = docx.Document(BytesIO(file_bytes))
-        full_text = [p.text for p in doc.paragraphs if p.text.strip()]
-        if full_text:
-            return "\n\n".join(full_text)
-    except Exception:
-        pass
-
-    # 4. Fallback: UTF-8 / Latin-1 text decode for plain text / markdown / logs
-    try:
-        decoded = file_bytes.decode('utf-8', errors='ignore')
-        # Check if file has readable text characters
-        printable_ratio = sum(1 for c in decoded if c.isprintable() or c in '\n\r\t') / max(len(decoded), 1)
-        if printable_ratio > 0.85 and len(decoded.strip()) > 10:
-            return decoded.strip()
-    except Exception:
-        pass
-
-    return ""
-
-
-# Domain synonyms and cross-standard terminology to resolve sub-clause ambiguity
-ISO_DOMAIN_SYNONYMS: dict[str, str] = {
-    "7.1": "Physical security perimeters, biometric access control and CCTV monitoring of server room perimeters, physical perimeter boundaries, surveillance.",
-    "7.2": "Physical entry controls, building doors, entry keycards, visitor badge reception, turnstiles.",
-    "7.13": "Equipment maintenance, server hardware maintenance outsourced to certified vendor, hardware servicing.",
-    "5.15": "Access control policy, role-based access control, RBAC, access restrictions.",
-    "5.17": "Authentication information, user password complexity rules, secret authentication credentials, password requirements.",
-    "5.24": "Incident management planning, security incident response procedure, incident reporting timelines.",
-    "5.29": "Information security during disruption, business continuity, disaster recovery quarterly drills, continuity testing.",
-    "6.1": "Screening, pre-employment background screening, HR security, background check verification.",
-    "6.5": "Responsibilities after termination or change of employment, contractors signing confidentiality agreements upon offboarding, NDAs.",
-    "6.6": "Confidentiality or non-disclosure agreements, NDAs, contractor confidentiality.",
-    "8.5": "Secure authentication, password complexity, multi-factor authentication MFA, login credentials.",
-    "8.8": "Management of technical vulnerabilities, automated vulnerability scanning frequency, patch management windows.",
-    "8.15": "Logging, audit logging, system activity logs, event recording.",
-    "8.16": "Monitoring activities, SIEM system aggregates events from firewalls and triggers alerts on abnormal behavior, network monitoring.",
-    "8.22": "Web filtering, network isolation, AWS security groups isolating test environments, segmenting environments.",
-    "8.24": "Use of cryptography, cryptographic key management rules, encryption algorithms, data encryption at rest and in transit.",
-    "8.25": "Secure development life cycle, developers receive secure coding certification, SDLC guidelines.",
-    "8.28": "Secure coding, developers review pull requests and verify code security before merging, peer code review.",
-    "8.31": "Separation of development, test and production environments, AWS security groups isolation.",
-    "8.32": "Change management, system administrators use Git repositories to track infrastructure-as-code version changes, PR approvals.",
-}
 
 
 class AIService:
@@ -219,7 +61,7 @@ class AIService:
 
     LOCAL_MODEL_NAME = "all-MiniLM-L6-v2"
     GEMINI_EMBED_MODEL = "text-embedding-004"
-    GEMINI_GENERATE_MODEL = "gemini-1.5-flash"
+    GEMINI_GENERATE_MODEL = "gemini-3.8-flash"
     DEFAULT_TOP_N = 5
     DEFAULT_THRESHOLD = 0.30
 
@@ -229,10 +71,11 @@ class AIService:
         self._control_texts: list[str] = []
         self._is_ready = False
 
-        # Gemini engine
+        # Gemini skills engine & adapter
         self._gemini_client = None
         self._gemini_available = False
         self._gemini_control_embeddings: Optional[np.ndarray] = None
+        self._skills_adapter: Optional[GeminiSkillsAdapter] = None
 
         # Local NLP engine
         self._local_model = None
@@ -312,11 +155,21 @@ class AIService:
         try:
             self._gemini_client = genai.Client(api_key=api_key)
             self._gemini_available = True
-            logger.info("AI Service: Gemini generation client initialized ✓")
+            self._skills_adapter = GeminiSkillsAdapter(
+                client=self._gemini_client,
+                controls=self._controls,
+                model_name=self.GEMINI_GENERATE_MODEL,
+            )
+            logger.info("AI Service: Gemini generation client & Skills Adapter initialized ✓")
 
         except Exception as e:
             logger.warning(f"AI Service: Gemini init failed ({e}). Generator disabled.")
             self._gemini_available = False
+            self._skills_adapter = GeminiSkillsAdapter(
+                client=None,
+                controls=self._controls,
+                model_name=self.GEMINI_GENERATE_MODEL,
+            )
 
     def _init_local_model(self) -> None:
         """Load the local SentenceTransformer model and pre-embed controls."""
@@ -372,6 +225,17 @@ class AIService:
     def active_engine(self) -> str:
         return "hybrid" if self._gemini_available else "local"
 
+    @property
+    def skills_adapter(self) -> GeminiSkillsAdapter:
+        """Returns the active GeminiSkillsAdapter instance (with fallback if offline)."""
+        if self._skills_adapter is None:
+            self._skills_adapter = GeminiSkillsAdapter(
+                client=self._gemini_client,
+                controls=self._controls,
+                model_name=self.GEMINI_GENERATE_MODEL,
+            )
+        return self._skills_adapter
+
     # ------------------------------------------------------------------
     # Embedding helper
     # ------------------------------------------------------------------
@@ -424,12 +288,13 @@ class AIService:
         # 2. Compute similarity against all controls (Hybrid Dense + BM25)
         text_embedding = self._embed_text(text)
         control_embeddings = self._get_control_embeddings()
-        dense_scores = cosine_similarity(text_embedding, control_embeddings)[0]
+        dense_scores = cosine_similarity(text_embedding, control_embeddings)[0]  # type: ignore[arg-type]
 
-        if getattr(self, "_bm25_model", None) is not None:
+        bm25_model = getattr(self, "_bm25_model", None)
+        if bm25_model is not None:
             tokens = text.lower().split()
-            bm25_scores = np.array(self._bm25_model.get_scores(tokens))
-            bm25_max = bm25_scores.max()
+            bm25_scores = np.array(bm25_model.get_scores(tokens))
+            bm25_max = float(bm25_scores.max())
             bm25_norm = (bm25_scores / bm25_max) if bm25_max > 0 else np.zeros_like(bm25_scores)
             dense_norm = np.clip((dense_scores + 1) / 2.0, 0, 1)
             # Weighted hybrid score: 0.65 dense semantic + 0.35 sparse keyword
@@ -505,24 +370,22 @@ class AIService:
         text: str,
         top_n: int = DEFAULT_TOP_N,
         threshold: float = DEFAULT_THRESHOLD,
+        org_id: Optional[str] = None,
     ) -> EvidenceAnalysisResult:
         """
-        Qdrant-backed evidence analysis: embeds the text locally, queries the
-        ``grc_iso_controls`` collection for the nearest control vectors, and
-        returns an EvidenceAnalysisResult.
-
-        Preferred over the synchronous ``analyze_evidence()`` method because:
-        - All retrieval goes through Qdrant (single source of truth).
-        - In-memory cosine_similarity is not needed at inference time.
-        - Falls back gracefully to the in-memory path if Qdrant is offline.
+        Two-Tier Qdrant-backed evidence analysis:
+        Tier 1: Queries tenant's ``grc_doc_chunks`` collection (scoped to org_id) for company internal policies.
+        Tier 2: Queries global ``grc_iso_controls`` collection for standard ISO 27001 requirements.
+        Synthesizes dual assessment: Evidence -> Internal Company Policy -> ISO 27001 Framework.
 
         Args:
             text: Extracted text of the evidence document.
             top_n: Maximum number of control matches to return.
             threshold: Minimum cosine similarity score (0.0 – 1.0).
+            org_id: Organization ID for tenant-scoped internal policy retrieval.
 
         Returns:
-            EvidenceAnalysisResult with category, matched controls, and summary.
+            EvidenceAnalysisResult with two-tier evaluation findings and control matches.
         """
         if not self._is_ready:
             raise RuntimeError("AI Service not initialized. Call initialize() first.")
@@ -532,61 +395,123 @@ class AIService:
 
         from app.services.vector_store import vector_store
 
-        # 2a. Qdrant path (preferred) ─────────────────────────────────────────
-        if vector_store.is_ready:
-            text_embedding = self._embed_text(text)
-            hits = await vector_store.dense_search(
-                query_vector=text_embedding,
-                collection_name=settings.QDRANT_COLLECTION_ISO_CONTROLS,
-                top_k=min(top_n * 4, len(self._controls)),  # over-fetch; filter by threshold below
-            )
-
-            matched_controls: list[ControlMatch] = []
-            for hit in hits:
-                score = float(hit.get("score", 0.0))
-                if score < threshold:
-                    break
-                if len(matched_controls) >= top_n:
-                    break
-                payload = hit.get("payload", {})
-                matched_controls.append(ControlMatch(
-                    control_id=payload.get("control_id", ""),
-                    annex=payload.get("annex", ""),
-                    title=payload.get("title", ""),
-                    description=payload.get("description", ""),
-                    clause_id=payload.get("clause_id", ""),
-                    confidence=score,
-                ))
-
-            logger.debug(
-                f"AI Service (Qdrant path): {len(matched_controls)} control matches "
-                f"above threshold={threshold} for text len={len(text)}"
-            )
-
-        # 2b. Qdrant Unreachable -> Fail-Closed ───────────────────────────────
-        else:
+        # Qdrant Path
+        if not vector_store.is_ready:
             raise RuntimeError(
                 "Qdrant vector store is offline/unreachable. Evidence analysis cannot proceed in degraded mode."
             )
 
-        # 3. Generate summary
-        if matched_controls:
-            top_control = matched_controls[0]
-            summary = (
-                f"This evidence is categorized as '{category}' and most closely "
-                f"relates to control {top_control.annex} ({top_control.title}) "
-                f"with {top_control.confidence}% confidence."
+        text_embedding = self._embed_text(text)
+
+        # Tier 2: Search ISO controls (global standard catalog)
+        hits = await vector_store.dense_search(
+            query_vector=text_embedding,
+            collection_name=settings.QDRANT_COLLECTION_ISO_CONTROLS,
+            top_k=min(top_n * 4, len(self._controls)),
+        )
+
+        matched_controls: list[ControlMatch] = []
+        for hit in hits:
+            score = float(hit.get("score", 0.0))
+            if score < threshold:
+                break
+            if len(matched_controls) >= top_n:
+                break
+            payload = hit.get("payload", {})
+            matched_controls.append(ControlMatch(
+                control_id=payload.get("control_id", ""),
+                annex=payload.get("annex", ""),
+                title=payload.get("title", ""),
+                description=payload.get("description", ""),
+                clause_id=payload.get("clause_id", ""),
+                confidence=score,
+            ))
+
+        # Tier 1: Search Internal Policies in grc_doc_chunks (scoped by org_id)
+        internal_policy_match: dict[str, Any] = {
+            "found": False,
+            "policy_title": None,
+            "clause_summary": "No matching internal policy found for this organization.",
+            "is_compliant_with_policy": False,
+        }
+
+        if org_id:
+            try:
+                policy_hits = await vector_store.dense_search(
+                    query_vector=text_embedding,
+                    collection_name=settings.QDRANT_COLLECTION_DOC_CHUNKS,
+                    top_k=3,
+                    org_id=str(org_id),
+                )
+                if policy_hits and float(policy_hits[0].get("score", 0.0)) >= threshold:
+                    top_policy = policy_hits[0]
+                    p_payload = top_policy.get("payload", {})
+                    p_score = float(top_policy.get("score", 0.0))
+                    p_title = p_payload.get("section_heading") or p_payload.get("document_id") or "Internal Policy"
+                    raw_chunk_text = p_payload.get("text", "")
+                    p_snippet = raw_chunk_text[:250].strip()
+                    if len(raw_chunk_text) > 250:
+                        p_snippet += "..."
+                    internal_policy_match = {
+                        "found": True,
+                        "policy_title": p_title,
+                        "clause_summary": p_snippet,
+                        "is_compliant_with_policy": p_score >= 0.40,
+                        "confidence_score": round(p_score, 2),
+                    }
+            except Exception as policy_search_err:
+                logger.warning(f"Internal policy search in grc_doc_chunks failed: {policy_search_err}")
+
+        # Framework control top match
+        top_control = matched_controls[0] if matched_controls else None
+        framework_control_match: dict[str, Any] = {
+            "control_id": top_control.annex if top_control else None,
+            "title": top_control.title if top_control else None,
+            "is_compliant_with_framework": (top_control.confidence >= 50.0) if top_control else False,
+            "confidence_score": round(top_control.confidence / 100.0, 2) if top_control else 0.0,
+        }
+
+        # Dual Assessment Gap Analysis
+        if internal_policy_match["found"] and framework_control_match["control_id"]:
+            if internal_policy_match["is_compliant_with_policy"] and framework_control_match["is_compliant_with_framework"]:
+                gap_analysis = (
+                    f"Evidence satisfies both internal policy ('{internal_policy_match['policy_title']}') "
+                    f"and ISO 27001 requirements ({framework_control_match['control_id']} - {framework_control_match['title']})."
+                )
+            else:
+                gap_analysis = (
+                    f"Evidence maps to internal policy '{internal_policy_match['policy_title']}' and "
+                    f"ISO 27001 control {framework_control_match['control_id']}, but compliance thresholds require review."
+                )
+        elif framework_control_match["control_id"]:
+            gap_analysis = (
+                f"Evidence aligns with ISO 27001 control {framework_control_match['control_id']} "
+                f"({framework_control_match['title']}), but organization lacks an indexed internal policy clause for this domain."
+            )
+        elif internal_policy_match["found"]:
+            gap_analysis = (
+                f"Evidence matches internal policy '{internal_policy_match['policy_title']}', "
+                "but does not strongly align with a standard ISO 27001 control."
             )
         else:
-            summary = (
-                f"This evidence is categorized as '{category}' but no strong "
-                f"control matches were found above the {threshold * 100}% threshold."
-            )
+            gap_analysis = "Evidence could not be reliably mapped to internal policy or ISO 27001 controls."
+
+        two_tier_evaluation = {
+            "internal_policy_match": internal_policy_match,
+            "framework_control_match": framework_control_match,
+            "gap_analysis": gap_analysis,
+        }
+
+        # Formulate human-readable summary
+        summary = f"[{category.capitalize()}] {gap_analysis}"
 
         return EvidenceAnalysisResult(
             category=category,
             matched_controls=matched_controls,
             summary=summary,
+            internal_policy_match=internal_policy_match,
+            framework_control_match=framework_control_match,
+            two_tier_evaluation=two_tier_evaluation,
         )
 
     # ------------------------------------------------------------------
@@ -611,53 +536,14 @@ class AIService:
         return self._analyze_document_local(text)
 
     def _analyze_document_gemini(self, text: str) -> DocumentAnalysisAIResult:
-        """Deep analysis using Gemini generative model."""
-        prompt = f"""You are an ISO 27001 Auditor. Analyze the following security document text and extract structured compliance data.
-
-Document Text:
-{text[:8000]}  # Limit text for prompt constraints
-
-Return ONLY a valid JSON object with these exact fields:
-{{
-  "summary": "<one sentence overview>",
-  "category": "<policy|procedure|architecture|standard>",
-  "security_practices": [
-    {{"practice": "...", "excerpt": "...", "strength": "strong|partial"}}
-  ],
-  "implemented_controls": [
-    {{"annex": "5.1", "title": "Policies for information security", "confidence": 0.95, "reason": "..."}}
-  ],
-  "missing_controls": [
-    {{"annex": "8.12", "title": "Data leakage prevention", "reason": "Found mention of data but no DLP rules."}}
-  ]
-}}
-
-Guidelines:
-- Categorize the document accurately.
-- Identify 3-10 implemented controls from ISO 27001:2022.
-- Identify 1-3 missing controls that logically SHOULD be in this type of document.
-- Extract specific practices found in the text."""
-
-        response = self._gemini_client.models.generate_content(
-            model=self.GEMINI_GENERATE_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json"),
-        )
-        
-        raw_text = response.text.strip()
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```")[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
-        
-        result = json.loads(raw_text)
-        
+        """Deep analysis using Gemini Skills Adapter (gemini-3.8-flash)."""
+        result = self.skills_adapter.process_compliance_document(text)
         return DocumentAnalysisAIResult(
             summary=result.get("summary", "Analysis completed."),
             category=result.get("category", "general"),
             implemented_controls=result.get("implemented_controls", []),
             missing_controls=result.get("missing_controls", []),
-            security_practices=result.get("security_practices", [])
+            security_practices=result.get("security_practices", []),
         )
 
     def _analyze_document_local(self, text: str) -> DocumentAnalysisAIResult:
@@ -741,62 +627,14 @@ Guidelines:
         return await self._suggest_risk_local(description)
 
     def _suggest_risk_gemini(self, description: str) -> RiskSuggestion:
-        """Use Gemini to generate a risk score with structured reasoning."""
-        # Build a context of all control names for the model
-        control_list = "\n".join(
-            f"- {c['annex']}: {c['title']}" for c in self._controls[:30]
-        )
-
-        prompt = f"""You are an ISO 27001 risk assessment expert. Analyze the following risk description and provide a structured risk assessment.
-
-Risk Description:
-{description}
-
-Available ISO 27001 Controls (partial list):
-{control_list}
-
-Respond with ONLY a valid JSON object with these exact fields:
-{{
-  "likelihood": <integer 1-5>,
-  "impact": <integer 1-5>,
-  "risk_score": <integer = likelihood * impact>,
-  "reasoning": "<brief explanation of the risk assessment>",
-  "related_controls": ["<annex_id> <control_title>", ...]
-}}
-
-Guidelines:
-- likelihood: 1=Rare, 2=Unlikely, 3=Possible, 4=Likely, 5=Almost Certain
-- impact: 1=Insignificant, 2=Minor, 3=Moderate, 4=Major, 5=Catastrophic
-- related_controls: List 1-5 ISO 27001 controls that can help mitigate this risk
-- reasoning: Explain why you chose these scores in 1-2 sentences"""
-
-        response = self._gemini_client.models.generate_content(
-            model=self.GEMINI_GENERATE_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json"),
-        )
-
-        # Parse the JSON from Gemini's response
-        response_text = response.text.strip()
-
-        # Strip markdown code fences if present
-        if response_text.startswith("```"):
-            lines = response_text.split("\n")
-            # Remove first line (```json) and last line (```)
-            lines = [l for l in lines if not l.strip().startswith("```")]
-            response_text = "\n".join(lines)
-
-        result = json.loads(response_text)
-
-        likelihood = max(1, min(5, int(result.get("likelihood", 3))))
-        impact = max(1, min(5, int(result.get("impact", 3))))
-
+        """Use Gemini Skills Adapter to generate a structured risk score."""
+        res = self.skills_adapter.analyze_risk(description, controls_context=self._controls)
         return RiskSuggestion(
-            likelihood=likelihood,
-            impact=impact,
-            risk_score=likelihood * impact,
-            reasoning=result.get("reasoning", "AI-generated assessment."),
-            related_controls=result.get("related_controls", []),
+            likelihood=res.get("likelihood", 3),
+            impact=res.get("impact", 3),
+            risk_score=res.get("risk_score", 9),
+            reasoning=res.get("reasoning", "Assessed via Gemini Skills Adapter."),
+            related_controls=res.get("related_controls", []),
         )
 
     async def _suggest_risk_local(self, description: str) -> RiskSuggestion:
@@ -911,105 +749,8 @@ Guidelines:
         return gaps
 
 
-async def _run_document_analysis_async(text: str) -> dict:
-    """Async Qdrant-backed document analysis pipeline.
-
-    This is the canonical entry point for the ingestion pipeline and all API
-    routes. It uses Qdrant as the primary source of truth for control
-    similarity and falls back to the in-memory path when Qdrant is offline.
-
-    Returns a dict with the same schema as the legacy ``_run_document_analysis``.
-    """
-    if not ai_service.is_ready:
-        ai_service.initialize()
-
-    category = ai_service._categorize(text)
-    evidence_result = await ai_service.analyze_evidence_qdrant(
-        text, top_n=93, threshold=0.30
-    )
-
-    implemented = []
-    weak_matches = []
-
-    for match in evidence_result.matched_controls:
-        item = {
-            "control_annex": match.annex,
-            "title": match.title,
-            "confidence": match.confidence,
-            "clause_id": match.clause_id,
-        }
-        if match.confidence >= 50:
-            implemented.append(item)
-        elif match.confidence >= 30:
-            weak_matches.append(item)
-
-    # Sort for deterministic output — confidence descending, annex ascending on ties
-    implemented.sort(key=lambda x: (-x["confidence"], x["control_annex"]))
-    weak_matches.sort(key=lambda x: (-x["confidence"], x["control_annex"]))
-
-    matched_annexes = {m.annex for m in evidence_result.matched_controls}
-    missing = []
-    for ctrl in ai_service._controls:
-        if ctrl["annex"] not in matched_annexes:
-            missing.append({
-                "control_annex": ctrl["annex"],
-                "title": ctrl["title"],
-                "reason": "No reference found in document",
-            })
-
-    practices = _extract_security_practices(text)
-
-    return {
-        "document_category": category,
-        "summary": evidence_result.summary,
-        "implemented_controls": implemented,
-        "weak_matches": weak_matches,
-        "missing_controls": missing,
-        "security_practices": practices,
-        "total_controls_checked": len(ai_service._controls),
-        "strong_matches": len(implemented),
-        "weak_match_count": len(weak_matches),
-        "missing_count": len(missing),
-    }
-
-
-
-def _extract_security_practices(text: str) -> list[dict]:
-    """Extract security practices by scanning for key phrases."""
-    text_lower = text.lower()
-    
-    practice_patterns = {
-        "Multi-factor authentication": (["mfa", "multi-factor", "two-factor", "2fa"], ["5.17", "8.5"]),
-        "Access control policy": (["access control", "role-based access", "rbac", "least privilege"], ["5.15", "5.18", "8.2"]),
-        "Data encryption": (["encryption", "encrypted", "aes", "tls", "ssl", "cryptograph"], ["8.24"]),
-        "Security awareness training": (["security training", "awareness program", "security awareness"], ["6.3"]),
-        "Incident response": (["incident response", "incident management", "security incident"], ["5.24", "5.25", "5.26"]),
-        "Backup procedures": (["backup", "data backup", "recovery point"], ["8.13"]),
-        "Change management": (["change management", "change control", "change request"], ["8.32"]),
-        "Vulnerability management": (["vulnerability scan", "penetration test", "vulnerability management"], ["8.8"]),
-        "Network security": (["firewall", "network segmentation", "intrusion detection", "ids", "ips"], ["8.20", "8.21", "8.22"]),
-        "Logging and monitoring": (["audit log", "event log", "monitoring", "siem"], ["8.15", "8.16"]),
-        "Password policy": (["password policy", "password complexity", "password rotation"], ["5.17"]),
-        "Data classification": (["data classification", "information classification", "labeling"], ["5.12", "5.13"]),
-        "Business continuity": (["business continuity", "disaster recovery", "bcp", "drp"], ["5.29", "5.30"]),
-        "Secure development": (["secure development", "sdlc", "secure coding", "code review"], ["8.25", "8.28"]),
-        "Supplier management": (["vendor management", "supplier assessment", "third-party"], ["5.19", "5.20", "5.21"]),
-    }
-    
-    found_practices = []
-    for practice_name, (keywords, related_controls) in practice_patterns.items():
-        if any(kw in text_lower for kw in keywords):
-            found_practices.append({
-                "practice": practice_name,
-                "related_controls": related_controls,
-            })
-    
-    return found_practices
-
-
 # ---------------------------------------------------------------------------
 # Singleton instance
 # ---------------------------------------------------------------------------
 
 ai_service = AIService()
-

@@ -6,15 +6,17 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "GRC Platform"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
-    SUPABASE_JWT_SECRET: str
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    SUPABASE_SERVICE_KEY: str
+    ALGORITHM: str = "HS256"
+    SUPABASE_JWT_SECRET: Optional[str] = None
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+    SUPABASE_SERVICE_KEY: Optional[str] = None
     FRONTEND_URL: str = "http://localhost:3000"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 24
     ENVIRONMENT: str = "development"  # development | staging | production
+    GOOGLE_CLIENT_ID: str = ""
     
     # DATABASE
     POSTGRES_SERVER: str
@@ -63,13 +65,15 @@ class Settings(BaseSettings):
     EMAILS_FROM_NAME: str = "GRC Platform"
     EMAILS_FROM_EMAIL: Optional[str] = None
 
+    # Platform Superadmin Emails
+    PLATFORM_TEAM_EMAILS: List[str] = ["bcolorc17@gmail.com", "grchelios@gmail.com", "grcacc55@gmail.com"]
+
     SQLALCHEMY_DATABASE_URI: Union[str, None] = None
+    ALEMBIC_DATABASE_URI: Union[str, None] = None
 
     @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
     @classmethod
     def assemble_db_connection(cls, v: Union[str, None], info: dict) -> any:
-        if isinstance(v, str):
-            return v
         uri = str(PostgresDsn.build(
             scheme="postgresql+asyncpg",
             username=info.data.get("POSTGRES_USER"),
@@ -80,7 +84,7 @@ class Settings(BaseSettings):
         ))
         # Add SSL for cloud databases (non-localhost)
         server = info.data.get("POSTGRES_SERVER", "localhost")
-        if server and server != "localhost" and "127.0.0.1" not in server:
+        if server and server not in {"localhost", "db"} and "127.0.0.1" not in server:
             uri += "?ssl=require"
         return uri
 

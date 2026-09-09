@@ -143,11 +143,7 @@ async def fix_real_user_roles():
     from app.database import SessionLocal
     from app import models
 
-    SUPERADMIN_EMAILS = {
-        "grchelios@gmail.com",
-        "bcolorc17@gmail.com",
-        "grcacc55@gmail.com",
-    }
+    SUPERADMIN_EMAILS = set(settings.PLATFORM_TEAM_EMAILS)
 
     try:
         async with SessionLocal() as db:
@@ -207,6 +203,24 @@ async def _run_job_recovery():
                 logger.info(f"Job queue recovery: {count} job(s) re-enqueued ✓")
     except Exception as exc:
         logger.warning(f"Job queue recovery failed: {exc}")
+
+
+# ── Transactional Email Queue Worker ────────────────────────
+@app.on_event("startup")
+async def start_email_queue_worker():
+    from app.database import SessionLocal
+    from app.services.email_queue import recover_stuck_jobs, start_email_worker
+    try:
+        async with SessionLocal() as db:
+            await recover_stuck_jobs(db)
+    except Exception as exc:
+        logger.warning(f"Email queue recovery failed: {exc}")
+    start_email_worker()
+
+@app.on_event("shutdown")
+async def stop_email_queue_worker():
+    from app.services.email_queue import stop_email_worker
+    stop_email_worker()
 
 
 # ── Health Check ───────────────────────────────────────────

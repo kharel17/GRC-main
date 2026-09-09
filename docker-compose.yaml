@@ -6,13 +6,16 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-grc_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-grc_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-grc_db}
+      POSTGRES_USER: grc_admin
+      POSTGRES_PASSWORD: grc_admin_secret
+      POSTGRES_DB: grc_db
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-grc_user}"]
+      test: ["CMD-SHELL", "pg_isready -U grc_admin -d grc_db"]
       interval: 5s
       timeout: 5s
       retries: 5

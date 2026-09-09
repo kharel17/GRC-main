@@ -5,7 +5,7 @@ Handles file upload to Supabase Storage, metadata CRUD,
 status verification workflow, and expiry tracking.
 """
 from typing import Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, BackgroundTasks
@@ -19,232 +19,20 @@ from app.models.audit_log import AuditAction, AuditEntityType
 from app.models.evidence import EvidenceStatus, EvidenceRelatedTo
 from app.config import settings
 
-from app.services.ai_service import ai_service, extract_text_from_pdf
+from app.services.evidence_analysis import (
+    analyze_evidence_background,
+    upload_to_supabase_storage,
+    derive_file_type,
+    SUPABASE_STORAGE_URL,
+    BUCKET_NAME,
+)
 from app.utils.notifications import notify
 import httpx
 import logging
 
 logger = logging.getLogger("grc.evidence")
 
-async def analyze_evidence_background(
-    evidence_id: str,
-    file_url: str,
-    file_name: str,
-    organization_id: str = None,
-):
-    """
-    Background task: runs AI analysis on uploaded 
-    evidence and updates the evidence record.
-    Called automatically after every evidence upload.
-    """
-    from app.database import SessionLocal
-    from sqlalchemy import select
-    from datetime import datetime
-    import httpx
-    
-    async with SessionLocal() as db:
-        # Set RLS context for background session so queries aren't filtered out
-        if organization_id:
-            from sqlalchemy import text as _text
-            await db.execute(
-                _text("SELECT set_config('app.org_id', :org_id, true)"),
-                {"org_id": organization_id}
-            )
-        try:
-            # Get evidence record
-            result = await db.execute(
-                select(models.Evidence).where(
-                    models.Evidence.id == evidence_id
-                )
-            )
-            evidence = result.scalar_one_or_none()
-            if not evidence:
-                return
-            
-            # Fetch file content from URL
-            file_content = None
-            try:
-                async with httpx.AsyncClient(timeout=30) as client:
-                    resp = await client.get(file_url)
-                    if resp.status_code == 200:
-                        file_content = resp.content
-            except Exception as e:
-                logger.error(f"Failed to fetch evidence file for analysis: {e}")
-            
-            # Run AI analysis using available AIService methods
-            analysis = None
-            if file_content and file_name.lower().endswith(".pdf"):
-                analysis = await ai_service.analyze_evidence_qdrant(extract_text_from_pdf(file_content))
-            elif file_content:
-                # Try as text
-                try:
-                    text = file_content.decode("utf-8", errors="ignore")
-                    analysis = await ai_service.analyze_evidence_qdrant(text)
-                except Exception:
-                    analysis = await ai_service.analyze_evidence_qdrant(f"Metadata analysis for {file_name}")
-            else:
-                # Fallback to metadata analysis
-                analysis = await ai_service.analyze_evidence_qdrant(f"Metadata analysis for {file_name}")
-            
-            # Store results back to evidence record
-            evidence.ai_analyzed = True
-            evidence.ai_analyzed_at = datetime.utcnow()
-            
-            if analysis:
-                evidence.ai_summary = getattr(analysis, 'summary', None) or str(analysis)
-                evidence.ai_category = getattr(analysis, 'category', None)
-                
-                # Update status based on top match confidence
-                if analysis.matched_controls:
-                    top_match = analysis.matched_controls[0]
-                    confidence = top_match.confidence / 100.0 # ai_service uses 0-100 range
-                    
-                    if confidence >= 0.7:
-                        evidence.status = models.evidence.EvidenceStatus.verified
-                    elif confidence >= 0.4:
-                        evidence.status = models.evidence.EvidenceStatus.pending
-                    else:
-                        evidence.status = models.evidence.EvidenceStatus.rejected
-            
-            await db.commit()
-            await db.refresh(evidence)
-
-            # ── Notifications ──────────────────────────────────────────────────
-            if analysis and analysis.matched_controls:
-                top_match = analysis.matched_controls[0]
-                confidence = top_match.confidence # 0-100 range from ai_service
-                iso_clause = top_match.clause_id
-                
-                if confidence >= 80:
-                    # Verified
-                    await notify(
-                        db=db,
-                        user_id=evidence.uploaded_by,
-                        title="Evidence verified",
-                        message=f"✅ Evidence verified: {evidence.file_name} scored {confidence}% for {iso_clause}",
-                        entity_type="evidence",
-                        entity_id=evidence.id,
-                        link_url="/dashboard/evidence",
-                        notification_type="EVIDENCE_VERIFIED"
-                    )
-                elif confidence < 50:
-                    # Rejected
-                    await notify(
-                        db=db,
-                        user_id=evidence.uploaded_by,
-                        title="Evidence rejected",
-                        message=f"❌ Evidence rejected: {evidence.file_name} only scored {confidence}% Please upload better proof",
-                        entity_type="evidence",
-                        entity_id=evidence.id,
-                        link_url="/dashboard/evidence",
-                        notification_type="EVIDENCE_REJECTED"
-                    )
-                else:
-                    # Needs review (50-80%)
-                    # 1. Notify Control Owner
-                    if evidence.related_to == models.evidence.EvidenceRelatedTo.control:
-                        ctrl_res = await db.execute(
-                            select(models.Control).where(models.Control.id == evidence.related_id)
-                        )
-                        control = ctrl_res.scalar_one_or_none()
-                        if control and control.owner_id:
-                            # Notify Control Owner
-                            await notify(
-                                db=db,
-                                user_id=control.owner_id,
-                                title="Evidence needs review",
-                                message=f"⚠️ Evidence needs review: {evidence.file_name} scored {confidence}% Manual review required",
-                                entity_type="evidence",
-                                entity_id=evidence.id,
-                                link_url="/dashboard/evidence",
-                                notification_type="EVIDENCE_REVIEW_REQUIRED"
-                            )
-                            
-                            # Notify Manager
-                            owner_res = await db.execute(
-                                select(models.User).where(models.User.id == control.owner_id)
-                            )
-                            owner = owner_res.scalar_one_or_none()
-                            if owner and owner.manager_id:
-                                await notify(
-                                    db=db,
-                                    user_id=owner.manager_id,
-                                    title="Evidence needs review",
-                                    message=f"⚠️ Evidence needs review: {evidence.file_name} scored {confidence}% Manual review required",
-                                    entity_type="evidence",
-                                    entity_id=evidence.id,
-                                    link_url="/dashboard/evidence",
-                                    notification_type="EVIDENCE_REVIEW_REQUIRED"
-                                )
-            
-        except Exception as e:
-            logger.error(f"AI analysis failed for evidence {evidence_id}: {e}")
-
 router = APIRouter()
-
-# ── Supabase Storage helpers ───────────────────────────────
-
-SUPABASE_STORAGE_URL = f"{settings.SUPABASE_URL}/storage/v1"
-BUCKET_NAME = settings.SUPABASE_BUCKET_NAME  # from .env: SUPABASE_BUCKET_NAME=evidence
-
-
-async def _upload_to_supabase_storage(
-    file: UploadFile,
-    storage_path: str,
-) -> str:
-    """Upload a file to Supabase Storage and return the public URL."""
-    file_bytes = await file.read()
-
-    headers = {
-        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
-        "apikey": settings.SUPABASE_SERVICE_KEY,
-    }
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        # Upload the file
-        upload_url = f"{SUPABASE_STORAGE_URL}/object/{BUCKET_NAME}/{storage_path}"
-        resp = await client.post(
-            upload_url,
-            headers={
-                **headers,
-                "Content-Type": file.content_type or "application/octet-stream",
-            },
-            content=file_bytes,
-        )
-
-        if resp.status_code not in (200, 201):
-            logger.error(f"Supabase upload failed: {resp.status_code} {resp.text}")
-            # Bug 5: Propagate 409 Conflict (duplicate filename) as a distinct error
-            if resp.status_code == 409:
-                raise HTTPException(
-                    status_code=409,
-                    detail="A file with this name already exists. Please rename the file and try again."
-                )
-            raise HTTPException(
-                status_code=502,
-                detail=f"Failed to upload file to storage: {resp.text}",
-            )
-
-    # Build the public URL
-    public_url = f"{SUPABASE_STORAGE_URL}/object/public/{BUCKET_NAME}/{storage_path}"
-    return public_url
-
-
-def _derive_file_type(filename: str) -> str:
-    """Return a short file-type label from the filename extension."""
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "unknown"
-    mapping = {
-        "pdf": "pdf",
-        "png": "image",
-        "jpg": "image",
-        "jpeg": "image",
-        "docx": "doc",
-        "doc": "doc",
-        "csv": "csv",
-        "xlsx": "spreadsheet",
-        "xls": "spreadsheet",
-    }
-    return mapping.get(ext, ext)
 
 
 # ── POST  /api/v1/evidence  ───────────────────────────────
@@ -274,15 +62,13 @@ async def create_evidence(
 
     # Bug 4: If related_to=control and related_id is an annex string (e.g. "5.1"),
     # look up the ControlApplicability by annex to find its real UUID.
-    related_uuid: UUID
-    raw_uuid_valid = False
+    related_uuid: Optional[UUID] = None
     try:
         related_uuid = UUID(related_id)
-        raw_uuid_valid = True
     except ValueError:
         pass
 
-    if not raw_uuid_valid:
+    if related_uuid is None:
         if related_to_enum != EvidenceRelatedTo.control:
             raise HTTPException(status_code=422, detail="related_id must be a valid UUID for non-control types")
         # Try to resolve annex string → control UUID
@@ -290,7 +76,7 @@ async def create_evidence(
         org_id = current_user.organization_id
         ca_result = await db.execute(
             select(ControlApplicability).where(
-                ControlApplicability.annex_id == related_id,
+                ControlApplicability.control_annex == related_id,
                 ControlApplicability.organization_id == org_id,
             )
         )
@@ -301,6 +87,8 @@ async def create_evidence(
                 detail=f"No control found with annex '{related_id}' in your organization"
             )
         related_uuid = ca.id
+
+    assert related_uuid is not None
 
     try:
         # Validate file size (10 MB)
@@ -315,10 +103,10 @@ async def create_evidence(
 
         # Upload to Supabase Storage — raises 502 on generic error, or 409 on duplicate
         try:
-            public_url = await _upload_to_supabase_storage(file, storage_path)
+            public_url = await upload_to_supabase_storage(file, storage_path)
         except HTTPException as upload_exc:
             # Bug 5: Re-map Supabase 409 (duplicate object) to a clear user-facing error
-            if upload_exc.status_code == 409 or "already exists" in str(upload_exc.detail).lower():
+            if upload_exc.status_code == 409 or (isinstance(upload_exc.detail, str) and "already exists" in upload_exc.detail.lower()):
                 raise HTTPException(
                     status_code=409,
                     detail="A file with this name already exists. Please rename the file and try again."
@@ -331,13 +119,13 @@ async def create_evidence(
             description=description,
             file_url=public_url,
             file_name=file.filename,
-            file_type=_derive_file_type(file.filename or ""),
+            file_type=derive_file_type(file.filename or ""),
             file_size=len(contents),
             status=EvidenceStatus.pending,
             related_to=related_to_enum,
             related_id=related_uuid,
             uploaded_by=current_user.id,
-            uploaded_at=datetime.utcnow(),
+            uploaded_at=datetime.now(timezone.utc),
             organization_id=current_user.organization_id,
         )
         db.add(evidence)
@@ -345,12 +133,13 @@ async def create_evidence(
         await db.refresh(evidence)
 
         # Queue AI analysis as background task
+        org_id_str = str(current_user.organization_id) if current_user.organization_id else ""
         background_tasks.add_task(
             analyze_evidence_background,
             evidence_id=str(evidence.id),
-            file_url=evidence.file_url,
-            file_name=evidence.file_name,
-            organization_id=str(current_user.organization_id) if current_user.organization_id else None,
+            file_url=evidence.file_url or "",
+            file_name=evidence.file_name or "",
+            organization_id=org_id_str,
         )
 
         # Audit log
@@ -479,7 +268,7 @@ async def update_evidence_status(
     if new_status == EvidenceStatus.verified:
         evidence.verified = True
         evidence.verified_by = current_user.id
-        evidence.verified_at = datetime.utcnow()
+        evidence.verified_at = datetime.now(timezone.utc)
 
     # Audit log
     await audit_service.log_action(
@@ -515,8 +304,6 @@ async def delete_evidence(
     """
     from app.services import audit_service
     from app.models.audit_log import AuditAction, AuditEntityType
-    import os
-    from urllib.parse import urlparse
 
     # 1. Find evidence in DB (scoped to org)
     org_id = current_user.organization_id
@@ -545,9 +332,10 @@ async def delete_evidence(
     # 3. Securely handle file deletion (attempt only)
     try:
         if evidence.file_url and BUCKET_NAME and BUCKET_NAME in evidence.file_url:
-            headers = {
-                "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
-                "apikey": settings.SUPABASE_SERVICE_KEY,
+            service_key = settings.SUPABASE_SERVICE_KEY or ""
+            headers: dict[str, str] = {
+                "Authorization": f"Bearer {service_key}",
+                "apikey": service_key,
             }
             parts = evidence.file_url.split(f"/{BUCKET_NAME}/")
             if len(parts) > 1:
@@ -590,7 +378,7 @@ async def get_expiring_evidence(
     if not org_id:
         raise HTTPException(status_code=403, detail="User not associated with any organization")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cutoff = now + timedelta(days=days)
 
     query = (

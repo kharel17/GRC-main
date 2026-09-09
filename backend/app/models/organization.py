@@ -14,39 +14,42 @@ class OrganizationSize(str, enum.Enum):
     enterprise = "enterprise" # 1000+ employees
 
 
+from typing import Optional, List, Any
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+
 class Organization(Base):
     __tablename__ = "organizations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String, nullable=False)
-    industry = Column(String, nullable=True)
-    size = Column(SAEnum(OrganizationSize), nullable=True)
-    description = Column(Text, nullable=True)
-    website = Column(String, nullable=True)
-    country = Column(String, nullable=True)
-    employee_count = Column(String, nullable=True) # Range e.g. "1-50"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    industry: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    size: Mapped[Optional[OrganizationSize]] = mapped_column(SAEnum(OrganizationSize), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    website: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    country: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employee_count: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Range e.g. "1-50"
     
     # Onboarding Details
-    infrastructure = Column(String, nullable=True) # AWS, Azure, On-premise, etc.
-    data_types = Column(String, nullable=True) # PII, Financial, etc.
-    onboarding_completed = Column(Boolean, default=False)
-    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    infrastructure: Mapped[Optional[str]] = mapped_column(String, nullable=True) # AWS, Azure, On-premise, etc.
+    data_types: Mapped[Optional[str]] = mapped_column(String, nullable=True) # PII, Financial, etc.
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     # Detailed risk levels per risk type
-    risk_appetite = Column(JSONB, nullable=True)
+    risk_appetite: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
     
     # Milestone for compliance
-    compliance_target_date = Column(DateTime, nullable=True)
+    compliance_target_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Framework linkage
-    framework_id = Column(UUID(as_uuid=True), ForeignKey("frameworks.id"), nullable=True)
-    isms_scope = Column(Text, nullable=True)
+    framework_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("frameworks.id"), nullable=True)
+    isms_scope: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Compliance frameworks the org is targeting (e.g. ["ISO 27001", "SOC2", "GDPR"])
-    compliance_frameworks = Column(JSONB, default=list, nullable=False)
+    compliance_frameworks: Mapped[Any] = mapped_column(JSONB, default=list, nullable=False)
 
     # Ticket triggering and escalation settings
-    ticket_settings = Column(JSONB, default={
+    ticket_settings: Mapped[Any] = mapped_column(JSONB, default={
         "severity_threshold": "medium",
         "suppression_window_hours": 24,
         "auto_escalation_enabled": True,
@@ -58,10 +61,10 @@ class Organization(Base):
         }
     }, nullable=False)
 
-    primary_contact_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    primary_contact_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     primary_contact = relationship("User", foreign_keys=[primary_contact_id])

@@ -8,6 +8,7 @@
  */
 import { api } from './api-client';
 import { supabase } from './supabase';
+import { getAccessToken } from './token-storage';
 
 // import {
 //   mockRisks,
@@ -482,13 +483,24 @@ async function downloadExport(endpoint: string, fallbackFilename: string): Promi
   const url = `${api.baseUrl}${endpoint}`;
   
   // Custom fetch needed for Blob handling
-  const { data: { session } } = await supabase.auth.getSession();
-  const headers: Record<string, string> = {};
-  if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`;
+  const supportToken = typeof window !== 'undefined' ? sessionStorage.getItem('support_access_token') : null;
+  const localToken = getAccessToken();
+  let token = supportToken || localToken;
+  if (!token) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.access_token || null;
+    } catch {
+      // ignore
+    }
   }
 
-  const response = await fetch(url, { headers });
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, { headers, credentials: 'include' });
   if (!response.ok) throw new Error('Export failed');
   return response.blob();
 }

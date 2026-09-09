@@ -18,36 +18,39 @@ class EvidenceStatus(str, enum.Enum):
     expired = "expired"
 
 
+from typing import Optional, List
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+
 class Evidence(Base):
     __tablename__ = "evidence"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-    file_url = Column(String, nullable=True)
-    file_name = Column(String, nullable=True)
-    file_type = Column(String, nullable=True)
-    file_size = Column(Integer, nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    file_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    file_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    file_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
-    status = Column(SAEnum(EvidenceStatus), default=EvidenceStatus.pending, nullable=False)
-    valid_until = Column(DateTime, nullable=True)
+    status: Mapped[EvidenceStatus] = mapped_column(SAEnum(EvidenceStatus), default=EvidenceStatus.pending, nullable=False)
+    valid_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    organization_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
 
-    related_to = Column(SAEnum(EvidenceRelatedTo), nullable=False)
-    related_id = Column(UUID(as_uuid=True), nullable=False)
+    related_to: Mapped[EvidenceRelatedTo] = mapped_column(SAEnum(EvidenceRelatedTo), nullable=False)
+    related_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     
-    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    verified = Column(Boolean, default=False)
-    verified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    verified_at = Column(DateTime, nullable=True)
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verified_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # AI Analysis fields
-    ai_category = Column(String, nullable=True)  # e.g., "policy", "procedure", "log", "certificate"
-    ai_analyzed = Column(Boolean, default=False)
-    ai_analyzed_at = Column(DateTime, nullable=True)
-    ai_summary = Column(Text, nullable=True)
+    ai_category: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # e.g., "policy", "procedure", "log", "certificate"
+    ai_analyzed: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_analyzed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
     uploader = relationship("User", foreign_keys=[uploaded_by])

@@ -1,34 +1,76 @@
 from datetime import datetime, timedelta
 from typing import Any
+import uuid
+import hashlib
+import secrets
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
-import hashlib
 from app import schemas, models
+from app.config import settings
 from app.api import deps
 from app.utils import security
-from app.services import auth_service
-from app.config import settings
-import secrets
 from app.utils.emails import send_reset_password_email
+from app.utils.google_auth import verify_google_token
+from app.services import auth_service, totp_service
+from app.api.auth_helpers import get_token_hash, issue_user_tokens
+from app.api.auth_2fa import router_2fa
 
 router = APIRouter()
 
-def get_token_hash(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
+# Mount 2FA sub-router at /2fa prefix so existing paths are preserved:
+#   e.g. /api/v1/auth/2fa/verify-login, /api/v1/auth/2fa/setup, etc.
+router.include_router(router_2fa, prefix="/2fa", tags=["2fa"])
+
+# Backward-compatible wrapper kept for internal use and patching
+async def _issue_user_tokens(response: Response, db: AsyncSession, user: models.User) -> dict:
+    return await issue_user_tokens(response, db, user)
 
 @router.post("/login", dependencies=[Depends(deps.rate_limit(limit=5, window=60))])
 async def login_access_token(
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(deps.get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
-    OAuth2 compatible token login, get an access token for future requests
+    OAuth2 compatible token login, get an access token for future requests.
+    Supports both JSON payloads and application/x-www-form-urlencoded forms.
     """
+    content_type = request.headers.get("content-type", "")
+    username = None
+    password = None
+
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            username = body.get("username") or body.get("email")
+            password = body.get("password")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid JSON payload",
+            )
+    else:
+        try:
+            form = await request.form()
+            username = form.get("username") or form.get("email")
+            password = form.get("password")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid form data",
+            )
+
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect email or password",
+        )
+
     user = await auth_service.authenticate_user(
-        db, email=form_data.username, password=form_data.password
+        db, email=str(username), password=str(password)
     )
     if not user:
         raise HTTPException(
@@ -38,41 +80,98 @@ async def login_access_token(
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     
-    # Create tokens with current user version
-    access_token = security.create_access_token(
-        user.id, token_version=user.token_version,
-        email=user.email, role=user.role.value if user.role else None,
-    )
-    refresh_token = security.create_refresh_token(user.id, token_version=user.token_version)
-    
-    # Store refresh token hash in DB
-    db_refresh_token = models.RefreshToken(
-        token_hash=get_token_hash(refresh_token),
-        user_id=user.id,
-        expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
-    )
-    db.add(db_refresh_token)
-    await db.commit()
-    
-    # Set httpOnly cookies
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=settings.ENVIRONMENT == "production",
-        samesite="lax",
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=settings.ENVIRONMENT == "production",
-        samesite="lax",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
-    )
-    
-    return {"message": "Successfully logged in", "access_token": access_token, "token_type": "bearer"}
+    # Check 2FA requirements
+    is_mandatory = totp_service.is_2fa_mandatory_for_role(user.role)
+    if user.totp_enabled or is_mandatory:
+        two_fa_token = security.create_2fa_challenge_token(
+            subject=user.id, email=user.email, role=user.role.value if user.role else "admin"
+        )
+        return {
+            "mfa_required": True,
+            "mfa_setup_required": not user.totp_enabled,
+            "two_fa_token": two_fa_token,
+            "message": "2FA verification required"
+        }
+
+    return await _issue_user_tokens(response, db, user)
+
+
+class GoogleLoginRequest(BaseModel):
+    credential: str
+
+
+@router.post("/google", dependencies=[Depends(deps.rate_limit(limit=10, window=60))])
+async def login_google(
+    body: GoogleLoginRequest,
+    response: Response,
+    db: AsyncSession = Depends(deps.get_db),
+) -> Any:
+    """
+    Direct Google OAuth 2.0 login.
+    Verifies Google ID token, retrieves or provisions local user in PostgreSQL,
+    and returns standard local JWT access/refresh tokens.
+    """
+    if not body.credential or not body.credential.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google ID token credential is required",
+        )
+
+    try:
+        claims = verify_google_token(body.credential)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Google authentication failed: {str(e)}",
+        )
+
+    if not claims.get("email_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google email is not verified",
+        )
+
+    email = claims["email"].lower().strip()
+
+    # Query local user
+    result = await db.execute(select(models.User).where(models.User.email == email))
+    user = result.scalar_one_or_none()
+
+    if user:
+        if not user.is_active:
+            raise HTTPException(status_code=400, detail="Inactive user")
+        # Update missing full_name if available
+        if not user.full_name and claims.get("full_name"):
+            user.full_name = claims["full_name"]
+            await db.commit()
+            await db.refresh(user)
+    else:
+        # Auto-provision new user with recommended fallback organization logic
+        org = await db.scalar(
+            select(models.Organization).where(models.Organization.name == "Platform Team")
+        )
+        if not org:
+            org = await db.scalar(
+                select(models.Organization).order_by(models.Organization.created_at.asc())
+            )
+
+        user = models.User(
+            id=uuid.uuid4(),
+            email=email,
+            full_name=claims.get("full_name") or email.split("@")[0],
+            hashed_password="GOOGLE_OAUTH",
+            role=models.UserRole.analyst,
+            is_active=True,
+            invitation_status="active",
+            organization_id=org.id if org else None,
+            organization_name=org.name if org else None,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    return await _issue_user_tokens(response, db, user)
+
 
 @router.post("/refresh")
 async def refresh_token(
@@ -137,8 +236,8 @@ async def refresh_token(
     db.add(new_db_token)
     await db.commit()
     
-    response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=settings.ENVIRONMENT == "production", samesite="lax")
-    response.set_cookie(key="refresh_token", value=new_refresh_token, httponly=True, secure=settings.ENVIRONMENT == "production", samesite="lax")
+    response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=settings.ENVIRONMENT == "production", samesite="lax", path="/")
+    response.set_cookie(key="refresh_token", value=new_refresh_token, httponly=True, secure=settings.ENVIRONMENT == "production", samesite="lax", path="/")
     
     return {
         "message": "Token refreshed",
@@ -154,9 +253,37 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
         await db.execute(delete(models.RefreshToken).where(models.RefreshToken.token_hash == token_hash))
         await db.commit()
     
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
     return {"message": "Logged out"}
+
+@router.get("/verify-invite")
+async def verify_invite_token(
+    token: str,
+    db: AsyncSession = Depends(deps.get_db),
+) -> Any:
+    """Verify an invitation token before accepting."""
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    result = await db.execute(
+        select(models.User).where(
+            models.User.invitation_token_hash == token_hash,
+            models.User.invitation_status == "pending"
+        )
+    )
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
+
+    if user.invitation_expires_at and user.invitation_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invitation token has expired")
+
+    return {
+        "valid": True,
+        "email": user.email,
+        "full_name": user.full_name,
+        "organization_name": user.organization_name,
+        "role": user.role.value if user.role else "user",
+    }
 
 @router.post("/accept-invite")
 async def accept_invite(
@@ -191,35 +318,22 @@ async def accept_invite(
     user.is_active = True
     
     db.add(user)
-    await db.flush()
-
-    # 3. Create tokens and log in
-    access_token = security.create_access_token(
-        user.id, token_version=user.token_version,
-        email=user.email, role=user.role.value if user.role else None,
-    )
-    refresh_token = security.create_refresh_token(user.id, token_version=user.token_version)
-    
-    db_refresh_token = models.RefreshToken(
-        token_hash=get_token_hash(refresh_token),
-        user_id=user.id,
-        expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
-    )
-    db.add(db_refresh_token)
     await db.commit()
-    
-    response.set_cookie(
-        key="access_token", value=access_token, httponly=True,
-        secure=settings.ENVIRONMENT == "production", samesite="lax",
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-    response.set_cookie(
-        key="refresh_token", value=refresh_token, httponly=True,
-        secure=settings.ENVIRONMENT == "production", samesite="lax",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
-    )
-    
-    return {"message": "Invitation accepted and logged in", "access_token": access_token}
+
+    # 3. Check 2FA requirement
+    is_mandatory = totp_service.is_2fa_mandatory_for_role(user.role)
+    if user.totp_enabled or is_mandatory:
+        two_fa_token = security.create_2fa_challenge_token(
+            subject=user.id, email=user.email, role=user.role.value if user.role else "admin"
+        )
+        return {
+            "message": "Account activated. 2FA setup required.",
+            "mfa_required": True,
+            "mfa_setup_required": not user.totp_enabled,
+            "two_fa_token": two_fa_token,
+        }
+
+    return await issue_user_tokens(response, db, user)
 
 @router.post("/forgot-password", dependencies=[Depends(deps.rate_limit(limit=3, window=60))])
 async def forgot_password(
@@ -244,7 +358,7 @@ async def forgot_password(
     db.add(user)
     await db.commit()
     
-    await send_reset_password_email(email_to=user.email, token=token)
+    await send_reset_password_email(email_to=user.email, token=token, full_name=user.full_name, db=db)
     
     return {"message": "If an account exists for this email, you will receive a reset link shortly."}
 
@@ -295,9 +409,11 @@ async def register_user(
     *,
     db: AsyncSession = Depends(deps.get_db),
     user_in: schemas.UserCreate,
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.superadmin])),
 ) -> Any:
     """
-    Create new user.
+    Create new user (superadmin only).
+    Normal user creation goes through the invitation flow.
     """
     # Check if user exists
     from sqlalchemy import select

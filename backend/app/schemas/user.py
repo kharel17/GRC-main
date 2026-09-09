@@ -34,6 +34,7 @@ class UserInDBBase(UserBase):
     permission_profile_id: Optional[UUID] = None
     permission_profile: Optional[PermissionProfileResponse] = None
     access_expires_at: Optional[datetime] = None
+    totp_enabled: Optional[bool] = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -61,3 +62,25 @@ class ForgotPassword(BaseModel):
 class ResetPassword(BaseModel):
     token: str
     password: str
+
+# ── 2FA Schemas ───────────────────────────────────────────────
+class TOTPSetupResponse(BaseModel):
+    secret: str
+    qr_code: str
+    provisioning_uri: str
+
+class TOTPVerifyRequest(BaseModel):
+    code: str
+
+class TOTPLoginVerifyRequest(BaseModel):
+    two_fa_token: str
+    code: str
+
+class TOTPDisableRequest(BaseModel):
+    code: str
+    password: Optional[str] = None
+
+class TOTPStatusResponse(BaseModel):
+    totp_enabled: bool
+    is_mandatory: bool
+    has_backup_codes: bool

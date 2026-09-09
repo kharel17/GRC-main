@@ -63,7 +63,7 @@ async def run_migrations_online() -> None:
     """
     from app.config import settings
     configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = settings.SQLALCHEMY_DATABASE_URI
+    configuration["sqlalchemy.url"] = settings.ALEMBIC_DATABASE_URI or settings.SQLALCHEMY_DATABASE_URI
 
     connectable = async_engine_from_config(
         configuration,

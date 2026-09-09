@@ -21,6 +21,7 @@ import { api } from "@/lib/api-client";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { getAccessToken } from "@/lib/token-storage";
 import {
   Dialog,
   DialogContent,
@@ -131,8 +132,15 @@ function ReportsContent() {
     try {
       setDownloading(reportId);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      let token = getAccessToken();
+      if (!token) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          token = session?.access_token || null;
+        } catch {
+          // ignore
+        }
+      }
 
       if (!token) {
         toast.error("Authentication session expired. Please log in again.");
@@ -143,7 +151,8 @@ function ReportsContent() {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`
-        }
+        },
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -184,8 +193,15 @@ function ReportsContent() {
     try {
       setGeneratingCustom(true);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      let token = getAccessToken();
+      if (!token) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          token = session?.access_token || null;
+        } catch {
+          // ignore
+        }
+      }
 
       if (!token) {
         toast.error("Not authenticated");
@@ -198,6 +214,7 @@ function ReportsContent() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify(customConfig)
       });
 

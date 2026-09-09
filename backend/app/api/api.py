@@ -3,7 +3,8 @@ from app.api import (
     auth, users, organization, assets, risks, audit_logs, controls, 
     control_applicability, compliance, evidence, document_analysis, 
     gap_analysis, audit_preparation, reports, notifications, ai, 
-    dashboard, tickets, invitations, onboarding, superadmin, permission_profiles
+    dashboard, tickets, invitations, onboarding, superadmin, permission_profiles,
+    policies
 )
 
 
@@ -52,6 +53,7 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(invitations.router, prefix="/invitations", tags=["invitations"])
 api_router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
+api_router.include_router(policies.router, prefix="/policies", tags=["policies"])
 
 # Ingestion Pipeline Status
 from app.ingestion import status_api

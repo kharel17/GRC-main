@@ -15,6 +15,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { setTokens } from "@/lib/token-storage";
+
+import { TwoFactorVerifyModal } from "@/components/auth/TwoFactorVerifyModal";
+import { GoogleLogin } from "@react-oauth/google";
 
 function LoginContent() {
   const router = useRouter();
@@ -25,6 +29,7 @@ function LoginContent() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mfaData, setMfaData] = useState<{ twoFaToken: string; mfaSetupRequired?: boolean } | null>(null);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -41,18 +46,22 @@ function LoginContent() {
     return emailRegex.test(email);
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleSuccess = async (credential?: string) => {
+    if (!credential) return;
     setIsLoading(true);
     setError("");
     try {
-      const result = await loginWithGoogle();
-      if (!result.success) {
-        setError(result.error || "Google login failed");
+      const result = await loginWithGoogle(credential);
+      if (result.success) {
+        const isSuper = (window as any)?.__USER_ROLE__ === 'superadmin';
+        const redirect = searchParams.get("redirect") || (isSuper ? "/superadmin" : "/dashboard");
+        window.location.href = redirect;
+      } else {
+        setError(result.error || "Google sign-in failed. Please try again.");
         setIsLoading(false);
       }
-      // On success, Supabase will redirect the browser to Google
-    } catch (e) {
-      setError("An unexpected error occurred");
+    } catch {
+      setError("An unexpected error occurred during Google sign-in.");
       setIsLoading(false);
     }
   };
@@ -62,7 +71,6 @@ function LoginContent() {
     setIsLoading(true);
     setError("");
 
-    // Client-side validation
     if (!email.trim()) {
       setError("Email is required");
       setIsLoading(false);
@@ -85,9 +93,15 @@ function LoginContent() {
       const result = await login(email, password);
 
       if (result.success) {
-        // Redirect based on role or to specified redirect path
-        const redirect = searchParams.get("redirect") || "/dashboard";
-        window.location.href = redirect;
+        if (result.mfa_required && result.two_fa_token) {
+          setMfaData({
+            twoFaToken: result.two_fa_token,
+            mfaSetupRequired: result.mfa_setup_required,
+          });
+        } else {
+          const redirect = searchParams.get("redirect") || "/dashboard";
+          window.location.href = redirect;
+        }
       } else {
         setError(result.error || "Invalid email or password");
       }
@@ -98,12 +112,29 @@ function LoginContent() {
     }
   };
 
-
-  // Show loading if checking auth state
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (mfaData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <TwoFactorVerifyModal
+          twoFaToken={mfaData.twoFaToken}
+          mfaSetupRequired={mfaData.mfaSetupRequired}
+          onSuccess={(tokens?: any) => {
+            if (tokens?.access_token) {
+              setTokens({ accessToken: tokens.access_token, refreshToken: tokens.access_token });
+            }
+            const redirect = searchParams.get("redirect") || "/dashboard";
+            window.location.href = redirect;
+          }}
+          onCancel={() => setMfaData(null)}
+        />
       </div>
     );
   }
@@ -136,33 +167,22 @@ function LoginContent() {
               </div>
             )}
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mb-6 relative hover:bg-slate-50"
-              onClick={handleGoogleLogin}
-              disabled={isLoading}
-            >
-              <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
-                <path
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  fill="#EA4335"
-                />
-              </svg>
-              Sign in with Google
-            </Button>
+            <div className="flex justify-center mb-6">
+              <GoogleLogin
+                onSuccess={(credentialResponse) => {
+                  if (credentialResponse.credential) {
+                    handleGoogleSuccess(credentialResponse.credential);
+                  }
+                }}
+                onError={() => {
+                  setError("Google sign-in failed. Please try again.");
+                }}
+                useOneTap
+                theme="outline"
+                shape="rectangular"
+                width="100%"
+              />
+            </div>
 
             <div className="relative mb-6">
               <div className="absolute inset-0 flex items-center">

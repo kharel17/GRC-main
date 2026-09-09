@@ -1,6 +1,5 @@
 import contextvars
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import event, text
 from sqlalchemy.orm import Session
 from app.config import settings
@@ -15,11 +14,10 @@ engine = create_async_engine(
     connect_args={"statement_cache_size": 0},  # Required for Supabase pgbouncer
 )
 
-SessionLocal = sessionmaker(
+SessionLocal = async_sessionmaker(
+    bind=engine,
     autocommit=False,
     autoflush=False,
-    bind=engine,
-    class_=AsyncSession,
     expire_on_commit=False,
 )
 

@@ -14,6 +14,9 @@ class ControlImplementationStatus(str, enum.Enum):
     not_applicable = "not_applicable"
 
 
+from typing import Optional
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+
 class ControlApplicability(Base):
     """
     Tracks the applicability and implementation status of each ISO 27001 control
@@ -21,35 +24,35 @@ class ControlApplicability(Base):
     """
     __tablename__ = "control_applicability"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    framework_id = Column(UUID(as_uuid=True), ForeignKey("frameworks.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    framework_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("frameworks.id"), nullable=True)
 
     # References the control annex ID from iso27001-controls.json (e.g. "5.1", "8.12")
-    control_annex = Column(String, nullable=False)
+    control_annex: Mapped[str] = mapped_column(String, nullable=False)
 
     # Link to the standard library control
-    framework_control_id = Column(UUID(as_uuid=True), ForeignKey("framework_controls.id"), nullable=True)
+    framework_control_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("framework_controls.id"), nullable=True)
 
-    is_applicable = Column(Boolean, default=True, nullable=False)
+    is_applicable: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Implementation status of this control for this org
-    status = Column(
+    status: Mapped[ControlImplementationStatus] = mapped_column(
         SAEnum(ControlImplementationStatus),
         default=ControlImplementationStatus.not_started,
         nullable=False,
     )
 
     # Required justification when control is marked as not applicable
-    justification = Column(Text, nullable=True)
+    justification: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Who is responsible for implementing/maintaining this control
-    responsible_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    responsible_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
-    notes = Column(Text, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     organization = relationship("Organization", back_populates="control_applicabilities")

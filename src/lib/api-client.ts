@@ -9,7 +9,7 @@
  */
 
 import { supabase } from './supabase';
-import { clearTokens } from './token-storage';
+import { clearTokens, getAccessToken } from './token-storage';
 import { toast } from 'sonner';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -85,15 +85,22 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     ...(extraHeaders as Record<string, string> || {}),
   };
 
-  // Inject Support Access Token (Impersonation) or Supabase JWT
+  // Inject Support Access Token (Impersonation), Local JWT, or fallback to Supabase JWT
   if (!skipAuth) {
     const supportToken = typeof window !== 'undefined' ? sessionStorage.getItem('support_access_token') : null;
+    const localToken = getAccessToken();
     if (supportToken) {
       headers['Authorization'] = `Bearer ${supportToken}`;
+    } else if (localToken) {
+      headers['Authorization'] = `Bearer ${localToken}`;
     } else {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+      } catch {
+        // ignore
       }
     }
   }
@@ -101,6 +108,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetchWithRetry(`${API_BASE_URL}${endpoint}`, {
     ...rest,
     headers,
+    credentials: 'include',
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -119,7 +127,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
       const { refreshAccessToken } = await import('./auth');
       const refreshed = await refreshAccessToken();
 
-      if (refreshed) {
+      if (refreshed?.accessToken) {
         // Retry the original request with the new token
         const newHeaders = { ...headers, 'Authorization': `Bearer ${refreshed.accessToken}` };
         const retryResponse = await fetchWithRetry(`${API_BASE_URL}${endpoint}`, {
@@ -181,15 +189,28 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
   const headers: Record<string, string> = {};
   // Do NOT set Content-Type - browser sets it with boundary for multipart
 
-  // Inject Supabase JWT Bearer token
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`;
+  // Inject Support Access Token, Local JWT, or fallback to Supabase
+  const supportToken = typeof window !== 'undefined' ? sessionStorage.getItem('support_access_token') : null;
+  const localToken = getAccessToken();
+  if (supportToken) {
+    headers['Authorization'] = `Bearer ${supportToken}`;
+  } else if (localToken) {
+    headers['Authorization'] = `Bearer ${localToken}`;
+  } else {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+    } catch {
+      // ignore
+    }
   }
 
   const response = await fetchWithRetry(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,
+    credentials: 'include',
     body: formData,
   });
 

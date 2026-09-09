@@ -1,11 +1,11 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SAEnum, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from .base import Base
 import enum
 import uuid
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 class UserRole(str, enum.Enum):
     superadmin = "superadmin"
@@ -22,34 +22,39 @@ class UserRole(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(String, unique=True, index=True, nullable=False)
-    full_name = Column(String, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    role = Column(SAEnum(UserRole), default=UserRole.admin)
-    department = Column(String, nullable=True)
-    is_active = Column(Boolean, default=True)
-    token_version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    is_acting_admin = Column(Integer, server_default='0', default=0)
-    manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
-    permission_profile_id = Column(UUID(as_uuid=True), ForeignKey("permission_profiles.id"), nullable=True)
-    access_expires_at = Column(DateTime, nullable=True) # Used for time-boxed auditor guest windows
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[UserRole] = mapped_column(SAEnum(UserRole), default=UserRole.admin)
+    department: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    token_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_acting_admin: Mapped[int] = mapped_column(Integer, server_default='0', default=0)
+    manager_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    organization_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    permission_profile_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("permission_profiles.id"), nullable=True)
+    access_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True) # Used for time-boxed auditor guest windows
 
     # Invitation System
-    invitation_status = Column(String, default="pending", nullable=False) # pending, active, deactivated
-    invitation_token_hash = Column(String, nullable=True, index=True)
-    invitation_expires_at = Column(DateTime, nullable=True)
+    invitation_status: Mapped[str] = mapped_column(String, default="pending", nullable=False) # pending, active, deactivated
+    invitation_token_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    invitation_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     # Password Reset System
-    reset_token_hash = Column(String, nullable=True, index=True)
-    reset_token_expires_at = Column(DateTime, nullable=True)
+    reset_token_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    reset_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    invited_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    invited_at = Column(DateTime, nullable=True)
-    organization_name = Column(String, nullable=True) # Used during onboarding
+    # TOTP 2FA System
+    totp_secret: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='false')
+    totp_backup_codes: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+
+    invited_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    invited_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    organization_name: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Used during onboarding
 
     # Relationships
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")

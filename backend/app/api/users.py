@@ -71,6 +71,9 @@ async def read_users(
             )
         )
 
+    if not is_superadmin:
+        stmt = stmt.where(User.role != UserRole.superadmin)
+
     stmt = stmt.offset(skip).limit(limit)
     result = await db.execute(stmt)
     users = result.scalars().all()
@@ -130,6 +133,9 @@ async def read_user_by_id(
     user = result.scalar_one_or_none()
 
     if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not is_superadmin and (user.role == UserRole.superadmin or getattr(user.role, 'value', None) == 'superadmin'):
         raise HTTPException(status_code=404, detail="User not found")
 
     return user
@@ -243,6 +249,12 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    if user.role == UserRole.superadmin or (hasattr(user.role, 'value') and user.role.value == 'superadmin'):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation rejected: Cannot modify or deactivate a platform Superadmin"
+        )
+
     if is_manager and user.manager_id != current_user.id:
         raise HTTPException(status_code=403, detail="Managers can only deactivate their direct reports")
 
@@ -299,6 +311,12 @@ async def update_user_role(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid role: '{new_role}'")
 
+    if not is_superadmin and role_enum == UserRole.superadmin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation rejected: Non-superadmin cannot assign superadmin role"
+        )
+
     if is_superadmin:
         stmt = select(User).where(User.id == user_id)
     else:
@@ -309,6 +327,12 @@ async def update_user_role(
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role == UserRole.superadmin or (hasattr(user.role, 'value') and user.role.value == 'superadmin'):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation rejected: Cannot modify or deactivate a platform Superadmin"
+        )
 
     user.role = role_enum
     db.add(user)

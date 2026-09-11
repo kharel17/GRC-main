@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 interface TenantSummary {
   id: string;
@@ -95,34 +96,9 @@ export default function SuperAdminPage() {
     );
   }
 
-  // ── 2. Strict 403 Forbidden Access Guard (Zero data leak) ──
+  // ── 2. Route Obfuscation (403 -> 404): Prevent endpoint enumeration ──
   if (!currentUser || !isSuperAdmin) {
-    return (
-      <div className="flex min-h-[75vh] items-center justify-center p-4">
-        <Card className="max-w-md w-full border-red-200 bg-red-50/40 text-center shadow-lg">
-          <CardHeader className="pb-4">
-            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
-              <ShieldAlert className="h-8 w-8" />
-            </div>
-            <CardTitle className="text-2xl font-bold text-red-950">403 — Access Denied</CardTitle>
-            <CardDescription className="text-red-700 text-sm mt-1">
-              You do not have permission to view or manage the Super Admin Control Plane.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-xs text-muted-foreground bg-white/70 p-3 rounded border border-red-100">
-              Your active account role is <strong className="capitalize text-foreground">{currentUser?.role || "guest"}</strong>. This zone is exclusively restricted to verified Platform Operations Personnel.
-            </p>
-            <Link href="/dashboard">
-              <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Return to Dashboard
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    notFound();
   }
 
   const handleInviteAdmin = async (e: React.FormEvent) => {

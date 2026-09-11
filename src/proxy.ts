@@ -63,6 +63,15 @@ function decodeTokenPayload(token: string): { role: UserRole; exp: number } | nu
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Mask /superadmin routes for unauthorized callers (403 -> 404 route obfuscation)
+  if (pathname.startsWith('/superadmin')) {
+    const tokenCookie = request.cookies.get('grc_access_token');
+    const payload = tokenCookie?.value ? decodeTokenPayload(tokenCookie.value) : null;
+    if (payload?.role !== 'superadmin') {
+      return NextResponse.rewrite(new URL('/404', request.url), { status: 404 });
+    }
+  }
+
   // Only protect /dashboard routes
   if (!pathname.startsWith('/dashboard')) {
     return NextResponse.next();
@@ -121,12 +130,10 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all dashboard routes
-     * Excludes:
-     * - api routes
-     * - static files
-     * - public assets
+     * Match dashboard and superadmin routes
      */
     '/dashboard/:path*',
+    '/superadmin/:path*',
+    '/superadmin',
   ],
 };

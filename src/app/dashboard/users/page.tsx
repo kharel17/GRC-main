@@ -444,7 +444,7 @@ function UsersContent() {
                                             </td>
                                             {(isAdmin || isSuperAdmin || isManager) && (
                                                 <td className="px-6 py-2 sm:py-4 sm:text-right">
-                                                    {confirmRemoveId === u.id ? (
+                                                    {u.role === 'superadmin' ? null : confirmRemoveId === u.id ? (
                                                         <div className="flex flex-col items-end gap-2">
                                                             <span className="text-xs font-medium text-red-600">
                                                                 Deactivate {u.full_name || u.email}?

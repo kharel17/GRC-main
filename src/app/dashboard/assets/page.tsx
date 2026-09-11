@@ -244,17 +244,19 @@ export default function AssetsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 w-8 p-0"
-                      onClick={() => {
-                        setSelectedAssetId(asset.id);
-                        setIsLinking(true);
-                      }}
-                    >
-                      <Link className="h-4 w-4" />
-                    </Button>
+                    <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => {
+                          setSelectedAssetId(asset.id);
+                          setIsLinking(true);
+                        }}
+                      >
+                        <Link className="h-4 w-4" />
+                      </Button>
+                    </RoleGuard>
                   </TableCell>
                 </TableRow>
               ))}

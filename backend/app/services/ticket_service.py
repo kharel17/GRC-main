@@ -190,8 +190,43 @@ class TicketService:
         if not due_date:
             due_date = TicketService.calculate_sla_due_date(ticket_in.priority)
 
+        ticket_data = ticket_in.model_dump(exclude={"due_date", "created_by"})
+        
+        # Ensure category
+        if not ticket_data.get("category"):
+            ticket_data["category"] = models.TicketCategory.compliance_gap
+            
+        # Ensure assigned_to_id
+        if not ticket_data.get("assigned_to_id"):
+            ticket_data["assigned_to_id"] = current_user_id
+            
+        # Ensure assigned_to_role
+        if not ticket_data.get("assigned_to_role"):
+            assignee_res = await db.execute(select(models.User).where(models.User.id == ticket_data["assigned_to_id"]))
+            assignee = assignee_res.scalar_one_or_none()
+            if assignee:
+                ticket_data["assigned_to_role"] = str(getattr(assignee.role, 'value', assignee.role))
+            else:
+                ticket_data["assigned_to_role"] = "analyst"
+                
+        # Ensure source_audit_log_id
+        if not ticket_data.get("source_audit_log_id"):
+            from app.models.audit_log import AuditLog, AuditAction, AuditEntityType
+            ticket_audit = AuditLog(
+                id=uuid.uuid4(),
+                organization_id=ticket_data.get("organization_id"),
+                user_id=current_user_id,
+                action=AuditAction.created,
+                entity_type=AuditEntityType.ticket,
+                entity_name=ticket_data.get("title", "Ticket"),
+                description=f"Ticket created: {ticket_data.get('title', '')}"
+            )
+            db.add(ticket_audit)
+            await db.flush()
+            ticket_data["source_audit_log_id"] = ticket_audit.id
+
         ticket = models.Ticket(
-            **ticket_in.model_dump(exclude={"due_date"}),
+            **ticket_data,
             due_date=due_date,
             created_by=current_user_id
         )

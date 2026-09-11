@@ -8,7 +8,7 @@ export const PERMISSIONS: Record<string, UserRole[]> = {
   VIEW_ASSETS: ['admin', 'manager', 'analyst'],
   
   // Risks
-  CREATE_RISK: ['admin', 'manager'],
+  CREATE_RISK: ['admin', 'manager', 'analyst'],
   EDIT_RISK: ['admin', 'manager'],
   DELETE_RISK: ['admin'],
   VIEW_RISKS: ['admin', 'manager', 'analyst'],
@@ -42,6 +42,7 @@ export const PERMISSIONS: Record<string, UserRole[]> = {
   DOWNLOAD_REPORTS: ['admin', 'manager', 'analyst'],
   
   // Tickets
+  CREATE_TICKET: ['admin', 'manager', 'analyst'],
   VIEW_TICKETS: ['admin', 'manager', 'analyst'], // Analyst only sees own
   RESOLVE_TICKET: ['admin', 'manager', 'analyst'],
   APPROVE_TICKET: ['admin', 'manager'],

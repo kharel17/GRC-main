@@ -88,7 +88,7 @@ async def create_risk(
     db: AsyncSession = Depends(deps.get_db),
     background_tasks: BackgroundTasks,
     risk_in: schemas.RiskCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager, models.UserRole.analyst])),
 ) -> Any:
     """
     Create new risk.
@@ -413,13 +413,8 @@ async def map_control_to_risk(
 
     # Auto-update risk status based on control mapping
     if risk and risk.status != models.RiskStatus.accepted:
-        # If control is high effectiveness or implemented -> mark risk as mitigated
-        if (
-            ctrl.effectiveness == models.ControlEffectiveness.high
-            or ctrl.status == models.ControlStatus.implemented
-        ):
+        if ctrl.status == models.ControlStatus.implemented:
             risk.status = models.RiskStatus.mitigated
-        # If risk was just identified -> move to assessed
         elif risk.status == models.RiskStatus.identified:
             risk.status = models.RiskStatus.assessed
 

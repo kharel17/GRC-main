@@ -62,7 +62,7 @@ async def create_ticket(
     *,
     db: AsyncSession = Depends(deps.get_db),
     ticket_in: schemas.TicketCreate,
-    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager])),
+    current_user: models.User = Depends(deps.RoleChecker([models.UserRole.admin, models.UserRole.manager, models.UserRole.analyst])),
 ) -> Any:
     """
     Create new ticket. Org ID is injected from current user.

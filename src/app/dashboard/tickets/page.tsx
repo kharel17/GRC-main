@@ -29,11 +29,13 @@ import {
   XCircle,
 } from 'lucide-react';
 import { TicketCard } from '@/features/tickets/TicketCard';
+import { NewTicketDialog } from '@/features/tickets/NewTicketDialog';
 
 export default function TicketsPage() {
   const { user } = useAuth();
   const { data: tickets, loading, error, refetch } = useApiData(fetchTickets);
   
+  const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -136,6 +138,12 @@ export default function TicketsPage() {
             Track, escalate, and share risk findings with stakeholders
           </p>
         </div>
+        <RoleGuard allowedRoles={['admin', 'manager', 'analyst']}>
+          <Button onClick={() => setIsCreateTicketOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Ticket
+          </Button>
+        </RoleGuard>
       </div>
 
       {/* Stats Cards */}
@@ -236,7 +244,7 @@ export default function TicketsPage() {
       </div>
 
       {filteredTickets.length === 0 ? (
-        <Card className="border-dashed">
+        <Card className="border border-dashed">
           <CardContent className="py-12 text-center">
             <Ticket className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
             <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
@@ -261,6 +269,12 @@ export default function TicketsPage() {
           ))}
         </div>
       )}
+
+      <NewTicketDialog
+        open={isCreateTicketOpen}
+        onOpenChange={setIsCreateTicketOpen}
+        onSuccess={refetch}
+      />
     </div>
   );
 }

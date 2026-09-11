@@ -42,6 +42,9 @@ async def create_organization(
             detail="User already belongs to an organization. Use PUT /organization/ to update."
         )
 
+    if org_in.size:
+        org_in.size = org_in.size.lower()
+
     org_data = org_in.model_dump()
     # model column 'employee_count' is String, schema sends Optional[int] — cast safely
     if org_data.get("employee_count") is not None:
@@ -79,6 +82,9 @@ async def update_organization(
     if not org:
         raise HTTPException(status_code=404, detail="No organization found. Create one first.")
     
+    if org_in.size:
+        org_in.size = org_in.size.lower()
+
     update_data = org_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(org, field, value)

@@ -24,6 +24,7 @@ import { format } from "date-fns";
 import { Organization } from "@/types";
 
 import { PageRoleGuard } from "@/components/auth/PageRoleGuard";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 
 const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Retail", "Manufacturing", "Education", "Government", "Other"];
 const EMPLOYEE_RANGES = ["1-50", "51-200", "201-1000", "1000+"];
@@ -302,10 +303,12 @@ function OrganizationContent() {
           <p className="text-muted-foreground text-sm">Manage your organization profile and compliance frameworks.</p>
         </div>
         {!isEditing ? (
-          <Button onClick={startEditing} variant="outline" className="gap-2">
-            <Edit2 className="h-4 w-4" />
-            Edit Profile
-          </Button>
+          <RoleGuard allowedRoles={['admin']}>
+            <Button onClick={startEditing} variant="outline" className="gap-2">
+              <Edit2 className="h-4 w-4" />
+              Edit Profile
+            </Button>
+          </RoleGuard>
         ) : (
           <div className="flex items-center gap-2">
             <Button onClick={() => setIsEditing(false)} variant="ghost" disabled={saving}>
@@ -350,11 +353,20 @@ function OrganizationContent() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="org-size">Size</Label>
-                  <Input 
-                    id="org-size" 
-                    value={formData.size} 
-                    onChange={(e) => setFormData({...formData, size: e.target.value})}
-                  />
+                  <Select 
+                    value={formData.size?.toLowerCase() || 'small'} 
+                    onValueChange={(val) => setFormData({ ...formData, size: val })}
+                  >
+                    <SelectTrigger className="w-full" id="org-size">
+                      <SelectValue placeholder="Select organization size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="small">Small (1-50 employees)</SelectItem>
+                      <SelectItem value="medium">Medium (51-200 employees)</SelectItem>
+                      <SelectItem value="large">Large (201-1000 employees)</SelectItem>
+                      <SelectItem value="enterprise">Enterprise (1000+ employees)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="org-country">Country</Label>

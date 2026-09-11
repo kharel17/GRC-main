@@ -103,8 +103,32 @@ class AITicketCreate(BaseModel):
     riskId: Optional[UUID] = None
     source_audit_log_id: UUID
 
-class TicketCreate(TicketBase):
-    pass
+class TicketCreate(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    priority: TicketPriority = TicketPriority.medium
+    status: TicketStatus = TicketStatus.open
+    category: Optional[TicketCategory] = TicketCategory.compliance_gap
+    source_audit_log_id: Optional[UUID] = None
+    assigned_to_id: Optional[UUID] = None
+    assigned_to_role: Optional[str] = None
+    escalated_to_id: Optional[UUID] = None
+    escalated_to_role: Optional[str] = None
+    escalation_level: int = 1
+    is_auto_escalation_enabled: bool = True
+    is_repeat_finding: bool = False
+    iso_clause: Optional[str] = None
+    risk_score: Optional[int] = None
+    related_risk_id: Optional[UUID] = None
+    related_entity_type: Optional[str] = None
+    related_entity_id: Optional[UUID] = None
+    created_by: Optional[UUID] = None
+    due_date: Optional[datetime] = None
+    previous_ticket_id: Optional[UUID] = None
+    status_updated_at: Optional[datetime] = None
+    organization_id: Optional[UUID] = None
+
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 class TicketUpdate(BaseModel):
     title: Optional[str] = None

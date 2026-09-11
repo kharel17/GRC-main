@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from pydantic.alias_generators import to_camel
-from typing import Optional, List
+from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime
 
@@ -24,6 +24,16 @@ class OrganizationCreate(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+    @field_validator("size", mode="before")
+    @classmethod
+    def normalize_size(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            return v_clean if v_clean else None
+        return v
+
 
 class OrganizationUpdate(BaseModel):
     name: Optional[str] = None
@@ -43,6 +53,16 @@ class OrganizationUpdate(BaseModel):
     compliance_target_date: Optional[datetime] = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    @field_validator("size", mode="before")
+    @classmethod
+    def normalize_size(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            return v_clean if v_clean else None
+        return v
 
 
 class OrganizationResponse(BaseModel):

@@ -69,6 +69,29 @@ export class ApiError extends Error {
   }
 }
 
+function formatErrorMessage(status: number, errorBody: unknown, defaultMsg: string): string {
+  if (errorBody && typeof errorBody === 'object') {
+    const data = errorBody as Record<string, any>;
+    if (data.detail) {
+      if (Array.isArray(data.detail)) {
+        return data.detail
+          .map((err: any) => `${err.loc?.slice(-1)[0] || 'field'}: ${err.msg || 'invalid'}`)
+          .join(', ');
+      } else if (typeof data.detail === 'string') {
+        return data.detail;
+      } else {
+        return JSON.stringify(data.detail);
+      }
+    }
+    if (data.message && typeof data.message === 'string') {
+      return data.message;
+    }
+  } else if (typeof errorBody === 'string' && errorBody.trim()) {
+    return errorBody;
+  }
+  return defaultMsg;
+}
+
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   skipAuth?: boolean;
@@ -161,9 +184,10 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     } catch {
       errorBody = await response.text();
     }
+    const message = formatErrorMessage(response.status, errorBody, `HTTP ${response.status}`);
     throw new ApiError(
       response.status,
-      (errorBody as { detail?: string })?.detail || `HTTP ${response.status}`,
+      message,
       errorBody,
     );
   }
@@ -216,7 +240,8 @@ async function uploadFile<T>(endpoint: string, file: File, fields?: Record<strin
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, (errorBody as { detail?: string }).detail || `Upload failed`, errorBody);
+    const message = formatErrorMessage(response.status, errorBody, 'Upload failed');
+    throw new ApiError(response.status, message, errorBody);
   }
 
   return response.json() as Promise<T>;

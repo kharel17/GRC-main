@@ -522,6 +522,10 @@ export async function fetchDocumentAnalyses(): Promise<DocumentAnalysis[]> {
   return fetchOrFallback<DocumentAnalysis[]>('/document-analysis/', []);
 }
 
+export async function fetchDocumentAnalysisById(id: string): Promise<DocumentAnalysis> {
+  return api.get<DocumentAnalysis>(`/document-analysis/${id}`);
+}
+
 export async function submitDocumentForAnalysis(file: File, organizationId?: string): Promise<DocumentAnalysis> {
   return api.upload<DocumentAnalysis>('/document-analysis/upload/', file, { 
     ...(organizationId && { organization_id: organizationId }),

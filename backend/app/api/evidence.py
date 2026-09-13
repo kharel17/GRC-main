@@ -7,6 +7,7 @@ status verification workflow, and expiry tracking.
 from typing import Any, List, Optional
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -125,7 +126,7 @@ async def create_evidence(
             related_to=related_to_enum,
             related_id=related_uuid,
             uploaded_by=current_user.id,
-            uploaded_at=datetime.now(timezone.utc),
+            uploaded_at=datetime.now(timezone.utc).replace(tzinfo=None),
             organization_id=current_user.organization_id,
         )
         db.add(evidence)
@@ -187,7 +188,7 @@ async def create_evidence(
 async def read_evidence(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
-    related_id: Optional[UUID] = Query(None, description="Filter by control or risk ID"),
+    related_id: Optional[str] = Query(None, description="Filter by control or risk ID"),
     skip: int = 0,
     limit: int = 100,
 ) -> Any:
@@ -201,7 +202,42 @@ async def read_evidence(
     )
 
     if related_id:
-        query = query.where(models.Evidence.related_id == related_id)
+        target_uuid = None
+        try:
+            target_uuid = uuid.UUID(related_id)
+        except (ValueError, TypeError):
+            pass
+
+        if not target_uuid:
+            # Check FrameworkControl by code (e.g., "5.1", "A.5.1") or title
+            fc_stmt = select(models.FrameworkControl.id).where(
+                (models.FrameworkControl.code.ilike(f"%{related_id}%")) |
+                (models.FrameworkControl.title.ilike(f"%{related_id}%"))
+            )
+            fc_res = await db.execute(fc_stmt)
+            target_uuid = fc_res.scalar_one_or_none()
+
+        if not target_uuid:
+            # Check Control by title
+            ctrl_stmt = select(models.Control.id).where(
+                models.Control.title.ilike(f"%{related_id}%")
+            )
+            ctrl_res = await db.execute(ctrl_stmt)
+            target_uuid = ctrl_res.scalar_one_or_none()
+
+        if target_uuid:
+            query = query.where(models.Evidence.related_id == target_uuid)
+        else:
+            # Check if related_id matches any EvidenceControlMatch control_id (e.g. "5.15")
+            ecm_stmt = select(models.EvidenceControlMatch.evidence_id).where(
+                models.EvidenceControlMatch.control_id.ilike(f"%{related_id}%")
+            )
+            ecm_res = await db.execute(ecm_stmt)
+            matched_evidence_ids = ecm_res.scalars().all()
+            if matched_evidence_ids:
+                query = query.where(models.Evidence.id.in_(matched_evidence_ids))
+            else:
+                return []
     
     # Section 6: Evidence Filtering (RBAC)
     if current_user.role == models.UserRole.analyst:

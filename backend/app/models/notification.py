@@ -3,7 +3,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from .base import Base
+from .base import Base, utc_now
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -18,7 +18,7 @@ class Notification(Base):
     entity_id = Column(UUID(as_uuid=True), nullable=True)
     type = Column(String, nullable=False) # e.g., 'escalation', 'deadline', 'mention'
     is_read = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id])

@@ -2,7 +2,8 @@
 Document Analysis API — Upload and AI-analyze security documentation (Step 3).
 """
 from typing import Any, List
-from datetime import datetime
+from datetime import datetime, timezone
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -17,34 +18,21 @@ logger = logging.getLogger("grc.document_analysis")
 router = APIRouter()
 
 
-@router.get("/", response_model=List[schemas.DocumentAnalysisSummary])
+@router.get("/", response_model=List[schemas.DocumentAnalysisResponse])
 async def list_document_analyses(
     db: AsyncSession = Depends(deps.get_db),
     skip: int = 0,
     limit: int = 50,
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """List all document analyses."""
+    """List all document analyses with full findings."""
     result = await db.execute(
         select(models.DocumentAnalysis)
         .order_by(models.DocumentAnalysis.created_at.desc())
         .offset(skip).limit(limit)
     )
     analyses = result.scalars().all()
-    
-    # Build summary responses
-    summaries = []
-    for a in analyses:
-        summaries.append(schemas.DocumentAnalysisSummary(
-            id=a.id,
-            file_name=a.file_name,
-            status=a.status.value if hasattr(a.status, 'value') else str(a.status),
-            document_category=a.document_category,
-            implemented_count=len(a.implemented_controls) if a.implemented_controls else 0,
-            missing_count=len(a.missing_controls) if a.missing_controls else 0,
-            created_at=a.created_at,
-        ))
-    return summaries
+    return analyses
 
 
 @router.get("/{analysis_id}", response_model=schemas.DocumentAnalysisResponse)
@@ -87,9 +75,17 @@ async def upload_and_analyze_document(
     if not target_org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
 
+    try:
+        org_uuid = uuid.UUID(str(target_org_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid organization ID format")
+
+    filename = file.filename or "uploaded_document"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "unknown"
+
     # Validate file type
     allowed_types = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
-    if file.content_type not in allowed_types and not file.filename.lower().endswith(('.pdf', '.docx', '.txt')):
+    if file.content_type not in allowed_types and not filename.lower().endswith(('.pdf', '.docx', '.txt')):
         raise HTTPException(status_code=400, detail="Only PDF, DOCX, and TXT files are supported")
     
     # Read file bytes
@@ -98,23 +94,23 @@ async def upload_and_analyze_document(
         raise HTTPException(status_code=400, detail="Empty file uploaded")
     
     # Store the file
-    file_key = await file_storage.upload(file_bytes, file.filename, file.content_type or "application/octet-stream")
+    file_key = await file_storage.upload(file_bytes, filename, file.content_type or "application/octet-stream")
     file_url = await file_storage.get_download_url(file_key)
     
     # Create evidence record if requested
     evidence_id = None
     if link_as_evidence:
         evidence = models.Evidence(
-            title=f"Document: {file.filename}",
-            description=f"AI-analyzed security document: {file.filename}",
+            title=f"Document: {filename}",
+            description=f"AI-analyzed security document: {filename}",
             file_url=file_url,
-            file_name=file.filename,
-            file_type=file.filename.rsplit(".", 1)[-1] if "." in file.filename else "unknown",
+            file_name=filename,
+            file_type=ext,
             file_size=len(file_bytes),
             related_to=models.EvidenceRelatedTo.compliance_item,
-            related_id=models.uuid.uuid4(),
+            related_id=uuid.uuid4(),
             uploaded_by=current_user.id,
-            organization_id=target_org_id,
+            organization_id=org_uuid,
         )
         db.add(evidence)
         await db.flush()
@@ -122,11 +118,11 @@ async def upload_and_analyze_document(
     
     # Create DocumentAnalysis record
     doc_analysis = models.DocumentAnalysis(
-        organization_id=target_org_id,
-        file_name=file.filename,
+        organization_id=org_uuid,
+        file_name=filename,
         file_url=file_url,
         file_size=len(file_bytes),
-        file_type=file.filename.rsplit(".", 1)[-1] if "." in file.filename else "unknown",
+        file_type=ext,
         uploaded_by=current_user.id,
         status=models.DocumentAnalysisStatus.processing,
         evidence_id=evidence_id,
@@ -143,7 +139,7 @@ async def upload_and_analyze_document(
     await enqueue_ingestion_job(
         analysis_id=doc_analysis.id,
         file_bytes=file_bytes,
-        filename=file.filename,
+        filename=filename,
         organization_id=doc_analysis.organization_id,
         db=db,
     )
@@ -173,7 +169,8 @@ async def reanalyze_document(
     await db.flush()
     
     try:
-        analysis_result = await _run_document_analysis_async(doc_analysis.extracted_text)
+        extracted_text_val: str = doc_analysis.extracted_text or ""
+        analysis_result = await _run_document_analysis_async(extracted_text_val)
         
         doc_analysis.status = models.DocumentAnalysisStatus.completed
         doc_analysis.document_category = analysis_result.get("document_category", "general")
@@ -181,7 +178,7 @@ async def reanalyze_document(
         doc_analysis.implemented_controls = analysis_result.get("implemented_controls", [])
         doc_analysis.missing_controls = analysis_result.get("missing_controls", [])
         doc_analysis.security_practices = analysis_result.get("security_practices", [])
-        doc_analysis.analyzed_at = datetime.utcnow()
+        doc_analysis.analyzed_at = datetime.now(timezone.utc).replace(tzinfo=None)
         
     except Exception as e:
         logger.error(f"Re-analysis failed: {e}")

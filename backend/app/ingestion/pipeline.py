@@ -4,6 +4,7 @@ Document Ingestion Worker Pipeline — Orchestrates extract -> chunk -> embed ->
 import asyncio
 import logging
 from uuid import UUID
+from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.extractor import extract_pages_from_bytes
 from app.ingestion.chunker import chunk_document
@@ -23,6 +24,10 @@ async def process_document_job(
     Called via background worker or FastAPI BackgroundTasks.
     """
     logger.info(f"Starting ingestion pipeline for document {filename} (analysis_id={analysis_id})")
+
+    # Ensure AI service is initialized
+    if not ai_service.is_ready:
+        await asyncio.to_thread(ai_service.initialize)
 
     async with SessionLocal() as db:
         try:

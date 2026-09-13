@@ -91,17 +91,29 @@ export function DocumentAnalysisDetailsDialog({
                             </div>
                             <div className="grid gap-3">
                                 {analysis.implemented_controls && analysis.implemented_controls.length > 0 ? (
-                                    analysis.implemented_controls.map((control: any, i: number) => (
-                                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-green-100 bg-green-50/20 dark:border-green-900/20 dark:bg-green-900/5">
-                                            <div className="mt-0.5 px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-[10px] font-mono font-bold text-green-700 dark:text-green-300">
-                                                {control.annex}
+                                    analysis.implemented_controls.map((control: any, i: number) => {
+                                        const annexLabel = control.control_annex || control.annex || control.control_id || 'Control';
+                                        const confidenceVal = control.confidence ?? (control.confidence_score ? control.confidence_score / 100 : null);
+                                        const confidencePct = confidenceVal != null ? Math.round(confidenceVal > 1 ? confidenceVal : confidenceVal * 100) : null;
+                                        return (
+                                            <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-green-100 bg-green-50/20 dark:border-green-900/20 dark:bg-green-900/5">
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <div className="mt-0.5 px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-[10px] font-mono font-bold text-green-700 dark:text-green-300">
+                                                        {annexLabel}
+                                                    </div>
+                                                    {confidencePct != null && (
+                                                        <Badge variant="outline" className="text-[9px] py-0 px-1 border-green-300 text-green-700 dark:text-green-300">
+                                                            {confidencePct}%
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-semibold text-green-900 dark:text-green-100">{control.title}</p>
+                                                    <p className="text-xs text-green-700/70 dark:text-green-400/70 mt-0.5 line-clamp-2">{control.excerpt || control.evidence_found || 'Evidence identified in document contents.'}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-green-900 dark:text-green-100">{control.title}</p>
-                                                <p className="text-xs text-green-700/70 dark:text-green-400/70 mt-0.5 line-clamp-2">{control.evidence_found || 'Evidence identified in document contents.'}</p>
-                                            </div>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 ) : (
                                     <p className="text-sm text-muted-foreground italic pl-6">No matches identified.</p>
                                 )}
@@ -121,17 +133,20 @@ export function DocumentAnalysisDetailsDialog({
                             </div>
                             <div className="grid gap-3">
                                 {analysis.missing_controls && analysis.missing_controls.length > 0 ? (
-                                    analysis.missing_controls.map((control: any, i: number) => (
-                                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-amber-100 bg-amber-50/20 dark:border-amber-900/20 dark:bg-amber-900/5">
-                                            <div className="mt-0.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300">
-                                                {control.annex}
+                                    analysis.missing_controls.map((control: any, i: number) => {
+                                        const annexLabel = control.control_annex || control.annex || control.control_id || 'Gap';
+                                        return (
+                                            <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-amber-100 bg-amber-50/20 dark:border-amber-900/20 dark:bg-amber-900/5">
+                                                <div className="mt-0.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300">
+                                                    {annexLabel}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">{control.title}</p>
+                                                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-0.5 line-clamp-2">{control.reason || 'Requirement not sufficiently addressed in current document.'}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">{control.title}</p>
-                                                <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-0.5 line-clamp-2">{control.reason || 'Requirement not sufficiently addressed in current document.'}</p>
-                                            </div>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 ) : (
                                     <p className="text-sm text-muted-foreground italic pl-6">No gaps identified.</p>
                                 )}

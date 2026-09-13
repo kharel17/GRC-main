@@ -369,14 +369,23 @@ export interface DocumentAnalysis {
     severity: 'high' | 'medium' | 'low'
   }>
   implemented_controls?: Array<{
-    annex: string
+    annex?: string
+    control_annex?: string
+    control_id?: string
     title: string
+    confidence?: number
+    confidence_score?: number
+    excerpt?: string
     evidence_found?: string
   }>
   missing_controls?: Array<{
-    annex: string
+    annex?: string
+    control_annex?: string
+    control_id?: string
     title: string
     reason?: string
+    confidence?: number
+    confidence_score?: number
   }>
   summary?: string
   created_at?: string

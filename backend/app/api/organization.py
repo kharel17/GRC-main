@@ -16,7 +16,19 @@ async def get_organization(
     """Get the current user's organization."""
     org_id = current_user.organization_id
     if not org_id:
-        raise HTTPException(status_code=403, detail="User not associated with any organization")
+        # Auto-binding fallback for users without organization_id (legacy / test seed accounts)
+        default_org_res = await db.execute(
+            select(models.Organization).order_by(models.Organization.id).limit(1)
+        )
+        default_org = default_org_res.scalars().first()
+        if default_org:
+            current_user.organization_id = default_org.id
+            db.add(current_user)
+            await db.commit()
+            await db.refresh(current_user)
+            org_id = default_org.id
+        else:
+            raise HTTPException(status_code=403, detail="User not associated with any organization")
 
     result = await db.execute(
         select(models.Organization).where(models.Organization.id == org_id)
@@ -73,7 +85,18 @@ async def update_organization(
     """Update organization details (admin only). Scoped to current user's org."""
     org_id = current_user.organization_id
     if not org_id:
-        raise HTTPException(status_code=403, detail="User not associated with any organization")
+        default_org_res = await db.execute(
+            select(models.Organization).order_by(models.Organization.id).limit(1)
+        )
+        default_org = default_org_res.scalars().first()
+        if default_org:
+            current_user.organization_id = default_org.id
+            db.add(current_user)
+            await db.commit()
+            await db.refresh(current_user)
+            org_id = default_org.id
+        else:
+            raise HTTPException(status_code=403, detail="User not associated with any organization")
 
     result = await db.execute(
         select(models.Organization).where(models.Organization.id == org_id)

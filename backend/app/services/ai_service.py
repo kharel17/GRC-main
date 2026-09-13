@@ -241,13 +241,17 @@ class AIService:
     # ------------------------------------------------------------------
 
     def _embed_text(self, text: str) -> np.ndarray:
-        """Embed text using local NLP model."""
+        """Embed text using local NLP model with self-healing fallback."""
+        if self._local_model is None:
+            self.initialize()
         if self._local_model is not None:
             return self._local_model.encode([text], convert_to_numpy=True)
         raise RuntimeError("Local NLP engine not available.")
 
     def _embed_texts(self, texts: list[str]) -> np.ndarray:
-        """Embed multiple texts using local NLP model."""
+        """Embed multiple texts using local NLP model with self-healing fallback."""
+        if self._local_model is None:
+            self.initialize()
         if self._local_model is not None:
             return self._local_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
         raise RuntimeError("Local NLP engine not available.")
@@ -441,7 +445,7 @@ class AIService:
                     query_vector=text_embedding,
                     collection_name=settings.QDRANT_COLLECTION_DOC_CHUNKS,
                     top_k=3,
-                    org_id=str(org_id),
+                    org_id=org_id,
                 )
                 if policy_hits and float(policy_hits[0].get("score", 0.0)) >= threshold:
                     top_policy = policy_hits[0]

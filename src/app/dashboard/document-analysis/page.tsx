@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApiData } from "@/hooks";
-import { fetchDocumentAnalyses, submitDocumentForAnalysis, fetchOrganization } from "@/lib/data-service";
+import { fetchDocumentAnalyses, fetchDocumentAnalysisById, submitDocumentForAnalysis, fetchOrganization } from "@/lib/data-service";
 import { DocumentAnalysis } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,20 @@ function DocumentAnalysisContent() {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedAnalysis, setSelectedAnalysis] = useState<DocumentAnalysis | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  // Live auto-polling for documents that are processing or pending
+  useEffect(() => {
+    const hasPending = analyses?.some(
+      (a) => a.status === 'processing' || a.status === 'pending'
+    );
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      refetch();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [analyses, refetch]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -56,8 +70,14 @@ function DocumentAnalysisContent() {
     document.getElementById("doc-upload-input")?.click();
   };
 
-  const handleViewDetails = (analysis: DocumentAnalysis) => {
-    setSelectedAnalysis(analysis);
+  const handleViewDetails = async (analysis: DocumentAnalysis) => {
+    try {
+      const fullAnalysis = await fetchDocumentAnalysisById(String(analysis.id));
+      setSelectedAnalysis(fullAnalysis || analysis);
+    } catch (err) {
+      console.warn('[DocAnalysis] Failed to fetch full document analysis details, using cached:', err);
+      setSelectedAnalysis(analysis);
+    }
     setDetailsOpen(true);
   };
 

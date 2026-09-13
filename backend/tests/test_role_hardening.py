@@ -190,12 +190,13 @@ async def test_risk_mitigation_requires_implemented_control():
 
 def test_analyst_permissions_in_role_checkers():
     """Verify endpoint signatures and dependencies grant analyst creation rights."""
+    from fastapi.routing import APIRoute
     from app.api.risks import router as risks_router
     from app.api.tickets import router as tickets_router
 
     # Find the POST / route on risks_router
-    risk_post_route = next(r for r in risks_router.routes if r.path == "/" and "POST" in r.methods)
-    ticket_post_route = next(r for r in tickets_router.routes if r.path == "/" and "POST" in r.methods)
+    risk_post_route = next(r for r in risks_router.routes if isinstance(r, APIRoute) and r.path == "/" and "POST" in r.methods)
+    ticket_post_route = next(r for r in tickets_router.routes if isinstance(r, APIRoute) and r.path == "/" and "POST" in r.methods)
 
     # Check dependencies of the route handlers (FastAPI Dependant.dependencies contain Dependant objects whose callable is in .call)
     risk_role_checkers = [

@@ -5,10 +5,14 @@ from uuid import UUID
 from datetime import datetime
 
 
+VALID_AUTH_PROVIDERS = ("any", "microsoft", "google")
+
+
 class OrganizationCreate(BaseModel):
     name: str
     industry: Optional[str] = None
     size: Optional[str] = None  # small, medium, large, enterprise
+    auth_provider: Optional[str] = "any"  # any, microsoft, google
     description: Optional[str] = None
     website: Optional[str] = None
     country: Optional[str] = None
@@ -34,11 +38,24 @@ class OrganizationCreate(BaseModel):
             return v_clean if v_clean else None
         return v
 
+    @field_validator("auth_provider", mode="before")
+    @classmethod
+    def normalize_auth_provider(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return "any"
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            if v_clean not in VALID_AUTH_PROVIDERS:
+                raise ValueError(f"auth_provider must be one of {VALID_AUTH_PROVIDERS}")
+            return v_clean
+        return v
+
 
 class OrganizationUpdate(BaseModel):
     name: Optional[str] = None
     industry: Optional[str] = None
     size: Optional[str] = None
+    auth_provider: Optional[str] = None
     description: Optional[str] = None
     website: Optional[str] = None
     country: Optional[str] = None
@@ -64,12 +81,25 @@ class OrganizationUpdate(BaseModel):
             return v_clean if v_clean else None
         return v
 
+    @field_validator("auth_provider", mode="before")
+    @classmethod
+    def normalize_auth_provider(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            if v_clean not in VALID_AUTH_PROVIDERS:
+                raise ValueError(f"auth_provider must be one of {VALID_AUTH_PROVIDERS}")
+            return v_clean
+        return v
+
 
 class OrganizationResponse(BaseModel):
     id: UUID
     name: str
     industry: Optional[str] = None
     size: Optional[str] = None
+    auth_provider: str = "any"
     description: Optional[str] = None
     website: Optional[str] = None
     country: Optional[str] = None

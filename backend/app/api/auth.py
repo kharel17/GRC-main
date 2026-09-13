@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import uuid
 import hashlib
@@ -231,7 +231,7 @@ async def refresh_token(
     new_db_token = models.RefreshToken(
         token_hash=get_token_hash(new_refresh_token),
         user_id=user.id,
-        expires_at=datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
     )
     db.add(new_db_token)
     await db.commit()
@@ -274,15 +274,26 @@ async def verify_invite_token(
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
 
-    if user.invitation_expires_at and user.invitation_expires_at < datetime.utcnow():
+    if user.invitation_expires_at and user.invitation_expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Invitation token has expired")
+
+    # Resolve org auth_provider
+    auth_provider_value = "any"
+    if user.organization_id:
+        org_result = await db.execute(
+            select(models.Organization).where(models.Organization.id == user.organization_id)
+        )
+        org = org_result.scalars().first()
+        if org and hasattr(org, 'auth_provider') and org.auth_provider:
+            auth_provider_value = str(org.auth_provider.value) if hasattr(org.auth_provider, 'value') else str(org.auth_provider)
 
     return {
         "valid": True,
         "email": user.email,
         "full_name": user.full_name,
         "organization_name": user.organization_name,
-        "role": user.role.value if user.role else "user",
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role or "user"),
+        "auth_provider": auth_provider_value,
     }
 
 @router.post("/accept-invite")
@@ -307,11 +318,28 @@ async def accept_invite(
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
     
-    if user.invitation_expires_at < datetime.utcnow():
+    if user.invitation_expires_at and user.invitation_expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Invitation token has expired")
 
-    # 2. Update user
-    user.hashed_password = security.get_password_hash(body.password)
+    # 2. Resolve org auth_provider to determine if SSO-only
+    org_auth_provider = "any"
+    if user.organization_id:
+        org_result = await db.execute(
+            select(models.Organization).where(models.Organization.id == user.organization_id)
+        )
+        org = org_result.scalars().first()
+        if org and hasattr(org, 'auth_provider') and org.auth_provider:
+            org_auth_provider = str(org.auth_provider.value) if hasattr(org.auth_provider, 'value') else str(org.auth_provider)
+
+    # 3. Set password — auto-generate for SSO-only orgs, require for standard orgs
+    if body.password:
+        user.hashed_password = security.get_password_hash(body.password)
+    elif org_auth_provider != "any":
+        # SSO-only org: generate a random unusable password hash
+        random_password = secrets.token_urlsafe(32)
+        user.hashed_password = security.get_password_hash(random_password)
+    else:
+        raise HTTPException(status_code=400, detail="Password is required for standard authentication organizations")
     user.invitation_status = "active"
     user.invitation_token_hash = None
     user.invitation_expires_at = None
@@ -324,7 +352,7 @@ async def accept_invite(
     is_mandatory = totp_service.is_2fa_mandatory_for_role(user.role)
     if user.totp_enabled or is_mandatory:
         two_fa_token = security.create_2fa_challenge_token(
-            subject=user.id, email=user.email, role=user.role.value if user.role else "admin"
+            subject=user.id, email=user.email, role=user.role.value if hasattr(user.role, "value") else str(user.role or "admin")
         )
         return {
             "message": "Account activated. 2FA setup required.",
@@ -353,7 +381,7 @@ async def forgot_password(
     # Generate token
     token = secrets.token_urlsafe(32)
     user.reset_token_hash = hashlib.sha256(token.encode()).hexdigest()
-    user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=24)
+    user.reset_token_expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
     
     db.add(user)
     await db.commit()
@@ -381,7 +409,7 @@ async def reset_password(
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     
-    if user.reset_token_expires_at < datetime.utcnow():
+    if user.reset_token_expires_at and user.reset_token_expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Reset token has expired")
 
     # Validate complexity

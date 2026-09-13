@@ -1,7 +1,7 @@
 from .base import Base
 from .user import User, UserRole
 from .auth import RefreshToken
-from .organization import Organization, OrganizationSize
+from .organization import Organization, OrganizationSize, AuthProvider
 from .asset import Asset, AssetType, AssetClassification, AssetCriticality, AssetStatus
 from .asset_risk import AssetRiskMapping
 from .risk import Risk, RiskCategory, RiskStatus

@@ -38,6 +38,7 @@ class InviteAdminRequest(BaseModel):
     full_name: str
     organization_name: Optional[str] = None
     organization_id: Optional[UUID] = None
+    auth_provider: Optional[str] = "any"  # any, microsoft, google
 
 class InviteSuperAdminRequest(BaseModel):
     email: EmailStr
@@ -129,6 +130,7 @@ async def invite_admin(
             name=org_name,
             onboarding_completed=False,
             created_by=current_user.id,
+            auth_provider=models.AuthProvider(body.auth_provider or "any"),
         )
         db.add(org)
         await db.flush()
@@ -157,6 +159,9 @@ async def invite_admin(
     db.add(new_user)
     await db.flush()
 
+    # Resolve auth_provider from org for email
+    org_auth_provider = str(org.auth_provider.value) if hasattr(org.auth_provider, 'value') else str(org.auth_provider or "any")
+
     # Send invite email via Custom SMTP
     await send_invitation_email(
         email_to=body.email,
@@ -164,6 +169,7 @@ async def invite_admin(
         full_name=body.full_name,
         org_name=org_name,
         role=body.role,
+        auth_provider=org_auth_provider,
         db=db,
     )
 
@@ -341,12 +347,17 @@ async def invite_user(
 
     # Send invite email via Custom SMTP
     org_name = current_user.organization_name or "GRC Platform"
+    # Resolve org auth_provider for email
+    user_org_auth_provider = "any"
+    if current_org and hasattr(current_org, 'auth_provider') and current_org.auth_provider:
+        user_org_auth_provider = str(current_org.auth_provider.value) if hasattr(current_org.auth_provider, 'value') else str(current_org.auth_provider)
     await send_invitation_email(
         email_to=body.email,
         token=raw_token,
         full_name=body.full_name,
         org_name=org_name,
         role=body.role,
+        auth_provider=user_org_auth_provider,
         db=db,
     )
 

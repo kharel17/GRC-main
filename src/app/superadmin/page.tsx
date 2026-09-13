@@ -28,6 +28,7 @@ interface TenantSummary {
   name: string;
   industry?: string;
   size?: string;
+  auth_provider?: string;
   onboarding_completed: boolean;
   user_count: number;
   compliance_frameworks: string[];
@@ -50,6 +51,7 @@ export default function SuperAdminPage() {
     full_name: "",
     organization_name: "",
     organization_id: "",
+    auth_provider: "any",
   });
 
   const [superAdminForm, setSuperAdminForm] = useState({
@@ -114,13 +116,14 @@ export default function SuperAdminPage() {
         payload.organization_id = inviteForm.organization_id;
       } else {
         payload.organization_name = inviteForm.organization_name;
+        payload.auth_provider = inviteForm.auth_provider;
       }
 
       await api.post("/invitations/invite-admin", payload);
 
       toast.success(`Invitation sent to ${inviteForm.email}`);
       setIsInviteOpen(false);
-      setInviteForm({ email: "", full_name: "", organization_name: "", organization_id: "" });
+      setInviteForm({ email: "", full_name: "", organization_name: "", organization_id: "", auth_provider: "any" });
       fetchTenants();
     } catch (err: any) {
       toast.error(err.message || "Failed to send invitation");
@@ -389,6 +392,25 @@ export default function SuperAdminPage() {
                     </div>
                   )}
 
+                  {(!inviteForm.organization_id || inviteForm.organization_id === "") && (
+                    <div className="space-y-2">
+                      <Label htmlFor="auth-provider">Authentication Provider</Label>
+                      <select
+                        id="auth-provider"
+                        className="w-full px-3 py-2 border rounded-md bg-background text-sm"
+                        value={inviteForm.auth_provider}
+                        onChange={(e) => setInviteForm({ ...inviteForm, auth_provider: e.target.value })}
+                      >
+                        <option value="any">Any / Standard Password</option>
+                        <option value="microsoft">Microsoft 365 / Entra ID</option>
+                        <option value="google">Google Workspace</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        Controls which login method is shown on the invitation accept screen.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="admin-name">Admin Full Name</Label>
                     <Input
@@ -500,6 +522,11 @@ export default function SuperAdminPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
+                    {tenant.auth_provider && tenant.auth_provider !== "any" && (
+                      <Badge variant="outline" className={tenant.auth_provider === "microsoft" ? "bg-blue-50 text-blue-700 border-blue-200 text-[10px]" : "bg-red-50 text-red-700 border-red-200 text-[10px]"}>
+                        {tenant.auth_provider === "microsoft" ? "🔑 Microsoft" : "🔑 Google"}
+                      </Badge>
+                    )}
                     <div className="flex flex-wrap gap-1">
                       {tenant.compliance_frameworks?.map((fw) => (
                         <Badge key={fw} variant="secondary" className="text-[10px]">

@@ -359,7 +359,7 @@ export async function resetPassword(data: { token: string; password: string }): 
     return api.post('/auth/reset-password', data, { skipAuth: true });
 }
 
-export async function acceptInvite(data: { token: string; password: string }): Promise<any> {
+export async function acceptInvite(data: { token: string; password?: string }): Promise<any> {
     return api.post('/auth/accept-invite', data, { skipAuth: true });
 }
 

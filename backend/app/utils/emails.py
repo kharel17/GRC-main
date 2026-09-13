@@ -15,6 +15,7 @@ async def send_invitation_email(
     full_name: str,
     org_name: str,
     role: str = "Member",
+    auth_provider: str = "any",
     db: Optional[AsyncSession] = None,
 ):
     """
@@ -29,6 +30,7 @@ async def send_invitation_email(
         "role": role,
         "invite_url": invite_url,
         "expires_hours": 168,  # 7 days
+        "auth_provider": auth_provider,
     }
 
     if db is not None:

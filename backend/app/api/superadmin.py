@@ -24,6 +24,7 @@ class TenantSummary(BaseModel):
     name: str
     industry: Optional[str] = None
     size: Optional[str] = None
+    auth_provider: Optional[str] = "any"
     onboarding_completed: bool
     user_count: int
     compliance_frameworks: List[str]
@@ -99,12 +100,16 @@ async def list_tenants(
 
     tenants = []
     for org, user_count in rows:
+        auth_provider_val = "any"
+        if hasattr(org, 'auth_provider') and org.auth_provider:
+            auth_provider_val = str(org.auth_provider.value) if hasattr(org.auth_provider, 'value') else str(org.auth_provider)
         tenants.append(
             TenantSummary(
                 id=org.id,
                 name=org.name,
                 industry=org.industry,
                 size=org.size,
+                auth_provider=auth_provider_val,
                 onboarding_completed=bool(org.onboarding_completed),
                 user_count=user_count,
                 compliance_frameworks=org.compliance_frameworks or [],

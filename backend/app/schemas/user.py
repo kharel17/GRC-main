@@ -6,8 +6,6 @@ from app.models.user import UserRole
 
 # Shared properties
 class UserBase(BaseModel):
-    email: Optional[EmailStr] = None
-    full_name: Optional[str] = None
     role: Optional[UserRole] = UserRole.admin
     department: Optional[str] = None
     is_active: Optional[bool] = True
@@ -23,11 +21,15 @@ class UserCreate(UserBase):
 
 # Properties to receive via API on update
 class UserUpdate(UserBase):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
     password: Optional[str] = None
 
 from .permission_profile import PermissionProfileResponse
 
 class UserInDBBase(UserBase):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
     id: Optional[UUID] = None
     organization_id: Optional[UUID] = None
     organization_name: Optional[str] = None
@@ -52,7 +54,7 @@ class UserInDB(UserInDBBase):
 # Schema for accepting an invitation
 class UserAcceptInvite(BaseModel):
     token: str
-    password: str
+    password: Optional[str] = None  # Optional for SSO-only organizations
 
 # Schema for requesting a password reset
 class ForgotPassword(BaseModel):

@@ -14,6 +14,12 @@ class OrganizationSize(str, enum.Enum):
     enterprise = "enterprise" # 1000+ employees
 
 
+class AuthProvider(str, enum.Enum):
+    any = "any"               # Standard password + any SSO
+    microsoft = "microsoft"   # Microsoft 365 / Entra ID only
+    google = "google"         # Google Workspace only
+
+
 from typing import Optional, List, Any
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
@@ -24,6 +30,7 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     industry: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     size: Mapped[Optional[OrganizationSize]] = mapped_column(SAEnum(OrganizationSize), nullable=True)
+    auth_provider: Mapped[AuthProvider] = mapped_column(SAEnum(AuthProvider), default=AuthProvider.any, server_default="any", nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     website: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     country: Mapped[Optional[str]] = mapped_column(String, nullable=True)

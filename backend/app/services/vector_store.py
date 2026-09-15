@@ -3,10 +3,11 @@ Vector Store Service — Qdrant wrapper for split collections (grc_doc_chunks an
 """
 import logging
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 import numpy as np
 
 from qdrant_client import AsyncQdrantClient, models as qmodels
+from qdrant_client.models import PointStruct
 from app.config import settings
 from app.ingestion.chunker import Chunk
 
@@ -24,6 +25,14 @@ class VectorStoreService:
     def __init__(self):
         self._client: Optional[AsyncQdrantClient] = None
         self._is_ready = False
+
+    @property
+    def client(self) -> Optional[AsyncQdrantClient]:
+        return self._client
+
+    @property
+    def collection_name(self) -> str:
+        return settings.QDRANT_COLLECTION_DOC_CHUNKS
 
     def initialize(self) -> None:
         """Initialize Qdrant client connection."""
@@ -93,7 +102,7 @@ class VectorStoreService:
                 logger.info(f"Vector Store: Created collection '{ctrl_coll}'")
 
             self._is_ready = True
-            logger.info("Vector Store: All split collections initialized ✓")
+            logger.info("Vector Store: All split collections initialized [OK]")
             return True
 
         except Exception as e:
@@ -101,44 +110,88 @@ class VectorStoreService:
             self._is_ready = False
             return False
 
-    async def upsert_chunks(self, chunks: List[Chunk], embeddings: np.ndarray) -> None:
-        """Upsert document chunks into grc_doc_chunks collection."""
+    async def upsert_chunks(
+        self,
+        chunks: List[Any],
+        embeddings: Any,
+        batch_size: int = 100,
+    ) -> bool:
+        """
+        Upsert document chunks into grc_doc_chunks collection in batches.
+        Prevents payload limits and memory spikes for large documents (1,000+ pages).
+        """
         if not self.is_ready or not self._client:
             logger.debug("Vector Store: Skipped upsert_chunks because vector store is not ready")
-            return
+            return False
 
-        doc_coll = settings.QDRANT_COLLECTION_DOC_CHUNKS
-        points = []
+        if not chunks:
+            logger.warning("Vector Store: upsert_chunks called with empty chunks list")
+            return True
 
-        for idx, chunk in enumerate(chunks):
-            emb_vector = embeddings[idx].tolist() if isinstance(embeddings[idx], np.ndarray) else list(embeddings[idx])
-            
-            # Ensure valid UUID point ID
+        if len(chunks) != len(embeddings):
+            logger.error(
+                f"Vector Store: Length mismatch between chunks ({len(chunks)}) and embeddings ({len(embeddings)})"
+            )
+            return False
+
+        doc_coll = self.collection_name
+        total_chunks = len(chunks)
+        total_batches = (total_chunks + batch_size - 1) // batch_size
+
+        for i in range(0, total_chunks, batch_size):
+            batch_slice_end = min(i + batch_size, total_chunks)
+            batch_chunks = chunks[i : batch_slice_end]
+            batch_embeddings = embeddings[i : batch_slice_end]
+
+            points = []
+            for chunk, emb in zip(batch_chunks, batch_embeddings):
+                # Resolve point id (prefer UUID, fallback to str(uuid4()))
+                point_id = getattr(chunk, "chunk_id", None) or getattr(chunk, "id", None)
+                if not point_id:
+                    point_id = str(uuid.uuid4())
+                else:
+                    try:
+                        point_id = str(uuid.UUID(str(point_id)))
+                    except ValueError:
+                        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(point_id)))
+
+                payload = {
+                    "document_id": str(getattr(chunk, "document_id", "")),
+                    "org_id": str(getattr(chunk, "org_id", "")),
+                    "page_number": getattr(chunk, "page_number", 1),
+                    "section_heading": getattr(chunk, "section_heading", ""),
+                    "chunk_index": getattr(chunk, "chunk_index", 0),
+                    "text": getattr(chunk, "text", ""),
+                    "token_count": getattr(chunk, "token_count", 0),
+                }
+
+                emb_array = np.asarray(emb).flatten()
+                emb_vector = emb_array.tolist()
+                points.append(
+                    PointStruct(
+                        id=str(point_id),
+                        vector=emb_vector,
+                        payload=payload,
+                    )
+                )
+
             try:
-                point_id = str(uuid.UUID(chunk.chunk_id))
-            except ValueError:
-                point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk.chunk_id))
+                await self._client.upsert(
+                    collection_name=doc_coll,
+                    points=points,
+                    wait=True,
+                )
+                logger.info(
+                    f"Upserted chunk batch {i // batch_size + 1}/{total_batches} ({len(points)} points)"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Vector Store: Failed upserting batch slice [{i}:{batch_slice_end}] ({len(points)} points): {e}",
+                    exc_info=True,
+                )
+                raise
 
-            payload = {
-                "document_id": chunk.document_id,
-                "org_id": chunk.org_id,
-                "page_number": chunk.page_number,
-                "section_heading": chunk.section_heading,
-                "chunk_index": chunk.chunk_index,
-                "text": chunk.text,
-                "token_count": chunk.token_count,
-            }
-
-            points.append(qmodels.PointStruct(
-                id=point_id,
-                vector=emb_vector,
-                payload=payload,
-            ))
-
-        # Batch upsert
-        if points:
-            await self._client.upsert(collection_name=doc_coll, points=points)
-            logger.info(f"Vector Store: Upserted {len(points)} chunks into '{doc_coll}'")
+        return True
 
     async def upsert_iso_controls(self, controls: List[dict], embeddings: np.ndarray) -> None:
         """Upsert ISO 27001 control embeddings into grc_iso_controls collection."""
@@ -183,10 +236,11 @@ class VectorStoreService:
         top_k: int = 30,
         org_id: Optional[str] = None,
         document_id: Optional[str] = None,
+        exclude_document_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Perform dense vector search against specified collection.
-        Optionally filters by org_id and/or document_id.
+        Optionally filters by org_id and/or document_id, and optionally excludes exclude_document_id.
         """
         if not self.is_ready or not self._client:
             return []
@@ -198,15 +252,25 @@ class VectorStoreService:
         if org_id:
             must_filters.append(qmodels.FieldCondition(
                 key="org_id",
-                match=qmodels.MatchValue(value=org_id)
+                match=qmodels.MatchValue(value=str(org_id))
             ))
         if document_id:
             must_filters.append(qmodels.FieldCondition(
                 key="document_id",
-                match=qmodels.MatchValue(value=document_id)
+                match=qmodels.MatchValue(value=str(document_id))
             ))
 
-        query_filter = qmodels.Filter(must=must_filters) if must_filters else None
+        must_not_filters = []
+        if exclude_document_id:
+            must_not_filters.append(qmodels.FieldCondition(
+                key="document_id",
+                match=qmodels.MatchValue(value=str(exclude_document_id))
+            ))
+
+        query_filter = qmodels.Filter(
+            must=must_filters if must_filters else None,
+            must_not=must_not_filters if must_not_filters else None,
+        ) if (must_filters or must_not_filters) else None
 
         res = await self._client.query_points(
             collection_name=collection_name,

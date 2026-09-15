@@ -392,6 +392,51 @@ export interface DocumentAnalysis {
   createdAt?: string // alias
 }
 
+export interface RemediationCandidate {
+  candidate_id: string;
+  gap_title: string;
+  gap_annex: string;
+  gap_reason?: string | null;
+  framework_id?: string | null;
+  framework_name?: string | null;
+  framework_control_id?: string | null;
+  suggested_risk_title: string;
+  suggested_risk_description: string;
+  suggested_risk_likelihood: number;
+  suggested_risk_impact: number;
+  suggested_control_title: string;
+  suggested_control_description: string;
+  control_type: string;
+  owner_id?: string | null;
+  assessment_status: string;
+  already_registered: boolean;
+}
+
+export interface CommitRemediationItem {
+  candidate_id?: string;
+  framework_id?: string | null;
+  framework_control_id?: string | null;
+  risk_title: string;
+  risk_description: string;
+  likelihood: number;
+  impact: number;
+  control_title: string;
+  control_description: string;
+  control_type: string;
+  owner_id?: string | null;
+}
+
+export interface CommitRemediationRequest {
+  items: CommitRemediationItem[];
+}
+
+export interface CommitRemediationResponse {
+  success: boolean;
+  committed_count: number;
+  created_risk_ids: string[];
+  created_control_ids: string[];
+}
+
 export interface Notification {
   id: string
   user_id: string

@@ -8,6 +8,8 @@ and API routes.
 
 import logging
 
+from typing import Optional
+
 from app.services.ai_models import (
     CATEGORY_KEYWORDS,
 )
@@ -15,7 +17,11 @@ from app.services.ai_models import (
 logger = logging.getLogger("grc.ai")
 
 
-async def _run_document_analysis_async(text: str) -> dict:
+async def _run_document_analysis_async(
+    text: str,
+    org_id: Optional[str] = None,
+    current_doc_id: Optional[str] = None,
+) -> dict:
     """Async Qdrant-backed document analysis pipeline.
 
     This is the canonical entry point for the ingestion pipeline and all API
@@ -32,7 +38,11 @@ async def _run_document_analysis_async(text: str) -> dict:
 
     category = ai_service._categorize(text)
     evidence_result = await ai_service.analyze_evidence_qdrant(
-        text, top_n=93, threshold=0.30
+        text,
+        top_n=93,
+        threshold=0.30,
+        org_id=org_id,
+        current_doc_id=current_doc_id,
     )
 
     implemented = []

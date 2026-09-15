@@ -290,6 +290,7 @@ function DocumentAnalysisContent() {
         analysis={selectedAnalysis}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
+        onRemediationCommitted={refetch}
       />
     </div>
   );

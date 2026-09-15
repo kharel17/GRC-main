@@ -65,8 +65,25 @@ async def process_document_job(
             if chunks:
                 try:
                     chunk_texts = [c.text for c in chunks]
-                    embeddings = await asyncio.to_thread(ai_service._embed_texts, chunk_texts)
-                    await vector_store.upsert_chunks(chunks, embeddings)
+
+                    # Enforce batch_size=64 to keep tensor RAM allocations predictable
+                    if hasattr(ai_service, "model") and ai_service.model is not None:
+                        embeddings = await asyncio.to_thread(
+                            ai_service.model.encode,
+                            chunk_texts,
+                            batch_size=64,
+                            show_progress_bar=False,
+                            convert_to_numpy=True,
+                        )
+                    else:
+                        embeddings = await asyncio.to_thread(
+                            ai_service._embed_texts,
+                            chunk_texts,
+                            batch_size=64,
+                        )
+
+                    # Stream into Qdrant in slices of 100
+                    await vector_store.upsert_chunks(chunks, embeddings, batch_size=100)
                     chunks_indexed = len(chunks)
                     logger.info(f"Vector Store: Indexed {chunks_indexed} chunks for document {analysis_id}")
                 except Exception as vs_err:
@@ -78,7 +95,11 @@ async def process_document_job(
 
 
             # 4. Final analysis & completion phase — async Qdrant path
-            analysis_data = await _run_document_analysis_async(full_text)
+            analysis_data = await _run_document_analysis_async(
+                full_text,
+                org_id=str(organization_id) if organization_id else None,
+                current_doc_id=str(analysis_id),
+            )
             
             # Enrich analysis_data with chunk metadata
             analysis_data["chunk_summary"] = {

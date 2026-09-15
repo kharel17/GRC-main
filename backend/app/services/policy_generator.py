@@ -189,7 +189,11 @@ async def generate_starter_policies(
         # 1. Run analysis to identify mapped controls and security practices
         analysis_data: Dict[str, Any] = {}
         try:
-            analysis_data = await _run_document_analysis_async(text)
+            analysis_data = await _run_document_analysis_async(
+                text,
+                org_id=str(organization_id),
+                current_doc_id=str(doc_id),
+            )
         except Exception as analysis_err:
             logger.warning(f"Control mapping failed for starter policy '{policy_def['title']}': {analysis_err}")
             analysis_data = {

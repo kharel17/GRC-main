@@ -1,11 +1,11 @@
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
 
-Write-Host "Starting Supabase to Local DB Migration..."
+Write-Host "===================================================================="
+Write-Host "  Starting Supabase to Local PostgreSQL Migration Pipeline"
+Write-Host "===================================================================="
 
-# Stop the backend and frontend, and wipe the local database volume for a clean migration
-docker compose down -v
-
-# Start the DB
+# ── 1. Ensure Local PostgreSQL Container is Running ──────────────────────────
+Write-Host "`n[1/6] Ensuring local database container is running..."
 docker compose up -d db
 
 Write-Host "Waiting for database to be ready..."
@@ -16,11 +16,10 @@ $dbReady = $false
 while (-not $dbReady -and $attempt -lt $maxAttempts) {
     $attempt++
     try {
-        # Check readiness by targeting grc_db directly via container name
-        $check = docker exec -i grc-main-db-1 psql -U grc_admin -d grc_db -c "SELECT 1;" 2>&1
+        $check = docker exec -i grc-main-db-1 psql -U grc_admin -d postgres -c "SELECT 1;" 2>&1
         if ($LASTEXITCODE -eq 0) {
             $dbReady = $true
-            Write-Host "Database is ready!"
+            Write-Host "Database container is healthy and responding!"
         } else {
             Start-Sleep -Seconds 2
         }
@@ -30,25 +29,33 @@ while (-not $dbReady -and $attempt -lt $maxAttempts) {
 }
 
 if (-not $dbReady) {
-    Write-Error "Database failed to become ready in time."
+    Write-Error "CRITICAL: Local database container failed to become ready in time."
     exit 1
 }
 
-Write-Host "Ensuring grc_db database exists..."
-# Create the database if it doesn't exist. psql doesn't have CREATE DATABASE IF NOT EXISTS,
-# so we run it and ignore the error if it already exists.
-docker compose exec -T db psql -U grc_admin -d postgres -c "CREATE DATABASE grc_db;" 2>$null
+# ── 2. Ensure Clean grc_db Database Exists ───────────────────────────────────
+Write-Host "`n[2/6] Ensuring grc_db database exists..."
+$dbExists = docker exec -i grc-main-db-1 psql -U grc_admin -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'grc_db';"
+if ($dbExists.Trim() -ne "1") {
+    Write-Host "Creating grc_db database..."
+    docker exec -i grc-main-db-1 psql -U grc_admin -d postgres -c "CREATE DATABASE grc_db;"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "CRITICAL: Failed to create grc_db database."
+        exit 1
+    }
+} else {
+    Write-Host "Database grc_db exists."
+}
 
-# ── Supabase Session Pooler Connection ──────────────────────────────────────
-# Using the session pooler (port 5432) for reliable external connectivity.
+# ── 3. Supabase Session Pooler Configuration & Pre-checks ────────────────────
+Write-Host "`n[3/6] Connecting to Supabase Session Pooler..."
 $SUPABASE_HOST = "aws-1-ap-southeast-2.pooler.supabase.com"
 $SUPABASE_PORT = "5432"
 $SUPABASE_USER = "postgres.htgojajcceunavgchrgc"
 $SUPABASE_DB   = "postgres"
 $SUPABASE_PASS = "VVGHSBUjYyvYWuhF"
 
-# ── DNS Reachability Pre-Check ───────────────────────────────────────────────
-Write-Host "Testing network reachability to Supabase Session Pooler..."
+Write-Host "Testing network reachability to $SUPABASE_HOST..."
 try {
     [System.Net.Dns]::GetHostAddresses($SUPABASE_HOST) | Out-Null
     Write-Host "DNS resolution successful."
@@ -57,74 +64,159 @@ try {
     exit 1
 }
 
-# ── Dump from Supabase to a local file ──────────────────────────────────────
-$dumpFile = "$PSScriptRoot\supabase_dump.sql"
+$dumpFilePath = "$PSScriptRoot\local_dump.sql"
+$dumpDir = (Resolve-Path $PSScriptRoot).Path
 
-# Use postgres:17-alpine container to match Supabase PG 17 server version
-Write-Host "Dumping data from Supabase Session Pooler (via postgres:17-alpine)..."
+# ── 4. Execute Clean Native Dump Without Supabase ACLs (NO REGEX) ────────────
+Write-Host "`n[4/6] Executing clean native pg_dump from Supabase Session Pooler..."
 docker run --rm `
+    -v "${dumpDir}:/dump" `
     -e PGPASSWORD=$SUPABASE_PASS `
     postgres:17-alpine `
-    pg_dump -h $SUPABASE_HOST -p $SUPABASE_PORT -U $SUPABASE_USER -d $SUPABASE_DB `
-    --clean --if-exists --no-owner --no-privileges > "$dumpFile"
+    pg_dump --clean --if-exists --no-owner --no-privileges --no-acl --schema=public `
+    -h $SUPABASE_HOST -p $SUPABASE_PORT -U $SUPABASE_USER -d $SUPABASE_DB -F p -f /dump/local_dump.sql
 
-# ── Exit-code & size guard — NO false success messages ───────────────────────
-if ($LASTEXITCODE -ne 0 -or !(Test-Path $dumpFile) -or (Get-Item $dumpFile).Length -eq 0) {
-    Write-Error "CRITICAL FAILURE: pg_dump failed or produced an empty dump file. Halting migration!"
+# Exit code and file integrity check
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "CRITICAL: pg_dump failed with exit code $LASTEXITCODE. Halting migration pipeline."
     exit 1
 }
 
-$dumpSizeKB = [math]::Round((Get-Item $dumpFile).Length / 1KB, 2)
-Write-Host "pg_dump succeeded. Dump file size: $dumpSizeKB KB"
+if (-not (Test-Path $dumpFilePath) -or (Get-Item $dumpFilePath).Length -lt 100) {
+    $fileLen = if (Test-Path $dumpFilePath) { (Get-Item $dumpFilePath).Length } else { 0 }
+    Write-Error "CRITICAL: pg_dump produced an empty or truncated file ($fileLen bytes). Halting."
+    exit 1
+}
 
-# ── Restore into local container ─────────────────────────────────────────────
-Write-Host "Restoring dump into local database..."
-Get-Content $dumpFile | docker compose exec -T db psql -U grc_admin -d grc_db
+$dumpSize = (Get-Item $dumpFilePath).Length
+$dumpSizeKB = [math]::Round($dumpSize / 1KB, 2)
+Write-Host "SUCCESS: Native pg_dump completed cleanly. File: $dumpFilePath ($dumpSize bytes / $dumpSizeKB KB)"
+
+# ── 5. Restore into Local Database & Apply Permissions ───────────────────────
+Write-Host "`n[5/6] Restoring dump into local database (grc_db)..."
+
+# Reset public schema so no stale/conflicting tables remain before restoring
+Write-Host "Resetting public schema in grc_db for pristine restore..."
+docker exec -i grc-main-db-1 psql -U grc_admin -d grc_db -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public; GRANT ALL ON SCHEMA public TO grc_admin;"
+
+# Copy dump into db container and execute via psql to bypass shell pipe encoding distortions
+docker cp $dumpFilePath grc-main-db-1:/tmp/local_dump.sql
+docker exec -i grc-main-db-1 psql -U grc_admin -d grc_db -f /tmp/local_dump.sql
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Restore (psql) failed!"
+    Write-Error "CRITICAL: psql restore failed with exit code $LASTEXITCODE. Halting migration pipeline."
     exit 1
 }
 
-Write-Host "Data restored. Applying post-restore permissions..."
-$postRestoreSql = @"
+Write-Host "SUCCESS: psql restore completed cleanly with exit code 0."
+
+# Apply standard PostgreSQL compliant privileges and enable app access
+Write-Host "Applying compliant role privileges and schema settings..."
+$postRestoreSql = @'
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'grc_app_user') THEN
+        CREATE USER grc_app_user WITH PASSWORD 'grc_app_secret';
+    END IF;
+END
+$$;
+
+GRANT CONNECT ON DATABASE grc_db TO grc_app_user;
+GRANT USAGE ON SCHEMA public TO grc_app_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO grc_app_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO grc_app_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO grc_app_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO grc_app_user;
-ALTER TABLE users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE organizations DISABLE ROW LEVEL SECURITY;
-ALTER TABLE refresh_tokens DISABLE ROW LEVEL SECURITY;
-ALTER TABLE alembic_version DISABLE ROW LEVEL SECURITY;
-ALTER TABLE frameworks DISABLE ROW LEVEL SECURITY;
-ALTER TABLE framework_controls DISABLE ROW LEVEL SECURITY;
-ALTER TABLE risk_categories DISABLE ROW LEVEL SECURITY;
-"@
 
-$postRestoreSql | docker compose exec -T db psql -U grc_admin -d grc_db
+-- Enable Row Level Security (RLS) across all public tables
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' ENABLE ROW LEVEL SECURITY;';
+    END LOOP;
+END
+$$;
 
-# ── Alembic — run via venv Python, target localhost:5432 ─────────────────────
-Write-Host "Running Alembic migrations to ensure schema is up to date..."
-$env:DATABASE_URL = "postgresql+asyncpg://grc_admin:grc_admin_secret@localhost:5432/grc_db"
+-- Ensure current_org_id() accepts both app.org_id and app.current_org_id
+CREATE OR REPLACE FUNCTION current_org_id() RETURNS uuid AS $$
+BEGIN
+    RETURN COALESCE(
+        NULLIF(current_setting('app.org_id', true), '')::uuid,
+        NULLIF(current_setting('app.current_org_id', true), '')::uuid
+    );
+EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql STABLE;
 
-Push-Location "$PSScriptRoot\..\"  # backend/ dir (alembic.ini lives here)
-& "$PSScriptRoot\..\venv\Scripts\python.exe" -m alembic upgrade head
-Pop-Location
+ALTER POLICY org_isolation ON organizations USING (id = current_org_id());
+ALTER POLICY org_isolation ON users USING (organization_id = current_org_id());
+'@
 
-Write-Host "Restarting application..."
-docker compose up -d backend frontend
+$postRestoreSql | docker exec -i grc-main-db-1 psql -U grc_admin -d grc_db
 
-Write-Host "--- GATHERING REQUIRED PROOF OF SUCCESS ---"
-Write-Host "1. Proof of database creation (grc_db exists):"
-docker compose exec -T db psql -U grc_admin -d postgres -c "\l grc_db"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "CRITICAL: Applying post-restore permissions failed with exit code $LASTEXITCODE. Halting."
+    exit 1
+}
 
-Write-Host "2. Proof of successful data restore (Checking tables):"
-docker compose exec -T db psql -U grc_admin -d grc_db -c "\dt"
+Write-Host "Post-restore permissions and schema settings applied successfully."
 
-Write-Host "3. Checking if grc_app_user is a superuser (Should be False):"
-"SELECT usename, usesuper FROM pg_user WHERE usename = 'grc_app_user';" | docker compose exec -T db psql -U grc_admin -d grc_db
+# ── 6. Verify Alembic State & SQLAlchemy Application Engine ──────────────────
+Write-Host "`n[6/6] Verifying Alembic state and SQLAlchemy application engine..."
 
-Write-Host "4. Verifying restored data (Counting rows in users table):"
-"SELECT COUNT(*) as user_count FROM users;" | docker compose exec -T db psql -U grc_app_user -d grc_db
+Write-Host "--- Checking alembic_version table in grc_db (post-restore) ---"
+docker exec -i grc-main-db-1 psql -U grc_admin -d grc_db -c "SELECT version_num FROM alembic_version;"
 
-Write-Host "Migration and Validation Complete!"
+$repoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
+$pythonExe = "$repoRoot\backend\venv\Scripts\python.exe"
+
+Push-Location $repoRoot
+try {
+    Write-Host "`n--- Running Alembic current ---"
+    & $pythonExe -m alembic current
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Alembic current failed with exit code $LASTEXITCODE."
+        exit 1
+    }
+
+    Write-Host "`n--- Running Alembic upgrade head ---"
+    & $pythonExe -m alembic upgrade head
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Alembic upgrade head failed with exit code $LASTEXITCODE."
+        exit 1
+    }
+
+    # Ensure permissions and RLS enforcement for any tables created by Alembic upgrade head
+    $postUpgradeSql = @'
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO grc_app_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO grc_app_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO grc_app_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO grc_app_user;
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' ENABLE ROW LEVEL SECURITY;';
+    END LOOP;
+END
+$$;
+'@
+    $postUpgradeSql | docker exec -i grc-main-db-1 psql -U grc_admin -d grc_db
+
+    Write-Host "`n--- Running Cross-Tenant RLS & Application Engine Verification ---"
+    & $pythonExe "$PSScriptRoot\verify_cross_tenant_rls.py"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Cross-tenant RLS verification failed with exit code $LASTEXITCODE."
+        exit 1
+    }
+} finally {
+    Pop-Location
+}
+
+Write-Host "`n===================================================================="
+Write-Host "  Database Migration & Verification Pipeline Completed Successfully"
+Write-Host "===================================================================="

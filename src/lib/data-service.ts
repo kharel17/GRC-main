@@ -32,7 +32,10 @@ import {
   Ticket, 
   Organization, 
   Asset, 
-  DocumentAnalysis 
+  DocumentAnalysis,
+  RemediationCandidate,
+  CommitRemediationRequest,
+  CommitRemediationResponse
 } from '@/types';
 
 // -- Helper --────────
@@ -532,6 +535,20 @@ export async function submitDocumentForAnalysis(file: File, organizationId?: str
     link_as_evidence: 'false'
   });
 }
+
+export async function fetchRemediationPreview(analysisId: string): Promise<RemediationCandidate[]> {
+  return api.get<RemediationCandidate[]>(`/document-analysis/${analysisId}/remediations/preview`);
+}
+
+export async function commitRemediations(
+  analysisId: string,
+  payload: CommitRemediationRequest
+): Promise<CommitRemediationResponse> {
+  return api.post<CommitRemediationResponse>(`/document-analysis/${analysisId}/remediations/commit`, payload);
+}
+
+export type { RemediationCandidate, CommitRemediationRequest, CommitRemediationResponse, CommitRemediationItem } from '@/types';
+
 // -- Dashboard --────────
 export interface DashboardSummary {
   risk_stats: {

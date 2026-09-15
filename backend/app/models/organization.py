@@ -75,6 +75,6 @@ class Organization(Base):
 
     # Relationships
     primary_contact = relationship("User", foreign_keys=[primary_contact_id])
-    framework = relationship("Framework", back_populates="organizations")
+    framework = relationship("Framework", back_populates="organizations", foreign_keys=[framework_id])
     assets = relationship("Asset", back_populates="organization", cascade="all, delete-orphan")
     control_applicabilities = relationship("ControlApplicability", back_populates="organization", cascade="all, delete-orphan")

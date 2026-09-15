@@ -2,21 +2,29 @@
 
 # dependencies
 /node_modules
+node_modules/
 /.pnp
 .pnp.js
 
 # testing
 /coverage
+.pytest_cache/
+htmlcov/
 
 # next.js
 /.next/
+.next/
 /out/
+out/
 
 # production
 /build
+build/
+dist/
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
 .qdrant-initialized
 /storage/
@@ -24,15 +32,49 @@
 /tmp/*.png
 /qdrant.zip
 /qdrant_bin/
+qdrant_storage/
+qdrant_data/
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# Environment variables & secrets
 .env
+.env.*
 .env*.local
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Database dumps & SQL artifacts
+*.sql
+!backend/alembic/**
+!backend/init-db.sql
+!docker/init-db.sql
+!scripts/*.sql
+local_dump.sql
+backend/scripts/local_dump.sql
+supabase_dump.sql
+backend/scripts/supabase_dump.sql
+
+# Python virtual environments & packages
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+env/
+ENV/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+backend.pth
 
 # vercel
 .vercel
@@ -40,5 +82,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE & editors
+.vscode/
+.idea/
+*.swp
+*.swo
 
 tools/gemini_skills/

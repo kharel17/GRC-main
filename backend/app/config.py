@@ -1,11 +1,12 @@
-from typing import List, Union, Optional
-from pydantic import AnyHttpUrl, PostgresDsn, field_validator
+import os
+from typing import List, Union, Optional, Any
+from pydantic import AnyHttpUrl, PostgresDsn, field_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "GRC Platform"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str
+    SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     SUPABASE_JWT_SECRET: Optional[str] = None
     SUPABASE_URL: Optional[str] = None
@@ -19,11 +20,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     
     # DATABASE
-    POSTGRES_SERVER: str
+    POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
+    POSTGRES_USER: str = "grc_app_user"
+    POSTGRES_PASSWORD: str = ""
+    POSTGRES_DB: str = "grc_db"
     # AI Config
     GEMINI_API_KEY: Optional[str] = None
 
@@ -73,17 +74,23 @@ class Settings(BaseSettings):
 
     @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
     @classmethod
-    def assemble_db_connection(cls, v: Union[str, None], info: dict) -> any:
-        uri = str(PostgresDsn.build(
-            scheme="postgresql+asyncpg",
-            username=info.data.get("POSTGRES_USER"),
-            password=info.data.get("POSTGRES_PASSWORD"),
-            host=info.data.get("POSTGRES_SERVER"),
-            port=info.data.get("POSTGRES_PORT"),
-            path=f"{info.data.get('POSTGRES_DB') or ''}",
-        ))
+    def assemble_db_connection(cls, v: Union[str, None], info: ValidationInfo) -> Any:
+        if isinstance(v, str) and v:
+            return v
+        if not info.data:
+            return v
+        user = info.data.get("POSTGRES_USER")
+        password = info.data.get("POSTGRES_PASSWORD")
+        host = info.data.get("POSTGRES_SERVER")
+        port = info.data.get("POSTGRES_PORT")
+        db = info.data.get("POSTGRES_DB") or ""
+
+        auth = f"{user}:{password}@" if user and password else ""
+        port_str = f":{port}" if port else ""
+        uri = f"postgresql+asyncpg://{auth}{host}{port_str}/{db}"
+
         # Add SSL for cloud databases (non-localhost)
-        server = info.data.get("POSTGRES_SERVER", "localhost")
+        server = str(host or "localhost")
         if server and server not in {"localhost", "db"} and "127.0.0.1" not in server:
             uri += "?ssl=require"
         return uri
@@ -136,6 +143,10 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",")]
         return v
 
-    model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+        extra="ignore",
+    )
 
 settings = Settings()

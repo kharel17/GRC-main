@@ -236,6 +236,13 @@ class AIService:
             )
         return self._skills_adapter
 
+    @property
+    def model(self):
+        """Returns the local SentenceTransformer model instance (or initializes it if not ready)."""
+        if self._local_model is None:
+            self.initialize()
+        return self._local_model
+
     # ------------------------------------------------------------------
     # Embedding helper
     # ------------------------------------------------------------------
@@ -248,12 +255,17 @@ class AIService:
             return self._local_model.encode([text], convert_to_numpy=True)
         raise RuntimeError("Local NLP engine not available.")
 
-    def _embed_texts(self, texts: list[str]) -> np.ndarray:
-        """Embed multiple texts using local NLP model with self-healing fallback."""
+    def _embed_texts(self, texts: list[str], batch_size: int = 64) -> np.ndarray:
+        """Embed multiple texts using local NLP model with self-healing fallback and mini-batching."""
         if self._local_model is None:
             self.initialize()
         if self._local_model is not None:
-            return self._local_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+            return self._local_model.encode(
+                texts,
+                batch_size=batch_size,
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
         raise RuntimeError("Local NLP engine not available.")
 
     def _get_control_embeddings(self) -> np.ndarray:
@@ -375,10 +387,12 @@ class AIService:
         top_n: int = DEFAULT_TOP_N,
         threshold: float = DEFAULT_THRESHOLD,
         org_id: Optional[str] = None,
+        current_doc_id: Optional[str] = None,
     ) -> EvidenceAnalysisResult:
         """
         Two-Tier Qdrant-backed evidence analysis:
-        Tier 1: Queries tenant's ``grc_doc_chunks`` collection (scoped to org_id) for company internal policies.
+        Tier 1: Queries tenant's ``grc_doc_chunks`` collection (scoped to org_id) for company internal policies,
+                excluding current_doc_id to prevent vector self-matching.
         Tier 2: Queries global ``grc_iso_controls`` collection for standard ISO 27001 requirements.
         Synthesizes dual assessment: Evidence -> Internal Company Policy -> ISO 27001 Framework.
 
@@ -387,6 +401,7 @@ class AIService:
             top_n: Maximum number of control matches to return.
             threshold: Minimum cosine similarity score (0.0 – 1.0).
             org_id: Organization ID for tenant-scoped internal policy retrieval.
+            current_doc_id: ID of the document currently being analyzed to exclude from Tier 1 retrieval.
 
         Returns:
             EvidenceAnalysisResult with two-tier evaluation findings and control matches.
@@ -431,7 +446,7 @@ class AIService:
                 confidence=score,
             ))
 
-        # Tier 1: Search Internal Policies in grc_doc_chunks (scoped by org_id)
+        # Tier 1: Search Internal Policies in grc_doc_chunks (scoped by org_id, excluding current_doc_id)
         internal_policy_match: dict[str, Any] = {
             "found": False,
             "policy_title": None,
@@ -446,6 +461,7 @@ class AIService:
                     collection_name=settings.QDRANT_COLLECTION_DOC_CHUNKS,
                     top_k=3,
                     org_id=org_id,
+                    exclude_document_id=current_doc_id,
                 )
                 if policy_hits and float(policy_hits[0].get("score", 0.0)) >= threshold:
                     top_policy = policy_hits[0]

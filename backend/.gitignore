@@ -1,5 +1,34 @@
-venv/
-__pycache__/
-*.pyc
+# Environment variables & secrets
 .env
+.env.*
+!.env.example
+
+# Database dumps & SQL artifacts
+*.sql
+!alembic/**
+!init-db.sql
+local_dump.sql
+scripts/local_dump.sql
+scripts/supabase_dump.sql
+
+# Python virtual environments & packages
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*$py.class
 .pytest_cache/
+.coverage
+htmlcov/
+backend.pth
+
+# OS & Editor specific
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
